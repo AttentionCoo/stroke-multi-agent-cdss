@@ -1,4 +1,4 @@
-# medicalAgent.py — 极速版 v2：rerank 失败时 graceful fallback
+# Agent/qwen/medicalAgent.py — 极速版 v2：rerank 失败时 graceful fallback
 
 import logging
 import traceback
