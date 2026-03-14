@@ -3,6 +3,7 @@ import { onMounted, ref, nextTick } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import UserDialog from '@/components/UserDialog.vue'
+import AppAvatar from '@/components/AppAvatar.vue'
 import { useUserStore } from '@/stores/user'
 import { deleteChatAPI, getChatHistoryAPI, getChatTitlesAPI, newChatStreamAPI, sendQuestionStreamAPI } from '@/api/talk'
 import LoadingModel from '@/components/LoadingModel.vue'
@@ -269,12 +270,8 @@ const scrollToBottom = () => {
       <div class="delete-chat" @click="handleDeleteAll">删除所有对话</div>
       <h3>历史记录</h3>
       <div class="chat-list">
-        <div
-          v-for="talk in talkTitleList"
-          :key="talk.talkId"
-          class="chat-item"
-          :class="{ active: talk.talkId === currentTalkId }"
-          @click="handleClickTalkTitle(talk.talkId)">
+        <div v-for="talk in talkTitleList" :key="talk.talkId" class="chat-item"
+          :class="{ active: talk.talkId === currentTalkId }" @click="handleClickTalkTitle(talk.talkId)">
           <span class="title">{{ talk.title }}</span>
           <button class="delete-btn" @click.stop="handleDeleteChat(talk.talkId)">删除</button>
         </div>
@@ -285,7 +282,7 @@ const scrollToBottom = () => {
       <header class="chat-header">
         <span class="title">Synapse MD</span>
         <div class="user" @click="handleUserClick">
-          <img :src="userStore.image" alt="avatar" />
+          <AppAvatar class="avatar" :src="userStore.image" :name="userStore.name" :size="32" alt="avatar" />
           <p class="username">{{ userStore.name }}</p>
         </div>
       </header>
@@ -293,15 +290,10 @@ const scrollToBottom = () => {
       <!-- 对话展示区：添加 ref 以便滚动 -->
       <main class="chat-messages" ref="chatContainerRef">
         <div class="chat-content" v-if="currentTalkList.length > 0">
-          <div
-            v-for="(msg, index) in currentTalkList"
-            :key="index + msg"
-            class="message-wrapper"
+          <div v-for="(msg, index) in currentTalkList" :key="index + msg" class="message-wrapper"
             :class="{ user: index % 2 === 0 }">
 
-            <div
-              class="message"
-              :class="{ user: index % 2 === 0 }">
+            <div class="message" :class="{ user: index % 2 === 0 }">
 
               <template v-if="index % 2 === 0">
                 {{ msg }}
@@ -473,11 +465,9 @@ const scrollToBottom = () => {
           background-color: #f3f4f6;
         }
 
-        img {
+        .avatar {
           width: 32px;
           height: 32px;
-          border-radius: 50%;
-          border: 2px solid #eff6ff;
         }
 
         .username {

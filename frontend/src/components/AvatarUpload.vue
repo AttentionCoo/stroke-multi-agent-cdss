@@ -1,5 +1,6 @@
 <script setup>
-import { ref, defineProps, defineEmits } from 'vue'
+import { ref, watch } from 'vue'
+import AppAvatar from '@/components/AppAvatar.vue'
 import request from '@/utils/request'
 
 // props: showTip 控制是否显示红色提示, initialAvatar 传入初始头像地址
@@ -11,6 +12,10 @@ const props = defineProps({
   initialAvatar: {
     type: String,
     default: '' // 如果没传，就为空字符串
+  },
+  initialName: {
+    type: String,
+    default: ''
   }
 })
 
@@ -19,6 +24,13 @@ const emit = defineEmits(['uploaded'])
 
 const avatarUrl = ref(props.initialAvatar) // 初始化时直接赋值一次
 const fileInput = ref(null)
+
+watch(
+  () => props.initialAvatar,
+  (value) => {
+    avatarUrl.value = value || ''
+  }
+)
 
 
 const triggerUpload = () => {
@@ -63,22 +75,15 @@ const handleFileChange = async (e) => {
 
 <template>
   <div class="avatar-upload">
-    <!-- 有头像就显示头像 -->
-    <div v-if="avatarUrl" class="avatar-preview" @click="triggerUpload">
-      <img :src="avatarUrl" alt="avatar" />
+    <div class="avatar-preview" @click="triggerUpload">
+      <AppAvatar :src="avatarUrl" :name="props.initialName" :size="120" alt="avatar" />
       <div class="avatar-overlay">更换头像</div>
     </div>
-    <div v-else class="upload-btn" @click="triggerUpload">上传头像</div>
 
     <!-- 红色提示 -->
     <div v-if="props.showTip && !avatarUrl" class="tip-text">请选择图片！</div>
 
-    <input
-      type="file"
-      ref="fileInput"
-      class="file-input"
-      accept="image/*"
-      @change="handleFileChange" />
+    <input type="file" ref="fileInput" class="file-input" accept="image/*" @change="handleFileChange" />
   </div>
 </template>
 
@@ -88,19 +93,6 @@ const handleFileChange = async (e) => {
   flex-direction: column;
   align-items: center;
   color: #64748b;
-
-  .upload-btn {
-    padding: 12px 20px;
-    background-color: #3b82f6;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-    color: #fff;
-
-    &:hover {
-      background-color: #2563eb;
-    }
-  }
 
   .file-input {
     display: none;
@@ -116,15 +108,24 @@ const handleFileChange = async (e) => {
     position: relative;
     width: 120px;
     height: 120px;
-    border-radius: 50%;
-    overflow: hidden;
     cursor: pointer;
-    border: 2px solid #3b82f6;
 
-    img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+    :deep(.app-avatar) {
+      width: 120px !important;
+      height: 120px !important;
+      border: 2px solid #3b82f6;
+    }
+
+    :deep(.avatar-text.is-short) {
+      font-size: 36px;
+    }
+
+    :deep(.avatar-text.is-medium) {
+      font-size: 28px;
+    }
+
+    :deep(.avatar-text.is-long) {
+      font-size: 22px;
     }
 
     .avatar-overlay {

@@ -53,12 +53,7 @@ async function handleLogout() {
 </script>
 
 <template>
-  <Vueform
-    validate-on="change"
-    :display-errors="false"
-    size="lg"
-    v-model="EditFormData"
-    ref="form$">
+  <Vueform validate-on="change" :display-errors="false" size="lg" v-model="EditFormData" ref="form$">
 
     <StaticElement name="showName">
       <p>Hi,{{ userStore.name }}</p>
@@ -87,7 +82,8 @@ async function handleLogout() {
 
     <StaticElement name="avatar-upload">
       <div class="avatar-upload">
-        <AvatarUpload :initialAvatar="userStore.image" @uploaded="url => handleAvatarUploadSuccess(url)" />
+        <AvatarUpload :initialAvatar="userStore.image" :initialName="userStore.name"
+          @uploaded="url => handleAvatarUploadSuccess(url)" />
       </div>
     </StaticElement>
 

@@ -39,27 +39,16 @@ async function handleLogin() {
 </script>
 
 <template>
-  <Vueform
-    validate-on="change"
-    :display-errors="false"
-    size="lg"
-    v-model="loginFormData"
-    ref="form$">
+  <Vueform validate-on="change" :display-errors="false" size="lg" v-model="loginFormData" ref="form$">
     <StaticElement name="head">
       <h2>登录</h2>
     </StaticElement>
 
-    <TextElement
-      name="name"
-      size="lg"
-      placeholder="请输入用户名"
-      rules="required|min:3|max:20"
-      :debounce="300"
-      :messages="{
-        required: '用户名不能为空',
-        min: '用户名至少为3个字符',
-        max: '用户名至多为20个字符',
-      }">
+    <TextElement name="name" size="lg" placeholder="请输入用户名" rules="required|min:3|max:20" :debounce="300" :messages="{
+      required: '用户名不能为空',
+      min: '用户名至少为3个字符',
+      max: '用户名至多为20个字符',
+    }">
       <template #addon-before>
         <UserSVG size="20" color="#64748b"></UserSVG>
       </template>
