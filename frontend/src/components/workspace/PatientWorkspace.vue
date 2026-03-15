@@ -68,7 +68,7 @@ function formatDateTime(value) {
 
 <template>
   <section class="patient-workspace">
-    <div class="section-card patient-list-card">
+    <div class="patient-list-card">
       <div class="section-head wrap">
         <div>
           <h3>患者列表</h3>
@@ -86,13 +86,8 @@ function formatDateTime(value) {
       <div v-if="patientsLoading" class="empty-card">正在加载患者列表...</div>
 
       <div v-else-if="patients.length" class="patient-list">
-        <article
-          v-for="patient in patients"
-          :key="patient.id"
-          class="patient-item"
-          :class="{ active: patient.id === selectedPatientId }"
-          @click="emit('select-patient', patient.id)"
-        >
+        <article v-for="patient in patients" :key="patient.id" class="patient-item"
+          :class="{ active: patient.id === selectedPatientId }" @click="emit('select-patient', patient.id)">
           <div class="patient-item-head">
             <div>
               <h4>{{ patient.name }}</h4>
@@ -105,7 +100,8 @@ function formatDateTime(value) {
 
           <div class="patient-item-actions">
             <button type="button" class="link-btn" @click.stop="emit('open-edit', patient)">编辑</button>
-            <button type="button" class="link-btn danger-text" @click.stop="emit('delete-patient', patient.id)">删除</button>
+            <button type="button" class="link-btn danger-text"
+              @click.stop="emit('delete-patient', patient.id)">删除</button>
           </div>
         </article>
       </div>
@@ -113,20 +109,17 @@ function formatDateTime(value) {
       <div v-else class="empty-card">还没有患者数据，先新增一位患者开始管理。</div>
 
       <div class="pager">
-        <button type="button" class="secondary-action" :disabled="query.page <= 1" @click="emit('page-change', -1)">上一页</button>
+        <button type="button" class="secondary-action" :disabled="query.page <= 1"
+          @click="emit('page-change', -1)">上一页</button>
         <span>第 {{ query.page }} / {{ patientPageCount }} 页，共 {{ patientTotal }} 条</span>
-        <button
-          type="button"
-          class="secondary-action"
-          :disabled="query.page >= patientPageCount"
-          @click="emit('page-change', 1)"
-        >
+        <button type="button" class="secondary-action" :disabled="query.page >= patientPageCount"
+          @click="emit('page-change', 1)">
           下一页
         </button>
       </div>
     </div>
 
-    <div class="section-card patient-detail-card">
+    <div class="patient-detail-card">
       <div class="section-head">
         <div>
           <h3>患者详情与AI意见</h3>
@@ -187,12 +180,8 @@ function formatDateTime(value) {
             </div>
           </div>
 
-          <textarea
-            v-model="analysisText"
-            class="analysis-input"
-            rows="6"
-            placeholder="例如：近三天血压持续偏高，夜间头痛加重，伴手脚麻木..."
-          ></textarea>
+          <textarea v-model="analysisText" class="analysis-input" rows="6"
+            placeholder="例如：近三天血压持续偏高，夜间头痛加重，伴手脚麻木..."></textarea>
           <button type="button" class="primary-action" @click="emit('analyze-patient')">执行风险分析</button>
         </section>
       </div>
@@ -205,26 +194,32 @@ function formatDateTime(value) {
 <style scoped lang="scss">
 .patient-workspace {
   display: grid;
-  grid-template-columns: minmax(360px, 460px) minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  height: 100%;
   min-height: 0;
+  overflow: hidden;
 }
 
-.section-card,
-.detail-card,
-.patient-item {
-  border: 1px solid rgba(217, 230, 226, 0.95);
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 20px 45px rgba(15, 65, 79, 0.12);
+/* ─────────────────── Panels ─────────────────── */
+.patient-list-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid #d1e4df;
+  background: #f8fbfa;
+  overflow: hidden;
 }
 
-.section-card {
-  border-radius: 28px;
-  padding: 20px;
+.patient-detail-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #fff;
+  overflow-y: auto;
 }
 
+/* ─────────────────── Section heads ─────────────────── */
 .section-head,
-.toolbar,
 .pager,
 .patient-item-head,
 .patient-item-actions,
@@ -232,48 +227,119 @@ function formatDateTime(value) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
-.section-head.wrap,
-.toolbar {
+.section-head {
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2eeeb;
+  flex-shrink: 0;
   flex-wrap: wrap;
+  gap: 8px;
 }
 
-.section-head h3,
-.detail-title-row h4 {
+.section-head h3 {
   margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #17313a;
 }
 
-.section-head p,
-.patient-item p,
-.detail-card p,
-.detail-card small,
-.empty-card {
+.section-head p {
+  margin: 3px 0 0;
+  font-size: 12px;
   color: #5e7379;
 }
 
-.toolbar input,
-.analysis-input {
-  width: 100%;
-  border: 1px solid rgba(191, 213, 207, 0.95);
-  background: rgba(249, 252, 252, 0.96);
-  border-radius: 14px;
-  padding: 12px 14px;
+/* ─────────────────── Toolbar ─────────────────── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #e2eeeb;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.toolbar input {
+  flex: 1 1 120px;
+  border: 1px solid #d1e4df;
+  background: #fff;
+  border-radius: 6px;
+  padding: 7px 10px;
   font: inherit;
   color: #17313a;
   box-sizing: border-box;
 }
 
-.toolbar input {
-  flex: 1 1 180px;
+/* ─────────────────── Patient list ─────────────────── */
+.patient-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
-.analysis-input {
-  min-height: 132px;
-  resize: vertical;
+.patient-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid #e8f0ee;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
 }
 
+.patient-item:hover {
+  background: rgba(17, 150, 127, 0.05);
+}
+
+.patient-item.active {
+  background: rgba(17, 150, 127, 0.09);
+  border-left: 3px solid #11967f;
+  padding-left: 11px;
+}
+
+.patient-item h4 {
+  margin: 0 0 3px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #17313a;
+}
+
+.patient-item p {
+  margin: 0 0 5px;
+  font-size: 12px;
+  color: #5e7379;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patient-item small {
+  color: #9eb3ae;
+  font-size: 11px;
+}
+
+.patient-item-head {
+  margin-bottom: 5px;
+}
+
+.patient-item-actions {
+  justify-content: flex-start;
+  gap: 14px;
+}
+
+/* ─────────────────── Pager ─────────────────── */
+.pager {
+  padding: 8px 14px;
+  border-top: 1px solid #e2eeeb;
+  font-size: 12px;
+  color: #5e7379;
+  flex-shrink: 0;
+}
+
+/* ─────────────────── Buttons ─────────────────── */
 .primary-action,
 .secondary-action,
 .link-btn {
@@ -282,20 +348,25 @@ function formatDateTime(value) {
   transition: all 0.18s ease;
 }
 
-.primary-action,
-.secondary-action {
-  padding: 11px 16px;
-  border-radius: 14px;
-  font-weight: 700;
-}
-
 .primary-action {
+  padding: 8px 14px;
+  border-radius: 7px;
+  font-weight: 700;
+  font-size: 13px;
   background: linear-gradient(135deg, #11967f 0%, #0f7666 100%);
-  color: #ffffff;
+  color: #fff;
+}
+
+.primary-action:hover {
+  opacity: 0.88;
 }
 
 .secondary-action {
-  background: rgba(230, 241, 238, 0.9);
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-weight: 600;
+  font-size: 13px;
+  background: rgba(209, 228, 223, 0.7);
   color: #17313a;
 }
 
@@ -303,119 +374,139 @@ function formatDateTime(value) {
   background: transparent;
   padding: 0;
   color: #0f7666;
+  font-size: 12px;
 }
 
 .danger-text {
   color: #dc2626;
 }
 
-.patient-list-card,
-.patient-detail-card,
-.detail-stack,
-.patient-list {
+/* ─────────────────── Risk badge ─────────────────── */
+.risk-badge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  white-space: nowrap;
+}
+
+/* ─────────────────── Patient detail ─────────────────── */
+.detail-stack {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  min-height: 0;
-}
-
-.patient-list {
-  overflow-y: auto;
-}
-
-.patient-item,
-.detail-card {
-  border-radius: 18px;
-}
-
-.patient-item {
-  padding: 15px 16px;
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.patient-item:hover,
-.patient-item.active {
-  transform: translateY(-1px);
-  border-color: rgba(17, 150, 127, 0.28);
-  background: rgba(240, 249, 247, 0.96);
-}
-
-.patient-item h4,
-.detail-card h5 {
-  margin: 0 0 8px;
-}
-
-.risk-badge {
-  padding: 7px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  background: rgba(245, 158, 11, 0.14);
-  color: #b45309;
 }
 
 .detail-card {
-  padding: 18px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #e2eeeb;
 }
 
 .detail-card.accent {
-  background: linear-gradient(135deg, rgba(17, 150, 127, 0.1), rgba(255, 255, 255, 0.95));
+  background: rgba(17, 150, 127, 0.04);
+  border-left: 3px solid #11967f;
+  padding-left: 17px;
+}
+
+.detail-title-row {
+  margin-bottom: 10px;
+}
+
+.detail-title-row h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.detail-card h5 {
+  margin: 0 0 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #3a5a62;
+}
+
+.detail-card p,
+.detail-card small {
+  color: #5e7379;
+  font-size: 13px;
+  margin: 0;
+  line-height: 1.6;
 }
 
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 14px;
+  gap: 10px;
 }
 
 .detail-grid.single {
   grid-template-columns: 1fr;
 }
 
+.analysis-input {
+  width: 100%;
+  border: 1px solid #d1e4df;
+  background: #fff;
+  border-radius: 7px;
+  padding: 9px 12px;
+  font: inherit;
+  color: #17313a;
+  box-sizing: border-box;
+  min-height: 100px;
+  resize: vertical;
+  margin-bottom: 10px;
+}
+
 .detail-grid article {
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(217, 230, 226, 0.9);
+  padding: 10px 12px;
+  border-left: 2px solid #d1e4df;
+  background: #f8fbfa;
 }
 
 .summary-label {
-  margin: 0;
-  font-size: 12px;
-  letter-spacing: 0.18em;
+  margin: 0 0 3px;
+  font-size: 11px;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
   color: #2c7c6e;
 }
 
 .empty-card {
-  padding: 24px;
-  border-radius: 18px;
-  background: rgba(248, 251, 251, 0.88);
-  border: 1px dashed rgba(169, 195, 190, 0.9);
-  line-height: 1.7;
+  padding: 24px 16px;
+  color: #9eb3ae;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 @media (max-width: 1080px) {
   .patient-workspace {
     grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+  }
+
+  .patient-list-card {
+    border-right: none;
+    border-bottom: 1px solid #d1e4df;
+    max-height: 340px;
+    overflow: hidden;
   }
 }
 
 @media (max-width: 640px) {
+
   .section-head,
   .toolbar,
   .pager,
   .patient-item-head,
-  .detail-title-row,
-  .detail-grid {
-    flex-direction: column;
-    align-items: stretch;
+  .detail-title-row {
+    flex-wrap: wrap;
   }
 
   .detail-grid {
-    display: grid;
     grid-template-columns: 1fr;
   }
 }

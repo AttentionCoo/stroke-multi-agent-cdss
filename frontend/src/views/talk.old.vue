@@ -4,6 +4,8 @@ import UserDialog from '@/components/UserDialog.vue'
 import { useUserStore } from '@/stores/user'
 import { deleteChatAPI, getChatHistoryAPI, getChatTitlesAPI, newChatAPI, sendQuestionAPI } from '@/api/talk'
 import LoadingModel from '@/components/LoadingModel.vue'
+import SendSVG from '@/components/svg/SendSVG.vue'
+
 defineOptions({ name: 'TalkIndex' })
 
 const message = ref('')
@@ -165,12 +167,8 @@ function handleUserClick() {
 
       <!-- 左侧展示历史对话标题列表 -->
       <div class="chat-list">
-        <div
-          v-for="talk in talkTitleList"
-          :key="talk.talkId"
-          class="chat-item"
-          :class="{ active: talk.talkId === currentTalkId }"
-          @click="handleClickTalkTitle(talk.talkId)">
+        <div v-for="talk in talkTitleList" :key="talk.talkId" class="chat-item"
+          :class="{ active: talk.talkId === currentTalkId }" @click="handleClickTalkTitle(talk.talkId)">
           <span class="title">{{ talk.title }}</span>
         </div>
       </div>
@@ -189,11 +187,7 @@ function handleUserClick() {
       <!-- 对话展示区 -->
       <main class="chat-messages">
         <div class="chat-content" v-if="currentTalkList.length > 0">
-          <div
-            v-for="(msg, i) in currentTalkList"
-            :key="i"
-            class="message"
-            :class="{ user: i % 2 === 0 }">
+          <div v-for="(msg, i) in currentTalkList" :key="i" class="message" :class="{ user: i % 2 === 0 }">
             {{ msg }}
           </div>
         </div>
@@ -204,14 +198,9 @@ function handleUserClick() {
 
       <!-- 输入区 -->
       <div class="input-box">
-        <input
-          type="text"
-          ref="inputRef"
-          placeholder="请输入您的问题"
-          v-model="message"
-          @keyup.enter="sendMessage" />
+        <input type="text" ref="inputRef" placeholder="请输入您的问题" v-model="message" @keyup.enter="sendMessage" />
         <button class="send-btn" :disabled="message.trim() === '' || !canSendMessage" @click="sendMessage">
-          <ArrowSVG color="#fff" size="24" />
+          <SendSVG color="#fff" size="24" />
         </button>
       </div>
     </div>

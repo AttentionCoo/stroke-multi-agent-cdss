@@ -1,9 +1,10 @@
 <script setup>
-import { nextTick, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import DeleteSVG from '@/components/svg/DeleteSVG.vue'
 import DeleteAllSVG from '@/components/svg/DeleteAllSVG.vue'
+import SendSVG from '@/components/svg/SendSVG.vue'
 
 defineOptions({ name: 'ChatWorkspace' })
 
@@ -71,6 +72,44 @@ const emit = defineEmits([
 const draftMessage = ref('')
 const inputRef = ref(null)
 const chatContainerRef = ref(null)
+const isHistoryCollapsed = ref(false)
+const isMobileLayout = ref(false)
+const isSyncExpanded = ref(false)
+
+function syncLayoutState() {
+  const mobile = window.innerWidth <= 960
+
+  if (mobile !== isMobileLayout.value) {
+    isMobileLayout.value = mobile
+    isHistoryCollapsed.value = mobile
+    isSyncExpanded.value = false
+    return
+  }
+
+  if (!mobile) {
+    isHistoryCollapsed.value = false
+    isSyncExpanded.value = false
+  }
+}
+
+function toggleHistoryPanel() {
+  if (!isMobileLayout.value) return
+  isHistoryCollapsed.value = !isHistoryCollapsed.value
+}
+
+function toggleSyncPanel() {
+  if (!isMobileLayout.value) return
+  isSyncExpanded.value = !isSyncExpanded.value
+}
+
+onMounted(() => {
+  syncLayoutState()
+  window.addEventListener('resize', syncLayoutState)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncLayoutState)
+})
 
 watch(
   () => props.currentTalkList.length,
@@ -172,19 +211,25 @@ function shortText(value, fallback = '暂无内容') {
 
 <template>
   <section class="chat-workspace">
-    <aside class="history-card section-card">
-      <div class="section-head">
+    <aside class="history-card">
+      <div class="section-head" style="border:none; padding: 8px 0px 0px 0px;">
+        <button type="button" class="primary-action" @click="emit('new-chat')">开始新对话</button>
+      </div>
+      <div class="section-head" style="padding-top: 4px;">
         <div>
           <h3>对话历史</h3>
         </div>
-        <button type="button" class="ghost-icon danger" @click="emit('delete-all')">
-          <DeleteAllSVG size="20" color="currentColor" />
-        </button>
+        <div class="history-actions">
+          <button type="button" class="ghost-icon collapse-toggle" @click="toggleHistoryPanel">
+            {{ isHistoryCollapsed ? '展开' : '收起' }}
+          </button>
+          <button type="button" class="ghost-icon danger" @click="emit('delete-all')">
+            <DeleteAllSVG size="20" color="currentColor" />
+          </button>
+        </div>
       </div>
 
-      <button type="button" class="primary-action" @click="emit('new-chat')">开始新对话</button>
-
-      <div class="history-list">
+      <div class="history-list" :class="{ collapsed: isHistoryCollapsed }">
         <div v-for="talk in talkTitleList" :key="talk.talkId" class="history-item"
           :class="{ active: talk.talkId === currentTalkId }" @click="emit('select-talk', talk.talkId)">
           <div>
@@ -200,10 +245,12 @@ function shortText(value, fallback = '暂无内容') {
       </div>
     </aside>
 
-    <div class="chat-card section-card">
+    <div class="chat-card">
       <div class="section-head">
-        <h3>实时问诊</h3>
-        <span class="state-pill" :class="{ live: isStreaming }">{{ isStreaming ? '生成中' : '待输入' }}</span>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <h3>实时问诊</h3>
+          <span class="state-pill" :class="{ live: isStreaming }">{{ isStreaming ? '生成中' : '待输入' }}</span>
+        </div>
       </div>
 
       <main ref="chatContainerRef" class="chat-messages">
@@ -232,57 +279,71 @@ function shortText(value, fallback = '暂无内容') {
           @keydown.enter.exact.prevent="handleSendMessage" />
         <button type="button" class="send-btn" :disabled="!draftMessage.trim() || isStreaming"
           @click="handleSendMessage">
-          <ArrowSVG color="#ffffff" size="20" />
+          <SendSVG size="24" />
         </button>
       </div>
     </div>
 
-    <aside class="sync-card section-card">
-      <div class="section-head compact">
-        <div>
-          <h3>同步到患者AI意见</h3>
-          <p>将当前对话内容合并到指定患者的健康建议。</p>
+    <div v-if="isMobileLayout && isSyncExpanded" class="sync-backdrop" @click="toggleSyncPanel"></div>
+
+    <aside class="sync-card" :class="{ mobile: isMobileLayout, expanded: isSyncExpanded }">
+      <button v-if="isMobileLayout" type="button" class="sync-expander" :aria-expanded="isSyncExpanded"
+        @click="toggleSyncPanel">
+        <div class="sync-expander-copy">
+          <strong>同步到患者AI意见</strong>
+          <small>{{ syncPatient?.name || '请选择患者后同步当前对话' }}</small>
         </div>
-      </div>
-
-      <label class="field-label">
-        关联患者
-        <select v-model="syncPatientModel">
-          <option :value="null">请选择患者</option>
-          <option v-for="patient in patients" :key="patient.id" :value="patient.id">{{ patient.name }}</option>
-        </select>
-      </label>
-
-      <div v-if="syncPatient" class="summary-card">
-        <p class="summary-label">当前同步目标</p>
-        <h4>{{ syncPatient.name }}</h4>
-        <p>{{ shortText(syncPatient.history) }}</p>
-        <button type="button" class="link-btn" @click="emit('open-patient-workspace', syncPatient.id)">查看患者详情</button>
-      </div>
-
-      <div class="preview-box">
-        <div class="preview-head">
-          <span>待同步片段</span>
-          <small>{{ currentTalkId ? `对话 #${currentTalkId}` : '新对话未落库' }}</small>
-        </div>
-        <div v-if="conversationPreview.length" class="preview-list">
-          <article v-for="(item, index) in conversationPreview" :key="`${item.role}-${index}`" class="preview-item">
-            <strong>{{ item.role === 'user' ? '问' : '答' }}</strong>
-            <p>{{ item.content }}</p>
-          </article>
-        </div>
-        <div v-else class="empty-card compact">至少完成一轮问答后，才可以执行同步。</div>
-      </div>
-
-      <button type="button" class="primary-action" :disabled="!canSyncConversation" @click="emit('sync-conversation')">
-        同步当前对话
+        <span class="sync-expander-indicator">{{ isSyncExpanded ? '收起' : '展开' }}</span>
       </button>
 
-      <div v-if="syncResult?.aiOpinion" class="result-card">
-        <p class="summary-label">最近同步结果</p>
-        <h4>{{ syncResult.aiOpinion.riskLevel || '已更新' }}</h4>
-        <p>{{ syncResult.aiOpinion.suggestion }}</p>
-        <small>{{ formatDateTime(syncResult.aiOpinion.lastUpdatedAt) }}</small>
+      <div class="sync-card-body">
+        <div class="section-head compact">
+          <div>
+            <h3>同步到患者AI意见</h3>
+            <p>将当前对话内容合并到指定患者的健康建议。</p>
+          </div>
+        </div>
+
+        <label class="field-label">
+          关联患者
+          <select v-model="syncPatientModel">
+            <option :value="null">请选择患者</option>
+            <option v-for="patient in patients" :key="patient.id" :value="patient.id">{{ patient.name }}</option>
+          </select>
+        </label>
+
+        <div v-if="syncPatient" class="summary-card">
+          <p class="summary-label">当前同步目标</p>
+          <h4>{{ syncPatient.name }}</h4>
+          <p>{{ shortText(syncPatient.history) }}</p>
+          <button type="button" class="link-btn" @click="emit('open-patient-workspace', syncPatient.id)">查看患者详情</button>
+        </div>
+
+        <div class="preview-box">
+          <div class="preview-head">
+            <h3>待同步片段</h3>
+            <small>{{ currentTalkId ? `对话 #${currentTalkId}` : '新对话未落库' }}</small>
+          </div>
+          <div v-if="conversationPreview.length" class="preview-list">
+            <article v-for="(item, index) in conversationPreview" :key="`${item.role}-${index}`" class="preview-item">
+              <strong>{{ item.role === 'user' ? '问' : '答' }}</strong>
+              <p>{{ item.content }}</p>
+            </article>
+          </div>
+          <div v-else class="empty-card compact">至少完成一轮问答后，才可以执行同步。</div>
+        </div>
+
+        <button type="button" class="primary-action" :disabled="!canSyncConversation"
+          @click="emit('sync-conversation')">
+          同步当前对话
+        </button>
+
+        <div v-if="syncResult?.aiOpinion" class="result-card">
+          <p class="summary-label">最近同步结果</p>
+          <h4>{{ syncResult.aiOpinion.riskLevel || '已更新' }}</h4>
+          <p>{{ syncResult.aiOpinion.suggestion }}</p>
+          <small>{{ formatDateTime(syncResult.aiOpinion.lastUpdatedAt) }}</small>
+        </div>
       </div>
     </aside>
   </section>
@@ -291,51 +352,98 @@ function shortText(value, fallback = '暂无内容') {
 <style scoped lang="scss">
 .chat-workspace {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr) 360px;
-  gap: 18px;
+  grid-template-columns: 260px minmax(0, 1fr) 300px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ───────────────── History panel ───────────────── */
+.history-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid #d1e4df;
+  background: #f8fbfa;
+  overflow: hidden;
+}
+
+/* ───────────────── Chat panel ───────────────── */
+.chat-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #fff;
+  overflow: hidden;
+}
+
+/* ───────────────── Sync panel ───────────────── */
+.sync-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid #d1e4df;
+  background: #f8fbfa;
+  overflow-y: auto;
+}
+
+.sync-card-body {
+  display: flex;
+  flex-direction: column;
   min-height: 0;
 }
 
-.section-card {
-  border: 1px solid rgba(217, 230, 226, 0.95);
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 20px 45px rgba(15, 65, 79, 0.12);
-  padding: 20px;
+.sync-backdrop {
+  display: none;
 }
 
+.sync-expander {
+  display: none;
+}
+
+/* ───────────────── Shared heads ───────────────── */
 .section-head,
-.preview-head,
-.message-meta {
+.preview-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2eeeb;
+  flex-shrink: 0;
+
+
 }
 
-.preview-head {
-  margin-bottom: 12px;
+.preview-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #17313a;
+  letter-spacing: 0
 }
 
 .section-head.compact {
   align-items: flex-start;
 }
 
-.section-head h3,
-.summary-card h4,
-.result-card h4 {
+.section-head h3 {
   margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #17313a;
+  letter-spacing: 0;
 }
 
-.section-head p,
-.history-item small,
-.empty-card,
-.message-meta,
-.preview-item p,
-.summary-card p,
-.result-card p,
-.result-card small {
+.section-head p {
+  margin: 3px 0 0;
+  font-size: 13px;
   color: #5e7379;
+}
+
+/* ─────────────────── Buttons ─────────────────── */
+.send-btn {
+  border-radius: 128px;
 }
 
 .primary-action,
@@ -344,32 +452,48 @@ function shortText(value, fallback = '暂无内容') {
   border: none;
   cursor: pointer;
   transition: all 0.18s ease;
+  background: transparent;
 }
 
-.primary-action,
-.send-btn {
-  background: linear-gradient(135deg, #11967f 0%, #0f7666 100%);
-  color: #ffffff;
+.send-btn:not(:disabled):hover {
+  background: rgba(17, 150, 127, 0.1);
 }
+
 
 .primary-action {
-  padding: 11px 16px;
-  border-radius: 14px;
+  display: block;
+  width: calc(100% - 28px);
+  margin: 10px 14px;
+  padding: 9px 14px;
+  border-radius: 8px;
   font-weight: 700;
+  font-size: 14px;
+  background: linear-gradient(135deg, #11967f 0%, #0f7666 100%);
+  color: #fff;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.primary-action:hover {
+  opacity: 0.88;
+}
+
+.primary-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .ghost-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: rgba(236, 245, 243, 0.82);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: transparent;
   color: #5e7379;
+  flex-shrink: 0;
 }
 
-.ghost-icon:hover,
-.primary-action:hover,
-.send-btn:hover {
-  transform: translateY(-1px);
+.ghost-icon:hover {
+  background: rgba(0, 0, 0, 0.07);
 }
 
 .ghost-icon.danger:hover {
@@ -377,65 +501,71 @@ function shortText(value, fallback = '暂无内容') {
   background: rgba(239, 68, 68, 0.1);
 }
 
-.history-card,
-.sync-card {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-height: 0;
-}
-
-.history-list,
-.message-stack,
-.preview-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
+/* ─────────────────── History list ─────────────────── */
 .history-list {
+  flex: 1;
   min-height: 0;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
-.history-item,
-.preview-box,
-.summary-card,
-.result-card {
-  border: 1px solid rgba(217, 230, 226, 0.95);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.86);
+.history-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.collapse-toggle {
+  display: none;
+  width: auto;
+  padding: 0 10px;
+  font-size: 12px;
+  color: #0f7666;
+  border: 1px solid #d1e4df;
 }
 
 .history-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 15px 16px;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e8f0ee;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
 }
 
-.history-item:hover,
+.history-item:hover {
+  background: rgba(17, 150, 127, 0.06);
+}
+
 .history-item.active {
-  border-color: rgba(17, 150, 127, 0.28);
-  background: rgba(240, 249, 247, 0.96);
+  background: rgba(17, 150, 127, 0.1);
+  border-left: 3px solid #11967f;
+  padding-left: 11px;
 }
 
-.history-title,
-.preview-item p {
+.history-title {
   margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #17313a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.chat-card {
-  display: flex;
-  flex-direction: column;
-  min-height: calc(100vh - 245px);
+.history-item small {
+  color: #9eb3ae;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
+/* ─────────────────── Chat area ─────────────────── */
 .state-pill {
-  padding: 7px 12px;
+  padding: 3px 9px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
@@ -452,18 +582,33 @@ function shortText(value, fallback = '暂无内容') {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 18px 4px 8px 0;
+  padding: 16px 20px;
+}
+
+.message-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .message-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
   align-items: flex-start;
 }
 
 .message-wrapper.user {
   align-items: flex-end;
+}
+
+.message-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: #9eb3ae;
 }
 
 .copy-btn,
@@ -473,113 +618,165 @@ function shortText(value, fallback = '暂无内容') {
   padding: 0;
   color: #0f7666;
   cursor: pointer;
+  font-size: 12px;
 }
 
 .message {
-  max-width: min(84%, 880px);
-  padding: 16px 18px;
-  border-radius: 22px 22px 22px 8px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(217, 230, 226, 0.95);
+  max-width: min(86%, 860px);
+  padding: 12px 15px;
+  background: #f5faf9;
+  border: 1px solid #e2eeeb;
+  border-radius: 2px 12px 12px 12px;
   line-height: 1.72;
   color: #17313a;
+  font-size: 15px;
 }
 
 .message.user {
-  background: linear-gradient(135deg, rgba(17, 150, 127, 0.14), rgba(17, 118, 102, 0.08));
-  border-radius: 22px 22px 8px 22px;
+  background: rgba(17, 150, 127, 0.08);
+  border-color: rgba(17, 150, 127, 0.18);
+  border-radius: 12px 2px 12px 12px;
 }
 
+/* ─────────────────── Input box ─────────────────── */
 .input-box {
-  margin-top: 16px;
-  padding: 14px;
-  border: 1px solid rgba(217, 230, 226, 0.95);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.92);
+  border-top: 1px solid #d1e4df;
+  padding: 10px 16px;
+  background: #fff;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 52px;
-  gap: 12px;
-}
-
-.input-box textarea,
-.field-label select {
-  width: 100%;
-  box-sizing: border-box;
-  font: inherit;
-  color: #17313a;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  gap: 10px;
+  align-items: end;
+  flex-shrink: 0;
 }
 
 .input-box textarea {
   border: none;
   outline: none;
   resize: none;
-  min-height: 42px;
-  max-height: 220px;
+  min-height: 36px;
+  max-height: 180px;
   background: transparent;
   line-height: 1.6;
+  font: inherit;
+  color: #17313a;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .send-btn {
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
+  width: 48px;
+  height: 48px;
+  color: #fff;
+}
+
+.send-btn:hover {
+  opacity: 0.88;
 }
 
 .send-btn:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
-  transform: none;
+  opacity: 0.45;
 }
 
+/* ─────────────────── Sync panel internals ─────────────────── */
 .field-label {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   font-weight: 700;
+  font-size: 14px;
   color: #17313a;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2eeeb;
+  flex-shrink: 0;
 }
 
 .field-label select {
-  border: 1px solid rgba(191, 213, 207, 0.95);
-  background: rgba(249, 252, 252, 0.96);
-  border-radius: 14px;
-  padding: 12px 14px;
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  color: #17313a;
+  border: 1px solid #d1e4df;
+  background: #fff;
+  border-radius: 8px;
+  padding: 7px 10px;
 }
 
-.preview-box,
 .summary-card,
+.preview-box,
 .result-card {
-  padding: 16px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2eeeb;
+  flex-shrink: 0;
 }
 
 .summary-label {
-  margin: 0;
+  margin: 0 0 3px;
   font-size: 12px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
   color: #2c7c6e;
 }
 
+.summary-card h4,
+.result-card h4 {
+  margin: 0 0 5px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.summary-card p,
+.result-card p,
+.result-card small {
+  color: #5e7379;
+  margin: 0;
+  font-size: 13px;
+}
+
+.preview-head {
+  border-bottom: none;
+  padding: 0 0 8px;
+  flex-shrink: 0;
+}
+
+.preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .preview-item {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 6px;
 }
 
 .preview-item strong {
   color: #0f7666;
+  font-size: 13px;
+}
+
+.preview-item p {
+  margin: 0;
+  font-size: 13px;
+  color: #5e7379;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .empty-card {
-  padding: 24px;
-  border-radius: 18px;
-  background: rgba(248, 251, 251, 0.88);
-  border: 1px dashed rgba(169, 195, 190, 0.9);
-  line-height: 1.7;
+  padding: 18px 14px;
+  color: #9eb3ae;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .empty-card.compact {
-  padding: 16px;
+  padding: 12px 14px;
 }
 
 .markdown-body :deep(p:first-child) {
@@ -592,43 +789,185 @@ function shortText(value, fallback = '暂无内容') {
 
 .markdown-body :deep(pre) {
   overflow-x: auto;
-  border-radius: 14px;
-  padding: 12px;
+  border-radius: 8px;
+  padding: 10px 12px;
   background: #0f172a;
 }
 
-@media (max-width: 1400px) {
-  .chat-workspace {
-    grid-template-columns: 280px minmax(0, 1fr);
-  }
+/* ─────────────────── Responsive ─────────────────── */
 
-  .sync-card {
-    grid-column: 1 / -1;
-  }
-}
 
 @media (max-width: 960px) {
   .chat-workspace {
     grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+    margin-bottom: 68px;
+  }
+
+  .history-card {
+    border-right: none;
+    border-bottom: 1px solid #d1e4df;
+    max-height: none;
+    overflow: hidden;
+  }
+
+  .history-list.collapsed {
+    display: none;
+  }
+
+  .collapse-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .chat-card {
-    min-height: 560px;
+    min-height: 480px;
+    overflow: visible;
+    padding-bottom: 68px;
+  }
+
+  .sync-card {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    border: none;
+    border-top: 1px solid #d1e4df;
+    border-radius: 0;
+    background: rgba(248, 251, 250, 0.98);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 -4px 24px rgba(15, 65, 79, 0.12);
+    max-height: min(72dvh, 560px);
+    overflow: hidden;
+    transform: translateY(calc(100% - 68px));
+    transition: transform 0.22s ease;
+  }
+
+  .sync-card.mobile.expanded {
+    transform: translateY(0);
+  }
+
+  .sync-card-body {
+    max-height: calc(min(72dvh, 560px) - 68px);
+    overflow-y: auto;
+    padding-bottom: 10px;
+  }
+
+  .sync-expander {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 68px;
+    padding: 12px 14px;
+    border: none;
+    background: transparent;
+    color: #17313a;
+    text-align: left;
+    flex-shrink: 0;
+  }
+
+  .sync-expander-copy {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .sync-expander-copy strong {
+    font-size: 14px;
+  }
+
+  .sync-expander-copy small,
+  .sync-expander-indicator {
+    color: #5e7379;
+    font-size: 12px;
+  }
+
+  .sync-expander-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sync-expander-grip {
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: #b9cbc7;
+    flex-shrink: 0;
+  }
+
+  .sync-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(16, 38, 44, 0.24);
+    z-index: 30;
+  }
+
+  .chat-messages {
+    padding: 14px 12px;
+  }
+
+  .input-box {
+    padding: 10px 12px;
+  }
+
+  .message {
+    font-size: 14px;
+    word-break: break-word;
   }
 }
 
 @media (max-width: 640px) {
 
-  .input-box,
+  .chat-workspace {
+    min-width: 0;
+    margin-bottom: 64px;
+  }
+
+  .history-card {
+    max-height: none;
+  }
+
+  .sync-expander {
+    min-height: 64px;
+    padding: 10px 16px;
+    gap: 10px;
+  }
+
+  .sync-card-body {
+    max-height: calc(min(76dvh, 560px) - 64px);
+  }
+
+  .history-item {
+    padding: 10px 12px;
+  }
+
   .section-head,
-  .preview-head,
-  .message-meta {
-    flex-direction: column;
-    align-items: stretch;
+  .preview-head {
+    flex-wrap: wrap;
   }
 
   .message {
     max-width: 100%;
+  }
+
+  .preview-item {
+    grid-template-columns: 16px minmax(0, 1fr);
+  }
+
+  .preview-item p {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    word-break: break-word;
+    line-height: 1.5;
   }
 }
 </style>

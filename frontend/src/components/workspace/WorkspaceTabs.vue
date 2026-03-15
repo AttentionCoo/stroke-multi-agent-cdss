@@ -27,52 +27,36 @@ const emit = defineEmits(['change'])
 <style scoped lang="scss">
 .workspace-tabs {
   display: flex;
+  height: 100%;
   overflow-x: auto;
-  border: 1px solid rgba(191, 213, 207, 0.9);
-  border-radius: 128px;
-  width: fit-content;
-  max-width: 100%;
 }
 
 .tab-btn {
-  border: 1px solid transparent;
-  border-radius: 128px;
-  padding: 14px 16px;
-  background: rgba(255, 255, 255, 0.88);
-  color: #17313a;
-  text-align: left;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0 18px;
+  background: transparent;
+  color: #5e7379;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.18s ease;
+  white-space: nowrap;
+  height: 100%;
 
   span {
     display: block;
-    font-size: 16px;
-    font-weight: 700;
-  }
-
-  small {
-    display: block;
-    margin-top: 6px;
-    color: #5e7379;
   }
 
   &:hover {
-    background: rgba(0, 0, 0, 0.04);
+    color: #17313a;
+    background: rgba(0, 0, 0, 0.03);
   }
 
   &.active {
-    border-color: rgba(17, 150, 127, 0.35);
-    border: 1px solid rgba(191, 213, 207, 0.9);
-    background: linear-gradient(135deg, #11967f 0%, #0f7666 100%);
-    color: white;
-  }
-
-
-}
-
-@media (max-width: 640px) {
-  .tab-btn {
-    min-width: 160px;
+    color: #11967f;
+    border-bottom-color: #11967f;
+    background: transparent;
   }
 }
 </style>

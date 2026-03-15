@@ -44,7 +44,7 @@ function shortText(value, fallback = '暂无内容') {
 
 <template>
   <section class="learning-workspace">
-    <div class="section-card material-list-card">
+    <div class="material-list-card">
       <div class="section-head">
         <div>
           <h3>学习资料列表</h3>
@@ -60,13 +60,8 @@ function shortText(value, fallback = '暂无内容') {
       <div v-if="materialsLoading" class="empty-card">正在加载学习资料...</div>
 
       <div v-else-if="materials.length" class="material-list">
-        <article
-          v-for="material in materials"
-          :key="material.id"
-          class="material-item"
-          :class="{ active: material.id === selectedMaterialId }"
-          @click="emit('select-material', material.id)"
-        >
+        <article v-for="material in materials" :key="material.id" class="material-item"
+          :class="{ active: material.id === selectedMaterialId }" @click="emit('select-material', material.id)">
           <div class="material-head">
             <h4>{{ material.title }}</h4>
             <span class="type-badge">{{ material.type || '资料' }}</span>
@@ -78,20 +73,17 @@ function shortText(value, fallback = '暂无内容') {
       <div v-else class="empty-card">暂无学习资料，请调整分类关键词后重试。</div>
 
       <div class="pager">
-        <button type="button" class="secondary-action" :disabled="query.page <= 1" @click="emit('page-change', -1)">上一页</button>
+        <button type="button" class="secondary-action" :disabled="query.page <= 1"
+          @click="emit('page-change', -1)">上一页</button>
         <span>第 {{ query.page }} / {{ materialPageCount }} 页，共 {{ learningTotal }} 条</span>
-        <button
-          type="button"
-          class="secondary-action"
-          :disabled="query.page >= materialPageCount"
-          @click="emit('page-change', 1)"
-        >
+        <button type="button" class="secondary-action" :disabled="query.page >= materialPageCount"
+          @click="emit('page-change', 1)">
           下一页
         </button>
       </div>
     </div>
 
-    <div class="section-card material-detail-card">
+    <div class="material-detail-card">
       <div class="section-head">
         <div>
           <h3>资料详情</h3>
@@ -107,7 +99,8 @@ function shortText(value, fallback = '暂无内容') {
             <p class="summary-label">资料标题</p>
             <h4>{{ materialDetail.title }}</h4>
           </div>
-          <button v-if="materialDetail.url" type="button" class="secondary-action" @click="emit('open-material-link', materialDetail.url)">
+          <button v-if="materialDetail.url" type="button" class="secondary-action"
+            @click="emit('open-material-link', materialDetail.url)">
             打开原文
           </button>
         </div>
@@ -125,164 +118,236 @@ function shortText(value, fallback = '暂无内容') {
 <style scoped lang="scss">
 .learning-workspace {
   display: grid;
-  grid-template-columns: minmax(360px, 460px) minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  height: 100%;
   min-height: 0;
+  overflow: hidden;
 }
 
-.section-card,
-.material-item,
-.detail-card {
-  border: 1px solid rgba(217, 230, 226, 0.95);
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 20px 45px rgba(15, 65, 79, 0.12);
+/* ───────────────── Panels ───────────────── */
+.material-list-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid #d1e4df;
+  background: #f8fbfa;
+  overflow: hidden;
 }
 
-.section-card {
-  border-radius: 28px;
-  padding: 20px;
+.material-detail-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #fff;
+  overflow-y: auto;
 }
 
+/* ───────────────── Section / toolbar / pager ───────────────── */
 .section-head,
-.toolbar,
-.pager,
 .material-head,
 .detail-title-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
-.section-head h3,
-.detail-title-row h4 {
+.section-head {
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2eeeb;
+  flex-shrink: 0;
+}
+
+.section-head h3 {
   margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #17313a;
 }
 
-.section-head p,
-.material-item p,
-.empty-card,
-.material-content p {
+.section-head p {
+  margin: 3px 0 0;
+  font-size: 13px;
   color: #5e7379;
 }
 
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #e2eeeb;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
 .toolbar input {
-  flex: 1 1 240px;
-  width: 100%;
-  border: 1px solid rgba(191, 213, 207, 0.95);
-  background: rgba(249, 252, 252, 0.96);
-  border-radius: 14px;
-  padding: 12px 14px;
+  flex: 1 1 160px;
+  border: 1px solid #d1e4df;
+  background: #fff;
+  border-radius: 6px;
+  padding: 7px 10px;
   font: inherit;
   color: #17313a;
   box-sizing: border-box;
 }
 
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px;
+  border-top: 1px solid #e2eeeb;
+  font-size: 13px;
+  color: #5e7379;
+  flex-shrink: 0;
+}
+
+/* ───────────────── Buttons ───────────────── */
 .secondary-action {
   border: none;
   cursor: pointer;
   transition: all 0.18s ease;
-  padding: 11px 16px;
-  border-radius: 14px;
-  font-weight: 700;
-  background: rgba(230, 241, 238, 0.9);
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-weight: 600;
+  font-size: 14px;
+  background: rgba(209, 228, 223, 0.7);
   color: #17313a;
 }
 
-.material-list-card,
-.material-detail-card,
+/* ───────────────── Material list ───────────────── */
 .material-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  min-height: 0;
-}
-
-.material-list {
-  overflow-y: auto;
-}
-
-.material-item,
-.detail-card {
-  border-radius: 18px;
 }
 
 .material-item {
-  padding: 15px 16px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e8f0ee;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
 }
 
-.material-item:hover,
+.material-item:hover {
+  background: rgba(17, 150, 127, 0.05);
+}
+
 .material-item.active {
-  transform: translateY(-1px);
-  border-color: rgba(17, 150, 127, 0.28);
-  background: rgba(240, 249, 247, 0.96);
+  background: rgba(17, 150, 127, 0.09);
+  border-left: 3px solid #11967f;
+  padding-left: 11px;
 }
 
 .material-item h4 {
+  margin: 0 0 3px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #17313a;
+}
+
+.material-item p {
   margin: 0;
+  font-size: 13px;
+  color: #5e7379;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.material-head {
+  margin-bottom: 4px;
 }
 
 .type-badge {
-  padding: 7px 12px;
+  padding: 3px 9px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
-  background: rgba(245, 158, 11, 0.14);
+  background: rgba(245, 158, 11, 0.12);
   color: #b45309;
+  white-space: nowrap;
 }
 
+/* ───────────────── Material detail ───────────────── */
 .detail-card {
-  padding: 18px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2eeeb;
 }
 
 .detail-card.accent {
-  background: linear-gradient(135deg, rgba(17, 150, 127, 0.1), rgba(255, 255, 255, 0.95));
+  background: rgba(17, 150, 127, 0.03);
+  border-top: 3px solid #11967f;
 }
 
-.material-content {
-  margin-top: 14px;
-  padding: 18px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(217, 230, 226, 0.9);
+.detail-title-row {
+  margin-bottom: 12px;
 }
 
-.material-content p,
-.summary-label {
+.detail-title-row h4 {
   margin: 0;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .summary-label {
+  margin: 0 0 3px;
   font-size: 12px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
   color: #2c7c6e;
 }
 
+.material-content {
+  padding: 12px 14px;
+  border-left: 2px solid #d1e4df;
+  background: #f8fbfa;
+}
+
+.material-content p {
+  margin: 0;
+  color: #5e7379;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
 .empty-card {
-  padding: 24px;
-  border-radius: 18px;
-  background: rgba(248, 251, 251, 0.88);
-  border: 1px dashed rgba(169, 195, 190, 0.9);
-  line-height: 1.7;
+  padding: 24px 16px;
+  color: #9eb3ae;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 @media (max-width: 1080px) {
   .learning-workspace {
     grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+  }
+
+  .material-list-card {
+    border-right: none;
+    border-bottom: 1px solid #d1e4df;
+    max-height: 340px;
+    overflow: hidden;
   }
 }
 
 @media (max-width: 640px) {
+
   .section-head,
   .toolbar,
   .pager,
   .material-head,
   .detail-title-row {
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
   }
 }
 </style>

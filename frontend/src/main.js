@@ -12,7 +12,7 @@ import vueformConfig from './../vueform.config'
 // 全局注册图标组件
 import UserSVG from './components/svg/UserSVG.vue'
 import PasswordSVG from './components/svg/PasswordSVG.vue'
-import ArrowSVG from './components/svg/ArrowSVG.vue'
+import SendSVG from './components/svg/SendSVG.vue'
 
 import 'normalize.css'
 
@@ -27,6 +27,6 @@ app.use(Vueform, vueformConfig)
 
 app.component('UserSVG', UserSVG)
 app.component('PasswordSVG', PasswordSVG)
-app.component('ArrowSVG', ArrowSVG)
+app.component('SendSVG', SendSVG)
 
 app.mount('#app')

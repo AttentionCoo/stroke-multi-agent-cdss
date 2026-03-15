@@ -643,14 +643,11 @@ function openPatientWorkspace(patientId) {
     </div>
 
 
-    <section class="tab-section section-card">
+    <section class="tab-section">
       <WorkspaceTabs :tabs="tabs" :active-tab="activeTab" @change="activeTab = $event" />
       <div class="user-anchor" @click="isDialogShow = !isDialogShow">
-        <AppAvatar class="avatar" :src="userStore.image" :name="userStore.name" :size="40" alt="avatar" />
-        <div>
-          <p class="user-name">{{ userStore.name || '医生' }}</p>
-          <small>已登录</small>
-        </div>
+        <AppAvatar class="avatar" :src="userStore.image" :name="userStore.name" :size="24" alt="avatar" />
+        <p class="user-name">{{ userStore.name || '医生' }}</p>
         <UserDialog :visible="isDialogShow" @close="isDialogShow = false" />
       </div>
     </section>
@@ -687,62 +684,28 @@ function openPatientWorkspace(patientId) {
 <style scoped lang="scss">
 :global(body) {
   margin: 0;
-  background:
-    radial-gradient(circle at top left, rgba(24, 190, 155, 0.18), transparent 34%),
-    radial-gradient(circle at top right, rgba(14, 116, 144, 0.16), transparent 28%),
-    linear-gradient(135deg, #eef8f6 0%, #f9fbfc 40%, #f3f7fb 100%);
+  background: #fff;
 }
 
 .workspace-shell {
-  min-height: 100dvh;
+  height: 100dvh;
   box-sizing: border-box;
-  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
   color: #17313a;
-}
-
-.section-card {
-  border: 1px solid rgba(217, 230, 226, 0.95);
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 20px 45px rgba(15, 65, 79, 0.12);
-}
-
-.workspace-header {
-  padding: 22px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-}
-
-.brand-block h1,
-.user-name {
-  margin: 6px 0 0;
-}
-
-.eyebrow {
-  margin: 0;
-  font-size: 12px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: #2c7c6e;
-}
-
-.subtitle,
-.user-anchor small,
-.overlay-card p {
-  color: #5e7379;
+  background: #fff;
 }
 
 .tab-section {
-  padding: 16px;
+  height: 52px;
+  padding: 0 20px;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
-  gap: 16px;
+  gap: 0;
+  border-bottom: 1px solid #d1e4df;
+  background: #fff;
+  flex-shrink: 0;
 }
 
 .workspace-content {
@@ -755,12 +718,11 @@ function openPatientWorkspace(patientId) {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-left: auto;
+  gap: 10px;
   flex-shrink: 0;
-  padding: 10px 14px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.82);
+  padding: 0 12px;
+  margin: 6px 0;
+  border-radius: 8px;
   cursor: pointer;
   transition: background 0.18s ease;
 
@@ -769,9 +731,15 @@ function openPatientWorkspace(patientId) {
   }
 }
 
-.tab-section :deep(.workspace-tabs) {
-  flex: 0 1 auto;
-  min-width: 0;
+.user-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.user-anchor small {
+  color: #5e7379;
+  font-size: 12px;
 }
 
 .page-overlay {
@@ -787,18 +755,24 @@ function openPatientWorkspace(patientId) {
 .overlay-card {
   width: 220px;
   padding: 28px 22px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 20px 45px rgba(15, 65, 79, 0.12);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 32px rgba(15, 65, 79, 0.18);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
 }
 
+.overlay-card p {
+  color: #5e7379;
+  margin: 0;
+  font-size: 14px;
+}
+
 .spinner {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   border: 3px solid rgba(17, 150, 127, 0.15);
   border-top-color: #11967f;
@@ -812,16 +786,22 @@ function openPatientWorkspace(patientId) {
 }
 
 @media (max-width: 960px) {
-  .workspace-shell {
-    padding: 18px;
+  .tab-section {
+    height: 44px;
   }
 
-  .tab-section {
-    flex-wrap: wrap;
+  .user-name {
+    display: none;
+  }
+
+  .workspace-content {
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
   }
 
   .user-anchor {
-    margin-left: 0;
+    margin: 0;
   }
 }
 </style>
