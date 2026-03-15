@@ -163,7 +163,9 @@ const emit = defineEmits(['close', 'submit'])
   justify-content: flex-end;
 }
 
+
 @media (max-width: 640px) {
+
   .dialog-head,
   .dialog-footer {
     flex-direction: column;

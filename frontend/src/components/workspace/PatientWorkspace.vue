@@ -238,16 +238,22 @@ function formatDateTime(value) {
   gap: 8px;
 }
 
+.section-head {
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2eeeb;
+  flex-shrink: 0;
+}
+
 .section-head h3 {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: #17313a;
 }
 
 .section-head p {
   margin: 3px 0 0;
-  font-size: 12px;
+  font-size: 13px;
   color: #5e7379;
 }
 
@@ -475,7 +481,7 @@ function formatDateTime(value) {
 .empty-card {
   padding: 24px 16px;
   color: #9eb3ae;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
   text-align: center;
   flex-shrink: 0;
