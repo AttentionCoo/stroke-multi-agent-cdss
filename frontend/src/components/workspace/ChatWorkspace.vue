@@ -10,14 +10,16 @@ defineOptions({ name: 'ChatWorkspace' })
 
 marked.setOptions({ gfm: true, breaks: true })
 
+const NEW_TALK_ID = ''
+
 const props = defineProps({
   talkTitleList: {
     type: Array,
     default: () => [],
   },
   currentTalkId: {
-    type: Number,
-    default: 0,
+    type: String,
+    default: '',
   },
   currentTalkList: {
     type: Array,
@@ -234,7 +236,7 @@ function shortText(value, fallback = '暂无内容') {
           :class="{ active: talk.talkId === currentTalkId }" @click="emit('select-talk', talk.talkId)">
           <div>
             <p class="history-title">{{ talk.title }}</p>
-            <small>{{ talk.talkId === 0 ? '待发送问题' : `会话 #${talk.talkId}` }}</small>
+            <small>{{ talk.talkId === NEW_TALK_ID ? '待发送问题' : `会话 #${talk.talkId}` }}</small>
           </div>
           <button type="button" class="ghost-icon" @click.stop="emit('delete-chat', talk.talkId)">
             <DeleteSVG size="16" color="currentColor" />

@@ -36,12 +36,13 @@ const tabs = [
 
 const userStore = useUserStore()
 const themeStore = useThemeStore()
+const NEW_TALK_ID = ''
 
 const activeTab = ref('chat')
 const isDialogShow = ref(false)
 
 const talkTitleList = ref([])
-const currentTalkId = ref(0)
+const currentTalkId = ref(NEW_TALK_ID)
 const currentTalkList = ref([])
 const isStreaming = ref(false)
 const chatLoading = ref(false)
@@ -127,10 +128,17 @@ function normalizeTalkTitles(payload) {
 
   return source
     .map((item) => ({
-      talkId: Number(item?.talkId ?? item?.id ?? 0),
+      talkId: normalizeTalkId(item?.talkId ?? item?.id),
       title: String(item?.title ?? item?.name ?? '未命名对话'),
     }))
-    .filter((item) => !Number.isNaN(item.talkId))
+    .filter((item) => item.talkId)
+}
+
+function normalizeTalkId(value) {
+  if (value === null || value === undefined) return NEW_TALK_ID
+
+  const talkId = String(value).trim()
+  return talkId || NEW_TALK_ID
 }
 
 function normalizeTalkHistory(payload) {
@@ -184,13 +192,13 @@ async function fetchTalkTitle() {
     talkTitleList.value = normalizeTalkTitles(res.data)
 
     if (!talkTitleList.value.length) {
-      currentTalkId.value = 0
+      currentTalkId.value = NEW_TALK_ID
       currentTalkList.value = []
       return
     }
 
     const preferredTalk = talkTitleList.value.find((talk) => talk.talkId === currentTalkId.value)
-    const firstValidTalk = preferredTalk || talkTitleList.value.find((talk) => talk.talkId !== 0) || talkTitleList.value[0]
+    const firstValidTalk = preferredTalk || talkTitleList.value.find((talk) => talk.talkId !== NEW_TALK_ID) || talkTitleList.value[0]
 
     currentTalkId.value = firstValidTalk.talkId
     await fetchTalkHistory(firstValidTalk.talkId)
@@ -225,10 +233,10 @@ function handleSelectTalk(talkId) {
 }
 
 function handleNewChat() {
-  currentTalkId.value = 0
+  currentTalkId.value = NEW_TALK_ID
   currentTalkList.value = []
-  talkTitleList.value = talkTitleList.value.filter((talk) => talk.talkId !== 0)
-  talkTitleList.value.unshift({ talkId: 0, title: '新对话' })
+  talkTitleList.value = talkTitleList.value.filter((talk) => talk.talkId !== NEW_TALK_ID)
+  talkTitleList.value.unshift({ talkId: NEW_TALK_ID, title: '新对话' })
 }
 
 async function handleSendMessage(text) {
@@ -241,7 +249,7 @@ async function handleSendMessage(text) {
 
   try {
     const finalResult =
-      currentTalkId.value === 0
+      currentTalkId.value === NEW_TALK_ID
         ? await newChatStreamAPI({ question: text }, (chunk) => {
           currentTalkList.value[aiIndex] += chunk
         })
@@ -255,15 +263,16 @@ async function handleSendMessage(text) {
           },
         )
 
-    const { talkId, title, content } = finalResult.data || {}
+    const { title, content } = finalResult.data || {}
+    const talkId = normalizeTalkId(finalResult.data?.talkId)
 
     if (typeof content === 'string') {
       currentTalkList.value[aiIndex] = content
     }
 
-    if (currentTalkId.value === 0 && talkId) {
+    if (currentTalkId.value === NEW_TALK_ID && talkId) {
       currentTalkId.value = talkId
-      const placeholderIndex = talkTitleList.value.findIndex((talk) => talk.talkId === 0)
+      const placeholderIndex = talkTitleList.value.findIndex((talk) => talk.talkId === NEW_TALK_ID)
 
       if (placeholderIndex !== -1) {
         talkTitleList.value[placeholderIndex] = { talkId, title: title || '新对话' }
@@ -284,7 +293,7 @@ async function handleSendMessage(text) {
 }
 
 async function handleDeleteChat(talkId) {
-  if (!talkId || talkId === 0) {
+  if (!talkId || talkId === NEW_TALK_ID) {
     handleNewChat()
     return
   }
@@ -296,8 +305,8 @@ async function handleDeleteChat(talkId) {
     talkTitleList.value = talkTitleList.value.filter((talk) => talk.talkId !== talkId)
 
     if (currentTalkId.value === talkId) {
-      const nextTalk = talkTitleList.value.find((talk) => talk.talkId !== 0)
-      currentTalkId.value = nextTalk?.talkId || 0
+      const nextTalk = talkTitleList.value.find((talk) => talk.talkId !== NEW_TALK_ID)
+      currentTalkId.value = nextTalk?.talkId || NEW_TALK_ID
       if (nextTalk) {
         await fetchTalkHistory(nextTalk.talkId)
       } else {
@@ -311,7 +320,7 @@ async function handleDeleteChat(talkId) {
 }
 
 async function handleDeleteAll() {
-  const ids = talkTitleList.value.map((talk) => talk.talkId).filter((talkId) => talkId !== 0)
+  const ids = talkTitleList.value.map((talk) => talk.talkId).filter((talkId) => talkId !== NEW_TALK_ID)
   if (!ids.length) return
   if (!window.confirm('确定删除所有历史对话吗？')) return
 

@@ -1,15 +1,22 @@
 import { useUserStore } from '@/stores/user'
 import request from '@/utils/request'
 
+function normalizeTalkId(value) {
+  if (value === null || value === undefined) return null
+
+  const talkId = String(value).trim()
+  return talkId || null
+}
+
 // 1. 获取历史对话标题
 export const getChatTitlesAPI = () => request.get('/user/title')
 
 // 2. 查询历史对话内容
-// talkId: Number
+// talkId: String
 export const getChatHistoryAPI = (talkId) => request.get(`/user/ques/getQues/${talkId}`)
 
 // 3. 继续对话（发送问题）
-// params = { talkId: Number, question: String }
+// params = { talkId: String, question: String }
 export const sendQuestionAPI = (params) => request.post('/user/ques/getQues', params)
 
 // 4. 新建对话
@@ -108,8 +115,9 @@ function streamRequest(params, onChunk) {
             const data = JSON.parse(jsonStr)
             const type = data.type || eventName
 
-            if (data.talkId) {
-              realTalkId = data.talkId
+            const nextTalkId = normalizeTalkId(data.talkId)
+            if (nextTalkId) {
+              realTalkId = nextTalkId
             }
             if (data.title) {
               title = data.title
@@ -193,5 +201,5 @@ export const sendQuestionStreamAPI = (params, onChunk) => streamRequest(params, 
 export const newChatStreamAPI = (params, onChunk) => streamRequest(params, onChunk)
 
 // 5. 删除对话
-// talkId: Number
+// talkId: String
 export const deleteChatAPI = (talkId) => request.delete(`/user/deleteTalk/${talkId}`)
