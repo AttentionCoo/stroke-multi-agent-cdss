@@ -241,7 +241,9 @@ async def get_model_result(request: QueryRequest):
                     final_name = generated_name or "咨询"
                     summary_meta["name"] = final_name
 
-                    yield json.dumps({"meta": {"all_info_update": summary_meta}}, ensure_ascii=False) + "\n"
+                    # 标准格式：meta 事件携带 all_info 更新信息
+                    yield json.dumps({"type": "meta", "content": {"all_info_update": summary_meta}}, ensure_ascii=False) + "\n"
+                    # done 事件：标志流结束，携带汇总信息
                     yield json.dumps({
                         "type": "done",
                         "content": "",
@@ -254,7 +256,7 @@ async def get_model_result(request: QueryRequest):
 
                 if isinstance(item, dict) and item.get("type") == "error":
                     yield json.dumps(
-                        {"error": item["content"]}, ensure_ascii=False
+                        {"type": "error", "content": item.get("content", str(item))}, ensure_ascii=False
                     ) + "\n"
                     break
 
@@ -264,40 +266,33 @@ async def get_model_result(request: QueryRequest):
                     except Exception:
                         generated_name = "咨询"
 
-                response_chunk = {}
                 chunk_type = item.get("type", "") if isinstance(item, dict) else ""
 
+                # 直接透传 Agent 标准格式事件
                 if chunk_type == "result":
                     content = item["content"]
                     if hasattr(content, "content"):
                         content = content.content
                     content_str = str(content)
-                    response_chunk["result"] = content_str
                     final_answer_parts.append(content_str)
+                    yield json.dumps({"type": "result", "content": content_str}, ensure_ascii=False) + "\n"
 
                 elif chunk_type == "thinking":
-                    response_chunk["thinking"] = {
+                    yield json.dumps({
+                        "type": "thinking",
                         "step": item.get("step", ""),
                         "title": item.get("title", ""),
                         "content": str(item.get("content", ""))
-                    }
+                    }, ensure_ascii=False) + "\n"
 
                 elif chunk_type == "meta":
-                    response_chunk["meta"] = item["content"]
-
-                if generated_name:
-                    response_chunk["name"] = generated_name
-
-                if response_chunk:
-                    yield json.dumps(
-                        response_chunk, ensure_ascii=False
-                    ) + "\n"
+                    yield json.dumps({"type": "meta", "content": item["content"]}, ensure_ascii=False) + "\n"
 
         except Exception as e:
             logging.error(f"generate() 外层异常: {e}")
             import traceback
             logging.error(traceback.format_exc())
-            yield json.dumps({"error": str(e)}, ensure_ascii=False) + "\n"
+            yield json.dumps({"type": "error", "content": str(e)}, ensure_ascii=False) + "\n"
 
     return StreamingResponse(
         generate(),

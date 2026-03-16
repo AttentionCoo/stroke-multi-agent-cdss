@@ -24,4 +24,5 @@ public class GlobalExceptionHandler {
             return Result.error("未知错误");
         }
     }
+
 }

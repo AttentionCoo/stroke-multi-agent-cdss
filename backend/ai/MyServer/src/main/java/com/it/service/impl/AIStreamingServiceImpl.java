@@ -288,66 +288,71 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                                         StringBuilder fullAnswer) {
         try {
             JsonNode json = objectMapper.readTree(line);
+            String type = json.path("type").asText("");
 
-            if (json.has("error")) {
-                return Flux.just(buildError(json.get("error").asText(), talkId));
-            }
-
-            if (json.has("name")) {
-                String title = json.get("name").asText();
-                if (StrUtil.isNotBlank(title)) {
-                    generatedTitle[0] = title;
-                    tryUpdateTalkTitle(talkId, title);
+            // done 事件：提取 name/all_info 后结束流
+            if ("done".equalsIgnoreCase(type)) {
+                String name = json.path("name").asText("");
+                if (StrUtil.isNotBlank(name)) {
+                    generatedTitle[0] = name;
+                    tryUpdateTalkTitle(talkId, name);
                 }
-            }
-
-            if (json.has("meta") && json.get("meta").has("all_info_update")) {
-                JsonNode allInfoNode = json.get("meta").get("all_info_update").get("all_info");
-                if (allInfoNode != null && !allInfoNode.isNull()) {
-                    updatedAllInfo[0] = allInfoNode.asText(updatedAllInfo[0]);
+                String allInfo = json.path("all_info").asText(
+                        json.path("summary").asText(""));
+                if (StrUtil.isNotBlank(allInfo)) {
+                    updatedAllInfo[0] = allInfo;
                 }
-            }
-
-            if (json.has("summary") || json.has("all_info")) {
-                updatedAllInfo[0] = json.path("all_info").asText(
-                        json.path("summary").asText(updatedAllInfo[0])
-                );
-            }
-
-            if ("done".equalsIgnoreCase(json.path("type").asText())) {
                 return Flux.empty();
             }
 
-            List<String> events = new java.util.ArrayList<>();
-
-            if (json.has("thinking")) {
-                Map<String, Object> thinkingResp = baseResponse(talkId, generatedTitle[0], "thinking");
-                thinkingResp.put("thinking", objectMapper.convertValue(json.get("thinking"), new TypeReference<Map<String, Object>>() {}));
-                events.add(objectMapper.writeValueAsString(thinkingResp));
+            // error 事件
+            if ("error".equalsIgnoreCase(type)) {
+                String msg = json.path("content").asText("AI服务异常");
+                return Flux.just(buildError(msg, talkId));
             }
 
-            if (json.has("meta")) {
+            // meta 事件：提取 all_info_update 中的汇总信息，透传给前端
+            if ("meta".equalsIgnoreCase(type)) {
+                JsonNode content = json.path("content");
+                // 提取 all_info_update 中的 all_info 和 name
+                JsonNode allInfoUpdate = content.path("all_info_update");
+                if (!allInfoUpdate.isMissingNode()) {
+                    String allInfo = allInfoUpdate.path("all_info").asText("");
+                    if (StrUtil.isNotBlank(allInfo)) {
+                        updatedAllInfo[0] = allInfo;
+                    }
+                    String name = allInfoUpdate.path("name").asText("");
+                    if (StrUtil.isNotBlank(name)) {
+                        generatedTitle[0] = name;
+                        tryUpdateTalkTitle(talkId, name);
+                    }
+                }
                 Map<String, Object> metaResp = baseResponse(talkId, generatedTitle[0], "meta");
-                metaResp.put("meta", objectMapper.convertValue(json.get("meta"), new TypeReference<Map<String, Object>>() {}));
-                events.add(objectMapper.writeValueAsString(metaResp));
+                metaResp.put("meta", objectMapper.convertValue(content, new TypeReference<Map<String, Object>>() {}));
+                return Flux.just(objectMapper.writeValueAsString(metaResp));
             }
 
-            if (json.has("result")) {
-                String chunk = json.get("result").asText();
+            // thinking 事件
+            if ("thinking".equalsIgnoreCase(type)) {
+                Map<String, Object> thinkingData = new HashMap<>();
+                thinkingData.put("step", json.path("step").asText(""));
+                thinkingData.put("title", json.path("title").asText(""));
+                thinkingData.put("content", json.path("content").asText(""));
+                Map<String, Object> thinkingResp = baseResponse(talkId, generatedTitle[0], "thinking");
+                thinkingResp.put("thinking", thinkingData);
+                return Flux.just(objectMapper.writeValueAsString(thinkingResp));
+            }
+
+            // result 事件：追加到完整答案，透传内容给前端
+            if ("result".equalsIgnoreCase(type)) {
+                String chunk = json.path("content").asText("");
                 fullAnswer.append(chunk);
                 Map<String, Object> chunkResp = baseResponse(talkId, generatedTitle[0], "chunk");
                 chunkResp.put("content", chunk);
-                events.add(objectMapper.writeValueAsString(chunkResp));
+                return Flux.just(objectMapper.writeValueAsString(chunkResp));
             }
 
-            if (json.has("summary") || json.has("all_info")) {
-                Map<String, Object> summaryResp = baseResponse(talkId, generatedTitle[0], "summary");
-                summaryResp.put("summary", json.path("summary").asText(updatedAllInfo[0]));
-                summaryResp.put("all_info", json.path("all_info").asText(updatedAllInfo[0]));
-                events.add(objectMapper.writeValueAsString(summaryResp));
-            }
-
-            return events.isEmpty() ? Flux.empty() : Flux.fromIterable(events);
+            return Flux.empty();
 
         } catch (Exception e) {
             log.error("解析AI返回失败, line={}", line, e);

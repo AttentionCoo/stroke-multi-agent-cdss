@@ -192,8 +192,9 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
                 if (trimmed.isEmpty() || "[DONE]".equalsIgnoreCase(trimmed)) continue;
                 try {
                     JsonNode node = objectMapper.readTree(trimmed);
-                    if (node.has("result")) {
-                        sb.append(node.get("result").asText());
+                    // 标准格式：{"type":"result","content":"..."}
+                    if ("result".equals(node.path("type").asText()) && node.has("content")) {
+                        sb.append(node.get("content").asText());
                     }
                 } catch (Exception ignored) {
                     // 非 JSON 行，跳过

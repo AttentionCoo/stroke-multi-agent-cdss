@@ -13,7 +13,10 @@
 #    password: 123
 #
 #  ai-api:
-#    url: http://localhost:8000/model/get_result
+#    url: http://localhost:8000
+#    # ⚠️ 开发环境 JWT 密钥，必须与本地 Python 服务启动时的 AI_JWT_SECRET 环境变量一致
+#    # 示例：AI_JWT_SECRET=dev-local-secret python main.py
+#    shared-jwt-secret: ${AI_JWT_SECRET:dev-local-secret}
 #
 #  alioss:
 #    endpoint: https://oss-cn-beijing.aliyuncs.com

@@ -71,8 +71,12 @@ class TestGetModelResult(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         lines = [json.loads(line) for line in response.text.strip().splitlines()]
-        self.assertEqual(lines[0]["result"], answer)
-        self.assertEqual(lines[-2]["meta"]["all_info_update"]["summary"], summary)
+        # 第一个事件：标准 result 格式
+        self.assertEqual(lines[0]["type"], "result")
+        self.assertEqual(lines[0]["content"], answer)
+        # 倒数第二个事件：标准 meta 格式，content 字段内含 all_info_update
+        self.assertEqual(lines[-2]["type"], "meta")
+        self.assertEqual(lines[-2]["content"]["all_info_update"]["summary"], summary)
         self.assertEqual(lines[-1]["type"], "done")
         self.assertEqual(lines[-1]["result"], answer)
         self.assertEqual(lines[-1]["summary"], summary)
@@ -100,7 +104,8 @@ class TestGetModelResult(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         lines = [json.loads(line) for line in response.text.strip().splitlines()]
-        self.assertFalse(lines[-2]["meta"]["all_info_update"]["is_valuable"])
+        self.assertEqual(lines[-2]["type"], "meta")
+        self.assertFalse(lines[-2]["content"]["all_info_update"]["is_valuable"])
         self.assertEqual(lines[-1]["type"], "done")
         self.assertEqual(lines[-1]["result"], answer)
         self.assertEqual(lines[-1]["summary"], "原始摘要")
@@ -126,7 +131,8 @@ class TestGetModelResult(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         lines = [json.loads(line) for line in response.text.strip().splitlines()]
-        self.assertEqual(lines[-2]["meta"]["all_info_update"]["reason"], "no final answer")
+        self.assertEqual(lines[-2]["type"], "meta")
+        self.assertEqual(lines[-2]["content"]["all_info_update"]["reason"], "no final answer")
         self.assertEqual(lines[-1]["type"], "done")
         self.assertEqual(lines[-1]["result"], "")
         self.assertEqual(lines[-1]["summary"], "历史摘要")

@@ -1,8 +1,22 @@
 -- 健康管理系统 补充建表脚本
--- 执行前请确保 medai 数据库已存在，且 patient 和 user 表已创建
--- 注意：patient 表的外键指向 user 表（非 med_user）
+-- 执行前请确保 medai 数据库已存在
 
 USE medai;
+
+-- =====================
+-- patient 表
+-- =====================
+CREATE TABLE IF NOT EXISTS patient (
+    id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    name        VARCHAR(64)     NOT NULL                            COMMENT '患者姓名',
+    history     TEXT                                                COMMENT '病史',
+    notes       TEXT                                                COMMENT '医生备注',
+    doctor_id   BIGINT UNSIGNED NOT NULL                            COMMENT '负责医生ID',
+    create_time DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '创建时间',
+    update_time DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
+                ON UPDATE CURRENT_TIMESTAMP                         COMMENT '更新时间',
+    INDEX idx_doctor_id(doctor_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='患者信息表';
 
 -- =====================
 -- ai_opinion 表

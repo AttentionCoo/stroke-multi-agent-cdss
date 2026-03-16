@@ -585,38 +585,118 @@ AI分析可以就以前的病史分析诊断，更重要的是要对现在的检
 }
 ```
 
-------
 
-## 六、AI模型接口（后端与模型端）⏳ 待实现
 
-**功能描述**：后端与AI模型端的通信接口。
+## 六、AI模型接口（后端与模型端）⏳ 待实现（按当前 Python 实现对齐）
 
-### 1. 获取AI分析结果
+**功能描述**：后端调用 AI 模型进行临床推理，采用**流式返回**（逐条事件 JSON），而非一次性返回单个 JSON。
+
+### 1. 获取 AI 分析结果（流式）
 
 - **接口地址**：`POST /model/get_result`
+- **请求头**：
+  - `Content-Type: application/json`
+  - `Accept: text/plain`（后端按流逐行读取）
 - **请求参数**：
 
 ```json
 {
-  "question": "",
+  "question": "患��主诉文本或问题",
   "round": 2,
-  "all_info": ""
+  "all_info": "历史上下文摘要，可为空字符串",
+  "token": "后端透传给模型端的鉴权token（可选，按部署策略）",
+  "report_mode": "emergency",
+  "show_thinking": true
 }
 ```
 
-- **响应数据**：
+- **字段说明**：
+  - `question`（string，必填）：本轮用户输入
+  - `round`（number，可选）：轮次，当前默认传 `2`
+  - `all_info`（string，可选）：历史对话/病史摘要，建议不超过 8000 字符
+  - `token`（string，可选）：模型端鉴权
+  - `report_mode`（string，可选）：报告模式，默认 `emergency`
+  - `show_thinking`（boolean，可选）：是否返回思考过程事件
 
+---
+
+### 2. 响应格式（流式事件）
+
+模型端按“每行一个 JSON 事件”持续输出。常见事件如下：
+
+#### 2.1 thinking 事件（可选，多条）
 ```json
 {
-  "result": "这是综合诊疗结果：...",
-  "summary": "总结对后续医疗诊断有用的内容...",
-  "name": "口吐白沫病因分析"
+  "type": "thinking",
+  "step": "Step 1",
+  "title": "✅ 病例分析完成",
+  "content": "..."
 }
 ```
 
+#### 2.2 meta 事件（可选，多条）
+```json
+{
+  "type": "meta",
+  "content": {
+    "complexity": "high",
+    "report_mode": "emergency",
+    "key_risks": ["..."],
+    "all_info_used": true,
+    "all_info": "..."
+  }
+}
+```
 
+#### 2.3 result 事件（核心，1条或多条）
+```json
+{
+  "type": "result",
+  "content": "这是综合诊疗结果：..."
+}
+```
 
+#### 2.4 error 事件（异常时）
+```json
+{
+  "type": "error",
+  "content": "管线异常: ..."
+}
+```
 
+---
+
+### 3. 结束规则
+
+- 当前 Python 实现通常在输出完最后一个 `result` 后自然结束流。
+- **注意**：当前实现未强制输出 `{"type":"done"}` 结束事件；如后端需要 done 事件，建议在模型端补充统一结束帧。
+
+---
+
+### 4. 与旧文档差异（必须知晓）
+
+旧版写法：
+```json
+{
+  "result": "...",
+  "summary": "...",
+  "name": "..."
+}
+```
+这是一次性响应结构，**与当前 Python 实现不一致**。  
+请以后端流式事件协议为准。
+
+---
+
+### 5. 联调建议（强烈建议）
+
+1. 后端解析时优先依据 `type` 分发：
+   - `type=thinking` → 思考事件
+   - `type=meta` → 元信息
+   - `type=result` → 正文内容
+   - `type=error` → 错误事件
+2. 若需 `summary/all_info` 固定字段，可在模型端增加一个最终 `meta` 事件统一回传。
+3. 若需严格结束语义，补充 `type=done` 事件。
 
 # 数据库表
 
@@ -678,66 +758,5 @@ CREATE TABLE learning_material (
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-```
-
-
-
-
-
-# med_ai（previous database）
-
-```sql
-USE medai;
-
--- 1️⃣ 用户表
-DROP TABLE IF EXISTS cont;
-DROP TABLE IF EXISTS talk;
-DROP TABLE IF EXISTS user;
-
-CREATE TABLE user (
-    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    name VARCHAR(32) NOT NULL UNIQUE COMMENT '用户名',
-    password VARCHAR(255) NOT NULL COMMENT '密码哈希',
-    image VARCHAR(255) COMMENT '头像',
-    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-
--- 2️⃣ 对话表
-CREATE TABLE talk (
-    id BIGINT UNSIGNED NOT NULL PRIMARY KEY COMMENT '对话ID(时间戳)',
-    user_id BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
-    title TEXT NOT NULL COMMENT '对话标题',
-    content LONGTEXT NOT NULL COMMENT '对话摘要内容',
-    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-
-    INDEX idx_user_id(user_id),
-
-    CONSTRAINT fk_talk_user
-        FOREIGN KEY (user_id)
-        REFERENCES user(id)
-        ON DELETE CASCADE
-        ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-
--- 3️⃣ 对话内容表
-CREATE TABLE cont (
-    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    user_id BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
-    talk_id BIGINT UNSIGNED NOT NULL COMMENT '对话ID',
-    content LONGTEXT NOT NULL COMMENT '消息内容',
-    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-
-    INDEX idx_talk_id(talk_id),
-
-    CONSTRAINT fk_cont_talk
-        FOREIGN KEY (talk_id)
-        REFERENCES talk(id)
-        ON DELETE CASCADE
-        ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
