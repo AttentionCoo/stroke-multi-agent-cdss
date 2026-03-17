@@ -478,9 +478,13 @@ class qwenAgent:
             proposal_truncated = self._truncate(proposal, MAX_PROPOSAL_CHARS)
             critique_truncated = self._truncate(critique, MAX_CRITIQUE_CHARS)
 
-            final_chunks = []
+            # 逐块 yield chunk 事件，实现打字机效果（不再整体收集后一次性发送）
+            # 使用同步队列作为桥梁，将异步生成器的输出传递给同步生成器
+            import queue as _queue
+            chunk_bridge: _queue.Queue = _queue.Queue()
+            _SENTINEL = object()
 
-            async def collect_final():
+            async def _push_chunks():
                 async for chunk in self.medical_assistant.stream_final_report(
                         context=context,
                         proposal=proposal_truncated,
@@ -490,15 +494,18 @@ class qwenAgent:
                         report_mode=report_mode
                 ):
                     if isinstance(chunk, str) and chunk:
-                        final_chunks.append(chunk)
+                        chunk_bridge.put({"type": "chunk", "content": chunk})
                     elif hasattr(chunk, "content") and chunk.content:
-                        final_chunks.append(chunk.content)
+                        chunk_bridge.put({"type": "chunk", "content": chunk.content})
+                chunk_bridge.put(_SENTINEL)
 
-            loop.run_until_complete(collect_final())
+            loop.run_until_complete(_push_chunks())
 
-            full_report = "".join(final_chunks)
-            if full_report:
-                yield {"type": "result", "content": full_report}
+            while True:
+                item = chunk_bridge.get()
+                if item is _SENTINEL:
+                    break
+                yield item
 
             if show_thinking:
                 yield self._emit_thinking("Done", "✅ 全部完成", "临床推理管线执行完毕")

@@ -323,7 +323,14 @@ async def get_model_result(request: QueryRequest):
                 chunk_type = item.get("type", "") if isinstance(item, dict) else ""
 
                 # 直接透传 Agent 标准格式事件
-                if chunk_type == "result":
+                if chunk_type == "chunk":
+                    # 打字机效果：逐块转发，同时累计到 final_answer_parts
+                    content_str = str(item.get("content", ""))
+                    if content_str:
+                        final_answer_parts.append(content_str)
+                        yield json.dumps({"type": "chunk", "content": content_str}, ensure_ascii=False) + "\n"
+
+                elif chunk_type == "result":
                     content = item["content"]
                     if hasattr(content, "content"):
                         content = content.content
