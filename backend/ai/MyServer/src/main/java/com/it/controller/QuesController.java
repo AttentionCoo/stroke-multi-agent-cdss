@@ -1,6 +1,7 @@
 package com.it.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.it.cache.SSEEventCache;
 import com.it.po.uo.QuesParam;
 import com.it.pojo.Result;
 import com.it.pojo.Talk;
@@ -13,7 +14,9 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +30,7 @@ public class QuesController {
 
     private final AIStreamingService streamingService;
     private final ObjectMapper objectMapper;
+    private final SSEEventCache eventCache;
 
     @GetMapping("/getQues/{talk_id}")
     public Result getPreContent(@PathVariable("talk_id") String talkIdStr) {
@@ -46,7 +50,8 @@ public class QuesController {
     public Flux<ServerSentEvent<String>> streamingQues(
             @RequestBody QuesParam quesParam,
             @RequestHeader(value = "token", required = false) String token,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "Last-Event-ID", required = false) String lastEventId
     ) {
         if (ThreadLocalUtil.getCurrentUser() == null) {
             return Flux.just(sse("error", json("error", mapOf("message", "未登录"))));
@@ -85,6 +90,25 @@ public class QuesController {
 
         final Long finalTalkId = talkId;
         final boolean finalNeedCreate = needCreate;
+        final String finalTalkIdStr = String.valueOf(finalTalkId);
+
+        // ===== 断线续传：有 Last-Event-ID 时走重连路径，不触发新的 AI 推理 =====
+        if (lastEventId != null && !lastEventId.isBlank()) {
+            int colonIdx = lastEventId.lastIndexOf(':');
+            if (colonIdx > 0) {
+                String idTalkId = lastEventId.substring(0, colonIdx);
+                try {
+                    long lastSeq = Long.parseLong(lastEventId.substring(colonIdx + 1));
+                    return handleReconnect(idTalkId, lastSeq, finalTalkId, finalTalkIdStr);
+                } catch (NumberFormatException e) {
+                    log.warn("Last-Event-ID seq 非法，按新请求处理: lastEventId={}", lastEventId);
+                    // 格式非法，fall through 走正常流程
+                }
+            } else {
+                log.warn("Last-Event-ID 格式非法（缺少冒号），按新请求处理: lastEventId={}", lastEventId);
+                // 格式非法，fall through 走正常流程
+            }
+        }
 
         // ===== 统一 JSON 协议 =====
 
@@ -106,24 +130,67 @@ public class QuesController {
             ))).flux();
         });
 
+        // 为本次 talkId 注册 SSE 事件缓存，供断线重连时回放
+        eventCache.registerStream(finalTalkIdStr);
+
         Flux<String> chatFlux = streamingService
                 .streamChat(userId, finalTalkId, quesParam.getQuestion(), upstreamToken)
                 .map(this::wrapChunkIfNeeded);
 
-        return initFlux
+        // 心跳终止信号：业务流（正常或异常）结束时 emit，通知心跳流停止
+        Sinks.One<Void> doneSink = Sinks.one();
+
+        // init/resume 事件：不参与断线续传缓存，SSE 事件不带 id 字段
+        Flux<ServerSentEvent<String>> initResumeSSE = initFlux
                 .concatWith(resumeFlux)
-                .concatWith(chatFlux)
+                .map(data -> sse(resolveEventName(data), data));
+
+        // chatFlux 事件：缓存到 replay sink + 注入 SSE id（talkId:seq）
+        // onErrorResume 将 chatFlux 内部异常转为 error/done 事件，保证流正常终止
+        Flux<ServerSentEvent<String>> chatSSE = chatFlux
                 .onErrorResume(e -> Flux.just(
                         json("error", mapOf(
-                                "talkId", finalTalkId.toString(),
+                                "talkId", finalTalkIdStr,
                                 "message", e.getMessage() == null ? "stream error" : e.getMessage()
                         )),
                         json("done", mapOf(
-                                "talkId", finalTalkId.toString(),
+                                "talkId", finalTalkIdStr,
                                 "title", "异常结束"
                         ))
                 ))
-                .map(data -> sse(resolveEventName(data), data));
+                .map(data -> {
+                    // addEvent 同时将事件写入 replay sink，返回分配的序列号
+                    long seq = eventCache.addEvent(finalTalkIdStr, data);
+                    return sseWithId(finalTalkIdStr + ":" + seq, resolveEventName(data), data);
+                });
+
+        // 业务数据流：init/resume（无 id）串联 chat（有 id），终止时触发心跳停止和缓存完成
+        Flux<ServerSentEvent<String>> dataStream = initResumeSSE
+                .concatWith(chatSSE)
+                .doOnTerminate(() -> {
+                    // 业务流结束（正常完成或错误恢复后完成）时，通知心跳流停止并完成缓存 sink
+                    log.debug("业务流终止，停止 SSE 心跳 comment, talkId={}", finalTalkId);
+                    doneSink.tryEmitEmpty();
+                    eventCache.completeStream(finalTalkIdStr);
+                });
+
+        // 心跳流：每 15 秒发送一次 SSE comment（冒号开头，前端 EventSource 会忽略）
+        // 使用 takeUntilOther 监听 doneSink，业务流结束后立即终止心跳
+        Flux<ServerSentEvent<String>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
+                .map(i -> {
+                    log.debug("发送 SSE 心跳 comment, talkId={}", finalTalkId);
+                    return ServerSentEvent.<String>builder().comment("heartbeat").build();
+                })
+                .takeUntilOther(doneSink.asMono());
+
+        // 优雅关闭 comment：业务流结束后延迟 500ms 发送，避免前端在解析最后一个 chunk 时连接被切断
+        Flux<ServerSentEvent<String>> closeFlux = Mono.<ServerSentEvent<String>>just(
+                ServerSentEvent.<String>builder().comment("close").build()
+        ).delayElement(Duration.ofMillis(500)).flux();
+
+        // 合并业务流与心跳流（并发），末尾串联 close comment
+        return Flux.merge(dataStream, heartbeatFlux)
+                .concatWith(closeFlux);
 
     }
 
@@ -132,6 +199,79 @@ public class QuesController {
                 .event(event)
                 .data(data)
                 .build();
+    }
+
+    /**
+     * 带 SSE id 字段的事件构造，id 格式为 talkId:seq。
+     * 浏览器/fetch 客户端会将 id 记为 Last-Event-ID，断线重连时自动携带。
+     */
+    private ServerSentEvent<String> sseWithId(String id, String event, String data) {
+        return ServerSentEvent.<String>builder()
+                .id(id)
+                .event(event)
+                .data(data)
+                .build();
+    }
+
+    /**
+     * 断线续传处理：从 SSE 事件缓存中回放 seq > lastSeq 的事件。
+     * 若原始流仍在推送，回放结束后自动续接实时事件（同一 sink）。
+     *
+     * @param idTalkId      Last-Event-ID 中解析出的 talkId
+     * @param lastSeq       客户端最后收到的事件序列号
+     * @param finalTalkId   请求体中解析出的 talkId（Long，用于越权校验）
+     * @param finalTalkIdStr finalTalkId 的字符串形式（缓存 key / SSE id 前缀）
+     */
+    private Flux<ServerSentEvent<String>> handleReconnect(
+            String idTalkId, long lastSeq, Long finalTalkId, String finalTalkIdStr) {
+
+        // talkId 校验：防止使用他人的 Last-Event-ID 访问其他对话的缓存
+        if (!finalTalkIdStr.equals(idTalkId)) {
+            log.warn("Last-Event-ID talkId 与请求 talkId 不匹配，拒绝重连: header={}, req={}",
+                    idTalkId, finalTalkIdStr);
+            return Flux.just(
+                    sse("error", json("error", mapOf("code", "E2004", "message", "talkId 不匹配，无法重连")))
+            );
+        }
+
+        // 从缓存获取回放流（含历史事件 + 后续实时推送）
+        Flux<SSEEventCache.SequencedEvent> replayStream =
+                eventCache.getReplayStream(finalTalkIdStr, lastSeq);
+
+        if (replayStream == null) {
+            // 缓存已过期或从未存在，无法恢复
+            log.info("SSE 缓存已过期，无法重连: talkId={}, lastSeq={}", finalTalkIdStr, lastSeq);
+            return Flux.just(
+                    sseWithId(finalTalkIdStr + ":0", "error",
+                            json("error", mapOf("code", "E2003", "message", "会话缓存已过期，无法恢复"))),
+                    sse("done", json("done", mapOf("talkId", finalTalkIdStr, "title", "")))
+            );
+        }
+
+        log.info("SSE 重连回放开始: talkId={}, lastSeq={}", finalTalkIdStr, lastSeq);
+
+        // 重连专用 doneSink，控制本次重连连接的心跳生命周期
+        Sinks.One<Void> doneSink = Sinks.one();
+
+        // 将回放事件（含原始 seq）包装为带 id 的 SSE 事件
+        Flux<ServerSentEvent<String>> replaySSE = replayStream
+                .map(se -> sseWithId(finalTalkIdStr + ":" + se.seq(),
+                        resolveEventName(se.data()), se.data()))
+                .doOnComplete(() -> doneSink.tryEmitEmpty());
+
+        // 重连连接复用相同的心跳和优雅关闭逻辑
+        Flux<ServerSentEvent<String>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
+                .map(i -> {
+                    log.debug("发送 SSE 心跳 comment（重连）, talkId={}", finalTalkIdStr);
+                    return ServerSentEvent.<String>builder().comment("heartbeat").build();
+                })
+                .takeUntilOther(doneSink.asMono());
+
+        Flux<ServerSentEvent<String>> closeFlux = Mono.<ServerSentEvent<String>>just(
+                ServerSentEvent.<String>builder().comment("close").build()
+        ).delayElement(Duration.ofMillis(500)).flux();
+
+        return Flux.merge(replaySSE, heartbeatFlux).concatWith(closeFlux);
     }
 
     private String resolveEventName(String data) {

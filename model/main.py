@@ -4,10 +4,12 @@ import logging
 import sys
 import asyncio
 import concurrent.futures
+import itertools
 from contextlib import asynccontextmanager
 import os
 import json
 import jwt
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -21,6 +23,18 @@ from config.config_loader import get_prompt_manager, get_report_manager
 
 from langchain_community.chat_models import ChatTongyi
 from utils.context_summary import ConversationSummaryService
+from error_codes import build_error_event, format_error_log
+
+# 队列事件优先级映射：数字越小越优先，确保 error/done 能快速排到队首被消费
+# heartbeat 直接 yield 不经过队列，此处仅作完整性定义
+_QUEUE_PRIORITY = {
+    "error":     0,
+    "done":      1,
+    "meta":      2,
+    "result":    3,
+    "thinking":  4,
+    "heartbeat": 5,
+}
 
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
@@ -155,8 +169,38 @@ async def get_model_result(request: QueryRequest):
             logging.info(f"请求show_thinking: {request.show_thinking}")
 
             loop = asyncio.get_running_loop()
-            stream_queue = asyncio.Queue()
+            # 有界优先级队列，maxsize=50 防止推理速度远超消费速度时内存无限增长
+            stream_queue = asyncio.PriorityQueue(maxsize=50)
+            # 单调递增序列号：仅在事件循环线程中调用，防止同优先级元素比较 dict 时 TypeError
+            seq_counter = itertools.count()
             final_answer_parts = []
+
+            def _item_priority(item) -> int:
+                """根据事件 type 字段查找优先级，None 哨兵按 done 级别处理"""
+                if item is None:
+                    return _QUEUE_PRIORITY["done"]
+                if isinstance(item, dict):
+                    return _QUEUE_PRIORITY.get(item.get("type", ""), 3)
+                return 3
+
+            async def enqueue(item, *, droppable: bool = False):
+                """
+                将事件放入优先级队列，元组格式 (priority, seq, item)。
+                droppable=True（thinking）：超时 30s 后丢弃，打印 warning。
+                droppable=False（error/done/meta/result）：永久阻塞等待，绝不丢弃。
+                """
+                priority = _item_priority(item)
+                seq = next(seq_counter)
+                entry = (priority, seq, item)
+                if droppable:
+                    try:
+                        await asyncio.wait_for(stream_queue.put(entry), timeout=30.0)
+                    except asyncio.TimeoutError:
+                        event_type = item.get("type", "unknown") if isinstance(item, dict) else "sentinel"
+                        logging.warning(f"队列已满超时 30s，丢弃低优先级事件: type={event_type}")
+                else:
+                    # error/done/meta/result：阻塞等待空位，不受超时限制
+                    await stream_queue.put(entry)
 
             def run_stream_in_thread():
                 try:
@@ -166,20 +210,23 @@ async def get_model_result(request: QueryRequest):
                         report_mode=request.report_mode,
                         show_thinking=request.show_thinking
                     ):
+                        # thinking 事件可丢弃，其余事件不可丢弃
+                        chunk_type = chunk.get("type", "") if isinstance(chunk, dict) else ""
+                        droppable = chunk_type == "thinking"
                         asyncio.run_coroutine_threadsafe(
-                            stream_queue.put(chunk), loop
+                            enqueue(chunk, droppable=droppable), loop
                         )
                 except Exception as e:
-                    logging.error(f"模型流式生成出错: {e}")
-                    import traceback
-                    logging.error(traceback.format_exc())
+                    # 记录含完整堆栈的错误日志
+                    logging.error(f"模型流式生成出错 | {format_error_log(e)}")
+                    # error 事件不可丢弃
                     asyncio.run_coroutine_threadsafe(
-                        stream_queue.put({"type": "error", "content": str(e)}),
-                        loop
+                        enqueue(build_error_event(e, talk_id=None), droppable=False), loop
                     )
                 finally:
+                    # None 哨兵（done 信号）不可丢弃
                     asyncio.run_coroutine_threadsafe(
-                        stream_queue.put(None), loop
+                        enqueue(None, droppable=False), loop
                     )
 
             loop.run_in_executor(resources["executor"], run_stream_in_thread)
@@ -194,7 +241,15 @@ async def get_model_result(request: QueryRequest):
 
             generated_name = None
             while True:
-                item = await stream_queue.get()
+                # 等待队列数据，超时 10s 则发送心跳 comment 保活连接，不终止循环
+                # 解包优先级元组 (priority, seq, item)，priority/seq 仅用于队列排序，消费时丢弃
+                try:
+                    _, _, item = await asyncio.wait_for(stream_queue.get(), timeout=10.0)
+                except asyncio.TimeoutError:
+                    logging.debug("Queue 空闲超时，发送 SSE 心跳事件")
+                    yield json.dumps({"type": "heartbeat", "talkId": None}, ensure_ascii=False) + "\n"
+                    continue
+
                 if item is None:
                     if not generated_name and resources.get("naming_model"):
                         try:
@@ -255,9 +310,8 @@ async def get_model_result(request: QueryRequest):
                     break
 
                 if isinstance(item, dict) and item.get("type") == "error":
-                    yield json.dumps(
-                        {"type": "error", "content": item.get("content", str(item))}, ensure_ascii=False
-                    ) + "\n"
+                    # 透传完整结构化错误事件（含 error 对象和双写的 content 字段）
+                    yield json.dumps(item, ensure_ascii=False) + "\n"
                     break
 
                 if naming_future and naming_future.done() and not generated_name:
@@ -289,10 +343,10 @@ async def get_model_result(request: QueryRequest):
                     yield json.dumps({"type": "meta", "content": item["content"]}, ensure_ascii=False) + "\n"
 
         except Exception as e:
-            logging.error(f"generate() 外层异常: {e}")
-            import traceback
-            logging.error(traceback.format_exc())
-            yield json.dumps({"type": "error", "content": str(e)}, ensure_ascii=False) + "\n"
+            # 记录含完整堆栈的错误日志
+            logging.error(f"generate() 外层异常 | {format_error_log(e)}")
+            # 构造结构化错误事件并 yield（双写 content 字段保持旧前端兼容）
+            yield json.dumps(build_error_event(e, talk_id=None), ensure_ascii=False) + "\n"
 
     return StreamingResponse(
         generate(),

@@ -10,6 +10,8 @@ import re
 from typing import Generator, List, Dict, Any, Optional, TypedDict
 from langchain_core.messages import HumanMessage, SystemMessage
 from config.config_loader import PromptManager, ReportTemplateManager
+from error_codes import build_error_event, format_error_log
+from token_aggregator import TokenAggregator
 
 logger = logging.getLogger(__name__)
 
@@ -365,13 +367,14 @@ class qwenAgent:
         proposal, critique = await self._parallel_propose_and_critique(context, evidence, all_info, user_questions)
         return {"proposal": proposal, "critique": critique}
 
-    def run_clinical_reasoning(
+    def _run_clinical_reasoning_core(
             self,
             case_text: str,
             all_info: str = "",
             report_mode: str = "emergency",
             show_thinking: bool = True
     ) -> Generator[dict, None, None]:
+        """内部推理管线，直接 yield 原始事件，不做聚合。由 run_clinical_reasoning 包装调用。"""
         loop = None
         try:
             loop = asyncio.new_event_loop()
@@ -501,14 +504,61 @@ class qwenAgent:
                 yield self._emit_thinking("Done", "✅ 全部完成", "临床推理管线执行完毕")
 
         except Exception as e:
-            logging.error(f"=== 临床推理管线异常: {e} ===")
-            logging.error(f"=== 异常类型: {type(e).__name__} ===")
-            import traceback
-            logging.error(f"=== 详细堆栈: {traceback.format_exc()} ===")
-            yield {"type": "error", "content": f"管线异常: {str(e)}"}
+            # 记录含完整堆栈的错误日志，便于运维定位
+            logger.error(f"=== 临床推理管线异常 | {format_error_log(e)} ===")
+            # 构造结构化错误事件（双写 content 字段保持旧前端兼容）
+            yield build_error_event(e, talk_id=None)
         finally:
             if loop:
                 loop.close()
+
+    def run_clinical_reasoning(
+            self,
+            case_text: str,
+            all_info: str = "",
+            report_mode: str = "emergency",
+            show_thinking: bool = True
+    ) -> Generator[dict, None, None]:
+        """
+        对外接口：在内部推理管线基础上套一层 TokenAggregator，
+        将高频 thinking token 聚合后再发出，降低 SSE 事件频率。
+        result/meta/error/done 事件不经过聚合，直接透传保证实时性。
+
+        聚合策略：
+        - 连续 thinking 事件的 content 合并，元数据（step/title）保留第一个 chunk 的值
+        - 非 thinking 事件出现前先 flush，确保不丢失 thinking 内容
+        - 内部生成器耗尽后再做最终 flush 兜底
+        """
+        aggregator = TokenAggregator()
+        # 记录当前批次第一个 thinking 事件的元数据（step/title），聚合后继承这份元数据
+        first_chunk_meta: Optional[dict] = None
+
+        for event in self._run_clinical_reasoning_core(case_text, all_info, report_mode, show_thinking):
+            if not isinstance(event, dict):
+                yield event
+                continue
+
+            if event.get("type") == "thinking":
+                content = event.get("content", "")
+                if first_chunk_meta is None:
+                    # 保存第一个 chunk 的全部字段（除 content），聚合事件将继承这些元数据
+                    first_chunk_meta = {k: v for k, v in event.items() if k != "content"}
+                merged = aggregator.add(content)
+                if merged is not None:
+                    yield {**first_chunk_meta, "content": merged}
+                    first_chunk_meta = None   # 重置，下批次从新的第一个 chunk 取元数据
+            else:
+                # 非 thinking 事件（result/meta/error/done）前，先 flush 剩余 thinking 内容
+                flushed = aggregator.flush()
+                if flushed is not None and first_chunk_meta is not None:
+                    yield {**first_chunk_meta, "content": flushed}
+                    first_chunk_meta = None
+                yield event
+
+        # 内部生成器耗尽后最终 flush（正常情况下 done 前已 flush，此处为安全兜底）
+        flushed = aggregator.flush()
+        if flushed is not None and first_chunk_meta is not None:
+            yield {**first_chunk_meta, "content": flushed}
 
     def answer_clinical_qa_with_cot(self, question: str) -> str:
         try:

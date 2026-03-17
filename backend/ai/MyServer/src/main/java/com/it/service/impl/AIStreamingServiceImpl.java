@@ -30,8 +30,11 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import org.springframework.scheduling.annotation.Scheduled;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
@@ -71,6 +74,25 @@ public class AIStreamingServiceImpl implements AIStreamingService {
     private static final int MAX_HISTORY_CHARS = 8000;
     /** 流式响应逐块最大等待时间，超时视为模型挂起 */
     private static final Duration CHUNK_TIMEOUT = Duration.ofSeconds(120);
+    /** 单行 SSE 数据最大字符数（1 MB），超过此限制的行将被截断并发送 warning 事件 */
+    private static final int MAX_LINE_LENGTH = 1_048_576;
+    /** 单个持久化任务最大重试次数，超过后永久丢弃（可接入告警） */
+    private static final int MAX_PERSIST_RETRIES = 3;
+
+    /**
+     * 持久化失败重试任务，记录一次对话的完整上下文及当前重试次数。
+     * 应用重启后队列清空，生产环境可替换为 Redis Stream 实现跨实例持久化。
+     */
+    private record PersistenceTask(
+            Long userId,
+            Long talkId,
+            String question,
+            String answer,
+            String title,
+            int retryCount) {}
+
+    /** 持久化失败重试队列（内存级，线程安全） */
+    private final ConcurrentLinkedQueue<PersistenceTask> retryQueue = new ConcurrentLinkedQueue<>();
 
     @PostConstruct
     public void init() {
@@ -233,26 +255,12 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                 .flatMap(line -> parseModelLine(line, finalTalkId, generatedTitle, updatedAllInfo, fullAnswer), 1)
 
                 .concatWith(Mono.fromCallable(() -> {
-
+                    // 仅做标题解析（轻量同步），done 事件构造后立即发往前端
+                    // 持久化已解耦到 doOnNext 中异步执行，不再阻塞连接释放
                     String finalTitle = generatedTitle[0];
                     if (StrUtil.isBlank(finalTitle)) {
                         finalTitle = buildTitleFromQuestion(question);
                         tryUpdateTalkTitle(finalTalkId, finalTitle);
-                    }
-
-                    log.info("准备持久化 - question: '{}', answer length: {}, talkId: {}",
-                            question, fullAnswer.length(), finalTalkId);
-
-                    if (question != null && !question.trim().isEmpty() && fullAnswer.length() > 0) {
-                        conversationPersistenceService.persistConversation(
-                                userId,
-                                finalTalkId,
-                                question,
-                                fullAnswer.toString(),
-                                "",
-                                finalTitle
-                        );
-                        stringRedisTemplate.delete("chat:history:" + userId + ":" + finalTalkId);
                     }
 
                     Map<String, Object> done = new HashMap<>();
@@ -264,6 +272,36 @@ public class AIStreamingServiceImpl implements AIStreamingService {
 
                     return objectMapper.writeValueAsString(done);
                 }))
+
+                // done 事件先发给前端，doOnNext 随即在 boundedElastic 线程池中异步持久化
+                // 即使持久化失败，SSE 流也已正常关闭，不影响用户侧体验
+                .doOnNext(eventJson -> {
+                    try {
+                        JsonNode node = objectMapper.readTree(eventJson);
+                        if (!"done".equalsIgnoreCase(node.path("type").asText())) return;
+
+                        // done 事件发出时 fullAnswer / generatedTitle 已稳定，可安全快照
+                        final String snapshotAnswer = fullAnswer.toString();
+                        final String snapshotTitle = generatedTitle[0];
+                        if (StrUtil.isBlank(question) || snapshotAnswer.isEmpty()) {
+                            log.debug("跳过持久化: question 或 answer 为空, talkId={}", finalTalkId);
+                            return;
+                        }
+
+                        Mono.fromRunnable(
+                                () -> persistAndCleanCache(userId, finalTalkId, question, snapshotAnswer, snapshotTitle))
+                                .subscribeOn(Schedulers.boundedElastic())
+                                .doOnError(e -> log.warn("异步持久化失败，进入重试队列: talkId={}", finalTalkId, e))
+                                .onErrorResume(e -> {
+                                    retryQueue.offer(new PersistenceTask(
+                                            userId, finalTalkId, question, snapshotAnswer, snapshotTitle, 0));
+                                    return Mono.empty();
+                                })
+                                .subscribe();
+                    } catch (Exception e) {
+                        log.warn("doOnNext 解析事件失败, talkId={}, err={}", finalTalkId, e.getMessage());
+                    }
+                })
 
                 .onErrorResume(WebClientResponseException.class, e -> {
                     log.error("调用 AI 服务失败: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString(), e);
@@ -287,11 +325,39 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                 .doFinally(signal -> log.info("流完成: signal={}", signal));
     }
 
+    /**
+     * 解析 Python 模型层单行 SSE 事件 JSON，映射为 Java 侧标准事件字符串。
+     *
+     * <p>错误码约定（来自 Python error_codes.py）：
+     * <ul>
+     *   <li>E1001 — 模型推理超时，retryable=true</li>
+     *   <li>E1002 — 模型拒绝回答（安全限制），retryable=false</li>
+     *   <li>E1003 — 模型 OOM，retryable=true</li>
+     *   <li>E1099 — 模型层未知错误，retryable=false</li>
+     *   <li>E2xxx — Java 服务层错误（当前在 onErrorResume 中产生）</li>
+     * </ul>
+     * E1xxx 记录为 WARN（模型侧问题），E2xxx 记录为 ERROR（本层问题）。
+     */
     private Flux<String> parseModelLine(String line,
                                         Long talkId,
                                         String[] generatedTitle,
                                         String[] updatedAllInfo,
                                         StringBuilder fullAnswer) {
+        // ── 超长行保护：解析前先检查长度，防止 OOM ──────────────────────────────
+        if (line.length() > MAX_LINE_LENGTH) {
+            log.error("接收到超长 SSE 行，已截断拒绝解析: length={}, talkId={}, preview={}",
+                    line.length(), talkId, line.substring(0, 200));
+            try {
+                Map<String, Object> warning = new HashMap<>();
+                warning.put("type", "warning");
+                warning.put("talkId", talkId.toString());
+                warning.put("message", "单条消息超长已截断");
+                return Flux.just(objectMapper.writeValueAsString(warning));
+            } catch (Exception ex) {
+                return Flux.empty();
+            }
+        }
+
         try {
             JsonNode json = objectMapper.readTree(line);
             String type = json.path("type").asText("");
@@ -311,10 +377,42 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                 return Flux.empty();
             }
 
-            // error 事件
+            // error 事件：解析结构化错误码，分级日志，透传完整 error 对象
             if ("error".equalsIgnoreCase(type)) {
-                String msg = json.path("content").asText("AI服务异常");
-                return Flux.just(buildError(msg, talkId));
+                JsonNode errorNode = json.path("error");
+                // 提取结构化字段，若 error 对象缺失则降级到旧版 content 字段
+                String errorCode = errorNode.path("code").asText("");
+                boolean retryable = errorNode.path("retryable").asBoolean(false);
+                String detail = errorNode.path("detail").asText("");
+                // 优先取 error.message，降级到顶层 content（旧版 Python 兼容）
+                String errorMessage = errorNode.isMissingNode()
+                        ? json.path("content").asText("AI服务异常")
+                        : errorNode.path("message").asText(
+                                json.path("content").asText("AI服务异常"));
+
+                // 按错误码前缀分级日志：E1xxx=模型层(WARN) / E2xxx=服务层(ERROR) / 其他(ERROR)
+                if (errorCode.startsWith("E1")) {
+                    log.warn("模型层错误事件: talkId={}, code={}, retryable={}, message={}, detail={}",
+                            talkId, errorCode, retryable, errorMessage, detail);
+                } else if (errorCode.startsWith("E2")) {
+                    log.error("服务层错误事件: talkId={}, code={}, retryable={}, message={}, detail={}",
+                            talkId, errorCode, retryable, errorMessage, detail);
+                } else {
+                    // 无结构化 code（旧版 Python 或未知来源）
+                    log.error("错误事件（无结构化 code）: talkId={}, message={}", talkId, errorMessage);
+                }
+
+                // 构造 SSE error 输出：保留旧版 message 字段（前端向后兼容），附加完整 error 对象
+                Map<String, Object> errorResp = new HashMap<>();
+                errorResp.put("type", "error");
+                errorResp.put("talkId", talkId.toString());
+                errorResp.put("message", errorMessage);   // 旧前端读此字段
+                if (!errorNode.isMissingNode()) {
+                    // 透传完整结构化 error 对象，新前端/运维可直接读取 code/retryable
+                    errorResp.put("error", objectMapper.convertValue(
+                            errorNode, new TypeReference<Map<String, Object>>() {}));
+                }
+                return Flux.just(objectMapper.writeValueAsString(errorResp));
             }
 
             // meta 事件：提取 all_info_update 中的汇总信息，透传给前端
@@ -358,10 +456,24 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                 return Flux.just(objectMapper.writeValueAsString(chunkResp));
             }
 
-            return Flux.empty();
+            // heartbeat 事件：Python 端心跳保活，Java 侧静默丢弃，不透传前端
+            if ("heartbeat".equalsIgnoreCase(type)) {
+                return Flux.empty();
+            }
+
+            // 未知 type 兜底：包装为 meta 事件透传，不丢弃数据，log.info 方便未来扩展时发现
+            log.info("收到未知 type 事件，透传为 meta: type={}, talkId={}", type, talkId);
+            Map<String, Object> unknownResp = baseResponse(talkId, generatedTitle[0], "meta");
+            unknownResp.put("originalType", type);
+            unknownResp.put("content", objectMapper.convertValue(
+                    json, new TypeReference<Map<String, Object>>() {}));
+            return Flux.just(objectMapper.writeValueAsString(unknownResp));
 
         } catch (Exception e) {
-            log.error("解析AI返回失败, line={}", line, e);
+            // JSON 解析失败或事件处理异常：warn 级别 + 截断原始行，跳过本条，不终止 Flux
+            String preview = line.length() > 200 ? line.substring(0, 200) + "…" : line;
+            log.warn("解析 SSE 行失败，已跳过: talkId={}, err={}, preview={}",
+                    talkId, e.getMessage(), preview);
             return Flux.empty();
         }
     }
@@ -437,6 +549,57 @@ public class AIStreamingServiceImpl implements AIStreamingService {
             }
         } catch (Exception e) {
             log.warn("更新对话标题失败: talkId={}, err={}", talkId, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 执行持久化并清理 Redis 历史缓存。
+     * 供 doOnNext 的异步 Mono 和 @Scheduled 重试任务共同调用。
+     */
+    private void persistAndCleanCache(Long userId, Long talkId,
+                                      String question, String answer, String title) {
+        log.info("异步持久化开始: talkId={}, answerLen={}", talkId, answer.length());
+        conversationPersistenceService.persistConversation(
+                userId, talkId, question, answer, "", title);
+        // 持久化成功后清理历史缓存，保证下一轮对话能重新加载最新记录
+        stringRedisTemplate.delete("chat:history:" + userId + ":" + talkId);
+        log.info("异步持久化完成，已清理历史缓存: talkId={}", talkId);
+    }
+
+    /**
+     * 定时重试失败的持久化任务，每 30 秒执行一次。
+     * 超过 MAX_PERSIST_RETRIES 次的任务将被永久丢弃并记录 ERROR 日志（可对接告警）。
+     */
+    @Scheduled(fixedDelay = 30_000)
+    public void retryFailedPersistence() {
+        if (retryQueue.isEmpty()) return;
+
+        // 快照当前队列大小，只重试本批次任务，避免无限循环处理新入队的任务
+        int batchSize = retryQueue.size();
+        log.info("持久化重试定时任务启动: 当前队列 {} 个任务", batchSize);
+
+        for (int i = 0; i < batchSize; i++) {
+            PersistenceTask task = retryQueue.poll();
+            if (task == null) break;
+
+            if (task.retryCount() >= MAX_PERSIST_RETRIES) {
+                log.error("持久化重试已达上限 ({} 次)，永久丢弃: talkId={}", MAX_PERSIST_RETRIES, task.talkId());
+                continue;
+            }
+
+            try {
+                persistAndCleanCache(task.userId(), task.talkId(),
+                        task.question(), task.answer(), task.title());
+                log.info("持久化重试成功: talkId={}, retryCount={}", task.talkId(), task.retryCount());
+            } catch (Exception e) {
+                int nextRetry = task.retryCount() + 1;
+                log.warn("持久化重试失败 ({}/{}): talkId={}, err={}",
+                        nextRetry, MAX_PERSIST_RETRIES, task.talkId(), e.getMessage(), e);
+                // 重新入队，retryCount + 1
+                retryQueue.offer(new PersistenceTask(
+                        task.userId(), task.talkId(), task.question(),
+                        task.answer(), task.title(), nextRetry));
+            }
         }
     }
 
