@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -51,8 +52,12 @@ public class QuesController {
             @RequestBody QuesParam quesParam,
             @RequestHeader(value = "token", required = false) String token,
             @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestHeader(value = "Last-Event-ID", required = false) String lastEventId
+            @RequestHeader(value = "Last-Event-ID", required = false) String lastEventId,
+            HttpServletResponse response
     ) {
+        // 告知 Nginx 对本连接关闭代理缓冲，确保每个 SSE chunk 实时到达浏览器
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         if (ThreadLocalUtil.getCurrentUser() == null) {
             return Flux.just(sse("error", json("error", mapOf("message", "未登录"))));
         }

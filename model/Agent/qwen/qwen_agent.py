@@ -378,16 +378,29 @@ class qwenAgent:
             report_mode: str = "emergency",
             show_thinking: bool = True
     ) -> AsyncGenerator[dict, None]:
-        """内部推理管线，纯异步生成器，直接 yield 原始事件，不做聚合。由 run_clinical_reasoning 包装调用。"""
+        """内部推理管线，纯异步生成器，直接 yield 原始事件，不做聚合。由 run_clinical_reasoning 包装调用。
+
+        重构要点（解决 thinking 时间过长问题）：
+        1. 在每个阻塞 LLM 调用 **之前** 先 yield thinking 事件，让用户立刻看到进度反馈
+        2. 将原来的 graph.ainvoke（一次性运行4个节点）改为手动逐节点执行，节点间穿插 thinking 事件
+        3. multi-mcq 路径在拆题前也先 yield thinking，消除首次无响应的空白期
+        """
         try:
-            classification = await self._classify_multi_mcq_with_llm(case_text)
+            # ── 立即发出第一个 thinking，消除空白等待期 ──────────────────
+            if show_thinking:
+                yield self._emit_thinking("Start", "🔍 正在分析输入...", case_text[:100] + ("..." if len(case_text) > 100 else ""))
+
+            # 【优化】合并 MCQ 识别 + 意图分类为单次 LLM 调用（原来是两次串行调用，节省 1 次等待）
+            classification = await self._classify_and_detect_intent(case_text)
             llm_multi_mcq = classification.get("is_multi_mcq", False)
             llm_q_type = classification.get("question_type", "unknown")
+            intent_type = classification.get("intent_type", "irrelevant")
             is_multi_mcq = llm_multi_mcq or self._is_multi_mcq(case_text)
 
             if is_multi_mcq:
                 if show_thinking:
                     yield self._emit_thinking("Intent", "✅ 检测到多题选择题任务", f"进入拆题并行求解流程（type={llm_q_type}）")
+                    yield self._emit_thinking("Split", "📋 正在拆分题目...", "使用 LLM 智能识别各道独立题目")
                 default_q_type = llm_q_type if llm_q_type in {"single", "multiple", "mixed"} else "unknown"
                 multi_result = await self._run_multi_mcq(case_text, default_question_type=default_q_type)
                 if multi_result:
@@ -399,36 +412,34 @@ class qwenAgent:
                     yield {"type": "result", "content": error_msg}
                 return
 
-            initial_state = {
+            # ── 手动逐节点执行（原 graph.ainvoke），节点间穿插 thinking ──
+            # intent_type 已由合并分类获得，直接写入 state，无需再调用 _node_intent
+            state = {
                 "case_text": case_text,
                 "all_info": all_info,
                 "report_mode": report_mode,
-                "show_thinking": show_thinking
+                "show_thinking": show_thinking,
+                "intent_type": intent_type,
             }
-
-            result = await self.graph.ainvoke(initial_state)
-            intent_type = result.get("intent_type", "irrelevant")
 
             if intent_type == "irrelevant":
                 logging.info("=== 意图被分类为 irrelevant，返回拒绝消息 ===")
-                # 使用 chunk 类型与其他路径保持一致，前端直接渲染无需二次转换
                 yield {"type": "chunk", "content": "请提供脑卒中医疗临床相关查询，此输入无关。"}
                 return
 
             if intent_type == "knowledge":
                 logging.info("=== 意图被分类为 knowledge，进入知识问答流程 ===")
                 if show_thinking:
-                    yield self._emit_thinking("Intent", "✅ 意图验证：通用知识问题", "使用 Qwen-Max 流式回答")
+                    yield self._emit_thinking("Intent", "✅ 通用知识问题，直接流式回答", "使用 Qwen-Max 流式输出")
                 knowledge_prompt = f"""你是三甲医院神经内科主任医师。请基于循证医学知识，直接回答以下脑卒中相关通用问题。
 
-                问题：{case_text}
+问题：{case_text}
 
-                回答要求：
-                - 用中文，简洁专业
-                - 禁止确诊语气
-                - 禁止具体剂量
-                - 如果需要，引用权威指南"""
-                # 改用 astream 逐 token yield chunk 事件，实现打字机效果
+回答要求：
+- 用中文，简洁专业
+- 禁止确诊语气
+- 禁止具体剂量
+- 如果需要，引用权威指南"""
                 async for chunk in self.llm_proposer.astream([HumanMessage(content=knowledge_prompt)]):
                     content = chunk.content if hasattr(chunk, "content") else str(chunk)
                     if content:
@@ -436,23 +447,19 @@ class qwenAgent:
                 return
 
             if show_thinking:
-                yield self._emit_thinking("Intent", "✅ 意图验证通过", "输入为问诊相关查询")
+                yield self._emit_thinking("Intent", "✅ 问诊输入，进入临床推理", "提取病例结构 → 检索证据 → 推理")
 
-            context = result.get("context", {"原始病例": case_text})
-            clinical_questions = result.get("clinical_questions", [])
-            key_risks = result.get("key_risks", [])
-            complexity = result.get("complexity", "high")
-            evidence = result.get("evidence", "")
-            proposal = result.get("proposal", "")
-            critique = result.get("critique", "")
-            user_questions = result.get("user_questions", [])
+            # Node 2: Analysis 病例分析
+            if show_thinking:
+                yield self._emit_thinking("Analysis", "🔬 正在分析病例结构...", "提取临床信息、风险因素与待查问题")
+            analysis_updates = await self._node_analysis(state)
+            state.update(analysis_updates)
 
-            if user_questions:
-                if show_thinking:
-                    yield self._emit_thinking("DirectAnswer", "✅ 检测到用户问题列表，生成最终答案", f"共 {len(user_questions)} 个问题")
-                final_answer = proposal
-                yield {"type": "result", "content": final_answer}
-                return
+            context = state.get("context", {"原始病例": case_text})
+            clinical_questions = state.get("clinical_questions", [])
+            key_risks = state.get("key_risks", [])
+            complexity = state.get("complexity", "high")
+            user_questions = state.get("user_questions", [])
 
             if show_thinking:
                 yield self._emit_thinking("Step 1", "✅ 病例分析完成", {
@@ -460,6 +467,35 @@ class qwenAgent:
                     "questions": clinical_questions,
                     "key_risks": key_risks
                 })
+
+            # Node 3: Retrieve 证据检索
+            if show_thinking:
+                yield self._emit_thinking("Retrieve", "📚 正在检索循证医学证据...", f"检索 {len(clinical_questions)} 个临床问题")
+            retrieve_updates = await self._node_retrieve(state)
+            state.update(retrieve_updates)
+            evidence = state.get("evidence", "")
+
+            if show_thinking:
+                yield self._emit_thinking("Step 2", "✅ 证据检索完成", f"证据 {len(evidence)} 字符")
+
+            # Node 4: Reason 推理（Proposer + Critic 并行）
+            if show_thinking:
+                yield self._emit_thinking("Reason", "🧠 正在进行临床推理...", "Proposer + Critic 并行推理中，请稍候")
+            reason_updates = await self._node_reason(state)
+            state.update(reason_updates)
+            proposal = state.get("proposal", "")
+            critique = state.get("critique", "")
+
+            if show_thinking:
+                yield self._emit_thinking("Step 3a", "✅ Proposer 推理完成", proposal[:800] + "..." if len(proposal) > 800 else proposal)
+                yield self._emit_thinking("Step 3b", "✅ Critic 批判完成", critique[:800] + "..." if len(critique) > 800 else critique)
+
+            if user_questions:
+                if show_thinking:
+                    yield self._emit_thinking("DirectAnswer", "✅ 检测到用户问题列表，生成最终答案", f"共 {len(user_questions)} 个问题")
+                final_answer = proposal
+                yield {"type": "result", "content": final_answer}
+                return
 
             yield {
                 "type": "meta",
@@ -469,11 +505,6 @@ class qwenAgent:
                     "key_risks": key_risks
                 }
             }
-
-            if show_thinking:
-                yield self._emit_thinking("Step 2", "✅ 证据检索完成", f"证据 {len(evidence)} 字符")
-                yield self._emit_thinking("Step 3a", "✅ Proposer 推理完成", proposal[:800] + "..." if len(proposal) > 800 else proposal)
-                yield self._emit_thinking("Step 3b", "✅ Critic 批判完成", critique[:800] + "..." if len(critique) > 800 else critique)
 
             if show_thinking:
                 yield self._emit_thinking("Step 4", f"📝 生成最终报告 (模式={report_mode})...", "融合推理 + 批判 → 最终临床报告")
@@ -889,6 +920,88 @@ class qwenAgent:
         except Exception as e:
             logger.warning(f"LLM多题识别失败，使用规则兜底: {e}")
         return {"is_multi_mcq": False, "question_type": "unknown", "reason": "fallback"}
+
+    async def _classify_and_detect_intent(self, text: str) -> dict:
+        """【优化】将 MCQ 识别 + 意图分类合并为单次 LLM 调用，减少思考阶段 1 次串行等待。
+        原来：_classify_multi_mcq_with_llm（1次）+ _node_intent（1次）= 2次串行
+        现在：_classify_and_detect_intent（1次）= 1次
+        """
+        if not text or len(text.strip()) < 8:
+            return {"is_multi_mcq": False, "question_type": "unknown", "intent_type": "irrelevant"}
+
+        prompt = f"""你是任务识别器。请对以下输入同时完成两项判断。
+
+输入：
+{text}
+
+只允许输出 JSON：
+{{
+  "is_multi_mcq": true/false,
+  "question_type": "single/multiple/mixed/unknown",
+  "intent_type": "consultation/knowledge/irrelevant",
+  "reason": "一句话说明"
+}}
+
+判定标准：
+1) is_multi_mcq: 是否包含2道及以上带候选项（A/B/C/D等）的选择题；含"多选/可多选"时 question_type 为 multiple/mixed
+2) intent_type（仅在 is_multi_mcq=false 时有意义）:
+   - consultation: 含具体患者信息的问诊/病例分析（有症状、检查、用药等细节）
+   - knowledge: 脑卒中通用知识询问（无具体患者，如药品作用、禁忌、预防等）
+   - irrelevant: 非脑卒中医疗相关内容
+"""
+        try:
+            resp = await self.llm_critic.ainvoke([HumanMessage(content=prompt)])
+            parsed = self._parse_json(getattr(resp, "content", "") or "", None)
+            if isinstance(parsed, dict):
+                return {
+                    "is_multi_mcq": bool(parsed.get("is_multi_mcq", False)),
+                    "question_type": str(parsed.get("question_type", "unknown")).lower(),
+                    "intent_type": str(parsed.get("intent_type", "irrelevant")),
+                }
+        except Exception as e:
+            logger.warning(f"合并分类失败，降级到默认值: {e}")
+        return {"is_multi_mcq": False, "question_type": "unknown", "intent_type": "irrelevant"}
+
+    async def _stream_user_questions_answer(
+            self, context: Dict, evidence: str, user_questions: List[str]
+    ) -> AsyncGenerator[str, None]:
+        """【优化】user_questions 快速流式通道：直接 astream proposer 回答，跳过 critic + 集成两次 ainvoke。
+        原来：proposer.ainvoke + critic.ainvoke（并行）+ 集成.ainvoke（串行）= 3次 LLM，全部阻塞
+        现在：proposer.astream = 立即流式，0次阻塞等待
+        """
+        context_str = json.dumps(context, ensure_ascii=False, indent=2)
+        evidence_str = evidence if evidence else "未检索到相关证据"
+        questions_text = "\n".join([f"{i + 1}. {q}" for i, q in enumerate(user_questions)])
+
+        proposer_prompt = f"""你是三甲医院神经内科专家。
+
+【患者信息】
+{context_str}
+
+【医学证据】
+{evidence_str}
+
+用户提出了以下问题：
+
+{questions_text}
+
+请严格遵守：
+1 只回答这些问题
+2 禁止扩展额外章节
+3 禁止提出行动计划
+4 禁止输出无关分析
+
+回答格式：
+
+### 问题1
+回答
+
+### 问题2
+回答"""
+        async for chunk in self.llm_proposer.astream([HumanMessage(content=proposer_prompt)]):
+            content = chunk.content if hasattr(chunk, "content") else str(chunk)
+            if content:
+                yield content
 
     async def _detect_question_type_with_llm(self, question_text: str, default_type: str = "single") -> str:
         prompt = f"""你是题型识别器。判断下列题目是单选题还是多选题。

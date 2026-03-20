@@ -5,6 +5,7 @@ import DOMPurify from 'dompurify'
 import DeleteSVG from '@/components/svg/DeleteSVG.vue'
 import DeleteAllSVG from '@/components/svg/DeleteAllSVG.vue'
 import SendSVG from '@/components/svg/SendSVG.vue'
+import ThinkingPanel from './ThinkingPanel.vue'
 
 defineOptions({ name: 'ChatWorkspace' })
 
@@ -67,6 +68,11 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  // 每条 AI 回答的思考历史（与 currentTalkList 中的 AI 消息一一对应）
+  thinkingHistoryList: {
+    type: Array,
+    default: () => [],
+  },
 })
 
 const syncPatientModel = defineModel('syncPatientId', { default: null })
@@ -84,6 +90,8 @@ const emit = defineEmits([
 const draftMessage = ref('')
 const inputRef = ref(null)
 const chatContainerRef = ref(null)
+// 用户是否主动上滑（上滑时暂停自动滚动）
+const userScrolled = ref(false)
 const isHistoryCollapsed = ref(false)
 const isMobileLayout = ref(false)
 const isSyncExpanded = ref(false)
@@ -117,34 +125,112 @@ function toggleSyncPanel() {
 onMounted(() => {
   syncLayoutState()
   window.addEventListener('resize', syncLayoutState)
+  // 监听滚动，检测用户是否主动上滑
+  chatContainerRef.value?.addEventListener('scroll', onChatScroll, { passive: true })
+  // 组件挂载时立即渲染一次（应对路由切换时 props 已携带历史消息的情况）
+  flushRender(true)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', syncLayoutState)
+  chatContainerRef.value?.removeEventListener('scroll', onChatScroll)
+  // 取消挂起的 RAF，防止组件卸载后仍触发渲染导致 Vue 警告
+  if (renderRafId !== null) {
+    cancelAnimationFrame(renderRafId)
+    renderRafId = null
+  }
 })
 
+// 智能滚动：距底部 > 50px 视为用户上滑，暂停自动滚动
+function onChatScroll() {
+  const el = chatContainerRef.value
+  if (!el) return
+  const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+  userScrolled.value = distFromBottom > 50
+}
+
+// ── 【重构】拆分"文本状态"与"渲染状态"，解决 O(N²) 性能陷阱 ───────
+// 核心思路：currentTalkList（来自 talk.vue）每个字符都会更新，但 Markdown 解析
+// 代价高昂（marked.parse + DOMPurify + 整块 DOM 重建）。
+// 通过维护独立的 renderedHtmlList，借助 requestAnimationFrame 将渲染频率限定在
+// 浏览器帧率（~16ms/帧, 60fps），既消除 Layout Thrashing，又保证视觉上逐字流畅。
+//
+// 为什么用 RAF 而非 setTimeout(90ms)：
+//   setTimeout(90ms) 会让每次渲染跳过 ~90 字，视觉上仍是"块状蹦字"。
+//   RAF 每帧（~16ms）渲染一次，打字机在 16ms 内最多输出 ~16 字，
+//   用户看到的是每帧 ~16 字的平滑推进，与 Gemini/ChatGPT 体验一致。
+const renderedHtmlList = ref([])
+let renderRafId = null
+
+// RAF 驱动的渲染刷新
+// immediate=true：取消挂起的 RAF，同步执行渲染（流结束、对话切换、新消息等场景）
+// immediate=false：若当前帧内已安排渲染则跳过（同一帧内只渲染一次，天然去抖）
+function flushRender(immediate = false) {
+  if (!immediate) {
+    // 同一帧内已有待执行的 RAF，跳过本次（所有高频字符更新自动合并到下一帧）
+    if (renderRafId !== null) return
+    renderRafId = requestAnimationFrame(() => {
+      renderRafId = null
+      doRender()
+    })
+  } else {
+    // 立即渲染：取消挂起的 RAF，同步执行
+    if (renderRafId !== null) {
+      cancelAnimationFrame(renderRafId)
+      renderRafId = null
+    }
+    doRender()
+  }
+}
+
+function doRender() {
+  renderedHtmlList.value = props.currentTalkList.map((msg, idx) => {
+    // 偶数索引为用户消息，使用纯文本渲染（template 中用 plain-text 处理），无需解析
+    if (idx % 2 === 0) return ''
+    return renderMarkdown(msg)
+  })
+}
+
+// 新消息出现（用户发送 or 历史记录加载）：立即渲染 + 强制滚到底部
 watch(
   () => props.currentTalkList.length,
   () => {
-    nextTick(scrollToBottom)
+    flushRender(true)  // 列表长度变化必须立即同步渲染，保证 AI 占位消息及时出现
+    userScrolled.value = false
+    nextTick(() => scrollToBottom(true))
   },
 )
 
-// 流式生成期间，监听最后一条消息内容变化，自动滚动到底部
+// 流式更新期间：最后一条 AI 消息内容变化，节流渲染（避免每字符触发 marked.parse）
 watch(
   () => props.currentTalkList[props.currentTalkList.length - 1],
   () => {
-    if (props.isStreaming || props.isThinking) nextTick(scrollToBottom)
+    flushRender()  // 90ms 节流：高频字符更新被合并为低频 DOM 更新
+    if (props.isStreaming || props.isThinking) {
+      nextTick(() => {
+        if (!userScrolled.value) scrollToBottom()
+      })
+    }
+  },
+)
+
+// 流结束：强制立即渲染，确保服务端兜底内容（final content）完整显示，
+// 不被挂起的节流任务延迟或覆盖
+watch(
+  () => props.isStreaming,
+  (streaming) => {
+    if (!streaming) flushRender(true)
   },
 )
 
 watch(
   () => props.currentTalkId,
   () => {
+    userScrolled.value = false
     draftMessage.value = ''
     nextTick(() => {
       autoResize()
-      scrollToBottom()
+      scrollToBottom(true)
     })
   },
 )
@@ -171,11 +257,14 @@ function autoResize() {
   element.style.height = `${Math.min(element.scrollHeight, 220)}px`
 }
 
-function scrollToBottom() {
-  const element = chatContainerRef.value
-  if (!element) return
-  element.scrollTop = element.scrollHeight
+// force=true 时忽略 userScrolled，用于新消息出现等必须滚到底的场景
+function scrollToBottom(force = false) {
+  const el = chatContainerRef.value
+  if (!el) return
+  if (!force && userScrolled.value) return
+  el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
 }
+
 
 function handleSendMessage() {
   const text = draftMessage.value.trim()
@@ -226,6 +315,16 @@ function formatDateTime(value) {
 function shortText(value, fallback = '暂无内容') {
   const text = String(value || '').trim()
   return text || fallback
+}
+
+// 根据全局消息索引（奇数=AI消息）获取对应的思考记录
+// currentTalkList 交替存储：偶数索引=用户，奇数索引=AI
+// 第 N 条 AI 消息的奇数索引为 2N+1，对应 thinkingHistoryList[N]
+function getThinkingData(msgIndex) {
+  if (msgIndex % 2 === 0) return null  // 用户消息不需要思考面板
+  const aiMsgIndex = Math.floor(msgIndex / 2)
+  const entry = props.thinkingHistoryList[aiMsgIndex]
+  return entry?.events?.length ? entry : null
 }
 </script>
 
@@ -279,7 +378,8 @@ function shortText(value, fallback = '暂无内容') {
         <div v-if="chatLoading" class="empty-card">正在加载历史对话...</div>
 
         <div v-else-if="currentTalkList.length" class="message-stack">
-          <article v-for="(msg, index) in currentTalkList" :key="`${index}-${msg}`" class="message-wrapper"
+          <!-- key 使用纯 index：Vue 复用同一元素，避免每次字符更新都销毁重建整个 article -->
+          <article v-for="(msg, index) in currentTalkList" :key="index" class="message-wrapper"
             :class="{ user: index % 2 === 0 }">
             <div class="message-meta">
               <span>{{ index % 2 === 0 ? '医生输入' : 'AI回复' }}</span>
@@ -291,9 +391,15 @@ function shortText(value, fallback = '暂无内容') {
                 <div class="plain-text">{{ msg }}</div>
               </template>
               <template v-else>
-                <!-- thinking 阶段：消息为空且是最后一条，显示推理动画 -->
+                <!-- ThinkingPanel：有思考记录时显示 DeepSeek 风格思考面板 -->
+                <ThinkingPanel
+                  v-if="getThinkingData(index)"
+                  :thinking-data="getThinkingData(index)"
+                  :is-streaming="isThinking && index === currentTalkList.length - 1"
+                />
+                <!-- 降级 fallback：无思考记录时显示旧版弹跳点（兼容历史消息） -->
                 <div
-                  v-if="!msg && isThinking && index === currentTalkList.length - 1"
+                  v-if="!msg && isThinking && index === currentTalkList.length - 1 && !getThinkingData(index)"
                   class="thinking-indicator"
                 >
                   <span class="thinking-dots">
@@ -301,7 +407,18 @@ function shortText(value, fallback = '暂无内容') {
                   </span>
                   <span class="thinking-text">{{ thinkingHint || 'AI 思考中...' }}</span>
                 </div>
-                <div v-else class="markdown-body" v-html="renderMarkdown(msg)"></div>
+                <!--
+                  【核心优化】使用 renderedHtmlList[index] 替代直接调用 renderMarkdown(msg)。
+                  原版 v-html="renderMarkdown(msg)" 会在每个字符更新时触发完整的
+                  marked.parse + DOMPurify + DOM 重建，千字文本下 O(N²) 复杂度导致严重卡顿。
+                  现在 renderedHtmlList 由 flushRender 以 ~90ms 节流更新，
+                  渲染频率从"每字符一次"降低到"每 90ms 至多一次"，彻底消除 Layout Thrashing。
+                -->
+                <div
+                  class="markdown-body"
+                  :class="{ 'streaming-active': isStreaming && index === currentTalkList.length - 1 }"
+                  v-html="renderedHtmlList[index] || ''"
+                ></div>
               </template>
             </div>
           </article>
@@ -788,6 +905,32 @@ function shortText(value, fallback = '暂无内容') {
   }
 }
 
+/* ─────────────────── 流式消息：光标 + 淡入 ─────────────────── */
+/* ::after 伪元素在最后一个块级子元素后插入闪烁光标，无需 JS 注入 */
+.streaming-active::after {
+  content: '▍';
+  display: inline;
+  margin-left: 1px;
+  color: var(--color-primary);
+  font-weight: 300;
+  animation: streaming-blink 1s step-end infinite;
+}
+
+@keyframes streaming-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.streaming-active {
+  animation: streaming-fadein 200ms ease-out forwards;
+}
+
+@keyframes streaming-fadein {
+  from { opacity: 0.35; }
+  to { opacity: 1; }
+}
+
+/* ─────────────────── Markdown body ─────────────────── */
 .markdown-body :deep(p:first-child) {
   margin-top: 0;
 }

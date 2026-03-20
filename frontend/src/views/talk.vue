@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import AppAvatar from '@/components/AppAvatar.vue'
 import UserDialog from '@/components/UserDialog.vue'
 import ChatWorkspace from '@/components/workspace/ChatWorkspace.vue'
@@ -49,6 +49,8 @@ const isStreaming = ref(false)
 const isThinking = ref(false)
 // thinkingHint：thinking 事件中的 title/step 字段，用于显示当前推理步骤
 const thinkingHint = ref('')
+// thinkingHistoryList：每条 AI 回答对应一个思考记录 {events, elapsedSeconds, startTime}
+const thinkingHistoryList = ref([])
 const chatLoading = ref(false)
 const deleteAllLoading = ref(false)
 
@@ -190,6 +192,24 @@ function normalizePatient(patient) {
   }
 }
 
+// 只刷新标题列表，不重新加载历史对话
+// handleSendMessage 结束时调用此函数，避免 fetchTalkHistory 清空并重建 currentTalkList 导致 scroll 归零
+async function refreshTitleList() {
+  try {
+    const res = await getChatTitlesAPI()
+    const titles = normalizeTalkTitles(res.data)
+    // 只更新列表，不改变 currentTalkId，不触发 fetchTalkHistory
+    talkTitleList.value = titles
+    // 如果当前是新对话且已有真实 talkId，更新 currentTalkId 使其与列表对齐
+    if (currentTalkId.value !== NEW_TALK_ID) {
+      const found = titles.find((t) => t.talkId === currentTalkId.value)
+      if (found) talkTitleList.value = titles  // 已对齐，无需其他操作
+    }
+  } catch (error) {
+    console.error('刷新标题列表失败', error)
+  }
+}
+
 async function fetchTalkTitle() {
   try {
     const res = await getChatTitlesAPI()
@@ -214,6 +234,7 @@ async function fetchTalkTitle() {
 async function fetchTalkHistory(talkId = currentTalkId.value) {
   if (!talkId) {
     currentTalkList.value = []
+    thinkingHistoryList.value = []
     return
   }
 
@@ -222,9 +243,12 @@ async function fetchTalkHistory(talkId = currentTalkId.value) {
   try {
     const res = await getChatHistoryAPI(talkId)
     currentTalkList.value = normalizeTalkHistory(res.data)
+    // 加载历史对话时重置思考记录（历史消息不显示思考面板）
+    thinkingHistoryList.value = []
   } catch (error) {
     console.error('获取历史对话失败', error)
     currentTalkList.value = []
+    thinkingHistoryList.value = []
   } finally {
     chatLoading.value = false
   }
@@ -239,8 +263,23 @@ function handleSelectTalk(talkId) {
 function handleNewChat() {
   currentTalkId.value = NEW_TALK_ID
   currentTalkList.value = []
+  thinkingHistoryList.value = []
   talkTitleList.value = talkTitleList.value.filter((talk) => talk.talkId !== NEW_TALK_ID)
   talkTitleList.value.unshift({ talkId: NEW_TALK_ID, title: '新对话' })
+}
+
+// ── 【新增】Unicode/Emoji 安全拆分 ──────────────────────────────────
+// 使用 Intl.Segmenter（现代浏览器原生支持）将 chunk 拆成字位簇（grapheme clusters），
+// 保证由多个码位组成的复杂 Emoji（如 👨‍👩‍👧、🏳️‍🌈）不被强行截断导致乱码闪烁。
+// 降级到 Array.from() 以正确处理代理对（surrogate pairs），
+// 比旧版 charBuffer.push(...chunk) 的展开运算符更安全。
+function safeChunkToChars(chunk) {
+  if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+    const segmenter = new Intl.Segmenter()
+    return [...segmenter.segment(chunk)].map((s) => s.segment)
+  }
+  // 降级方案：Array.from 可处理代理对，但不处理组合字符序列
+  return Array.from(chunk)
 }
 
 async function handleSendMessage(text) {
@@ -253,18 +292,61 @@ async function handleSendMessage(text) {
   currentTalkList.value.push('')
   const aiIndex = currentTalkList.value.length - 1
 
-  // thinking 事件回调：更新推理步骤提示
+  // 为本次 AI 回答初始化独立的思考记录
+  const thinkingEntry = reactive({ events: [], elapsedSeconds: null, startTime: Date.now() })
+  thinkingHistoryList.value.push(thinkingEntry)
+
+  // thinking 事件回调：更新推理步骤提示，同时追加事件到思考记录
   const onThinking = (thinking) => {
     thinkingHint.value = thinking.title || thinking.step || 'AI 思考中...'
+    thinkingEntry.events.push({
+      step: thinking.step || '',
+      title: thinking.title || '',
+      content: thinking.content || '',
+    })
   }
 
-  // chunk 事件回调：收到第一个 chunk 即结束 thinking 阶段
+  // ── 打字机缓冲区（仅作用于本次对话的生命周期）──────────────────
+  const charBuffer = []   // 字符缓冲池，网络 chunk 先推入此处
+  let displayText = ''    // 已输出到屏幕的累积文本
+  let timerId = null      // setTimeout 句柄（替换 RAF，以便精确控制输出间隔）
+
+  // ── 【重写】打字机调速算法：动态 Delay 而非动态 Batch Size ────────
+  // 黄金法则：永远每次输出固定 1-2 个字符，维持极度平滑的视觉感受。
+  // 旧算法（改变单次输出数量）在积压时会一次蹦出 8-12 字，彻底失去打字机感。
+  // 新算法通过动态调整 setTimeout delay 来追赶积压，视觉上始终平滑：
+  //   - 积压 > 200 字：2ms 超短间隔密集吐字（追赶模式）
+  //   - 积压 50~200 字：8ms 快速消耗
+  //   - 积压 < 50 字：25ms 恢复正常打字节奏
+  function startTypewriter() {
+    if (timerId !== null) return  // 已在运行，不重复启动
+    function tick() {
+      if (charBuffer.length === 0) {
+        timerId = null
+        return
+      }
+      const pending = charBuffer.length
+      const delay = pending > 200 ? 2 : pending > 50 ? 8 : 25
+      // 固定每次输出 1-2 个字符，保持视觉连续性（不随积压量增大 batch）
+      const chars = charBuffer.splice(0, 2)
+      displayText += chars.join('')
+      currentTalkList.value[aiIndex] = displayText
+      timerId = setTimeout(tick, delay)
+    }
+    timerId = setTimeout(tick, 0)
+  }
+
+  // chunk 事件回调：收到第一个 chunk 即结束 thinking 阶段，记录思考用时
   const onChunk = (chunk) => {
     if (isThinking.value) {
       isThinking.value = false
       thinkingHint.value = ''
+      thinkingEntry.elapsedSeconds = Math.round((Date.now() - thinkingEntry.startTime) / 1000)
     }
-    currentTalkList.value[aiIndex] += chunk
+    // 【修复】使用 safeChunkToChars 安全拆分 Unicode/Emoji，
+    // 废弃旧版 charBuffer.push(...chunk) 展开字符串，防止多码位字符被截断乱码
+    charBuffer.push(...safeChunkToChars(chunk))
+    startTypewriter()
   }
 
   try {
@@ -280,8 +362,24 @@ async function handleSendMessage(text) {
     const { title, content } = finalResult.data || {}
     const talkId = normalizeTalkId(finalResult.data?.talkId)
 
+    // done 到达后先等打字机把缓冲区自然排空，解决 consultant/multi-mcq 大块文字一次性蹦出的问题
+    // knowledge 的缓冲区在 done 到达时通常已接近空，等待时间极短
+    if (charBuffer.length > 0) {
+      await new Promise((resolve) => {
+        function waitDrain() {
+          if (charBuffer.length === 0) resolve()
+          else requestAnimationFrame(waitDrain)
+        }
+        waitDrain()
+      })
+    }
+
+    // 缓冲区已空，停止打字机，再用服务端最终内容兜底（防止极端情况下少字）
+    if (timerId !== null) { clearTimeout(timerId); timerId = null }
     if (typeof content === 'string') {
       currentTalkList.value[aiIndex] = content
+    } else {
+      currentTalkList.value[aiIndex] = displayText
     }
 
     if (currentTalkId.value === NEW_TALK_ID && talkId) {
@@ -295,7 +393,7 @@ async function handleSendMessage(text) {
       }
     }
 
-    await fetchTalkTitle()
+    await refreshTitleList()
   } catch (error) {
     console.error('发送消息失败', error)
     currentTalkList.value.splice(aiIndex, 1)
@@ -706,6 +804,7 @@ function openPatientWorkspace(patientId) {
       <ChatWorkspace v-if="activeTab === 'chat'" v-model:sync-patient-id="syncPatientId"
         :talk-title-list="talkTitleList" :current-talk-id="currentTalkId" :current-talk-list="currentTalkList"
         :is-streaming="isStreaming" :is-thinking="isThinking" :thinking-hint="thinkingHint"
+        :thinking-history-list="thinkingHistoryList"
         :chat-loading="chatLoading" :patients="patients" :sync-patient="syncPatient"
         :conversation-preview="conversationPreview" :can-sync-conversation="canSyncConversation"
         :sync-result="syncResult" @select-talk="handleSelectTalk" @new-chat="handleNewChat"

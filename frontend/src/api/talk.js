@@ -147,6 +147,19 @@ function streamRequest(params, onChunk, onThinking) {
           return
         }
 
+        // ── result：consultation/user_questions 路径的一次性完整答案。
+        // Python 侧在该路径直接 yield {"type":"result","content":"..."} 而非逐 token 流式。
+        // 前端将其视为一个超大 chunk 推入打字机缓冲区，由 startTypewriter 平滑消耗，
+        // 保证同样能看到打字机效果，而不是直接一次性显示或静默丢弃。
+        if (type === 'result') {
+          const text = data.content || ''
+          if (text) {
+            fullAnswer += text
+            if (onChunk) onChunk(text)
+          }
+          return
+        }
+
         // ── done：流正常结束 ──
         if (type === 'done') {
           safeResolve(buildResult())
