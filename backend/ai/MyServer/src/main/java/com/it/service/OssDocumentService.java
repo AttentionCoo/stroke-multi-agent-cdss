@@ -134,12 +134,12 @@ public class OssDocumentService {
         if (referenceName == null || referenceName.isBlank()) return null;
 
         // 去掉书名号、前后空格，转小写便于匹配
-        String cleanName = referenceName.replaceAll("[《》]", "").trim().toLowerCase();
+        String cleanName = normalize(referenceName.replaceAll("[《》]", "").trim());
 
         for (List<DocumentVO> docs : listDocuments().values()) {
             for (DocumentVO doc : docs) {
-                // 去掉 .pdf 后缀再比较
-                String docName = doc.getName().replaceAll("(?i)\\.pdf$", "").toLowerCase();
+                // 去掉 .pdf 后缀后规范化再比较
+                String docName = normalize(doc.getName().replaceAll("(?i)\\.pdf$", ""));
                 if (docName.contains(cleanName) || cleanName.contains(docName)) {
                     return generateSignedUrl(doc.getId());
                 }
@@ -148,5 +148,18 @@ public class OssDocumentService {
 
         log.debug("[OSS] 文献名 '{}' 未在 OSS 中匹配到任何文档", referenceName);
         return null;
+    }
+
+    /**
+     * 文献名规范化：统一"脑卒中"→"卒中"、去掉年份数字、去掉版本标记、转小写
+     * 目的是消除 AI 生成名称与 OSS 文件名之间的细微差异
+     */
+    private String normalize(String name) {
+        return name
+                .toLowerCase()
+                .replace("脑卒中", "卒中")          // 统一"脑卒中"与"卒中"
+                .replaceAll("\\d{4}", "")            // 去掉4位年份（如2023、2024）
+                .replaceAll("[（(][^）)]*[版本期年][）)]", "") // 去掉版本括号（如（2021年版））
+                .replaceAll("[_（(）)\\s]", "");     // 去掉下划线、括号、空格
     }
 }
