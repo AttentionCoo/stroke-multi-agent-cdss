@@ -62,6 +62,9 @@
   --color-plain-btn-bg: #f1f5f9;
   --color-plain-btn: #334155;
   --color-plain-btn-hover-bg: #e2e8f0;
+  --color-scrollbar-track: rgba(226, 238, 235, 0.8);
+  --color-scrollbar-thumb: rgba(94, 115, 121, 0.38);
+  --color-scrollbar-thumb-hover: rgba(94, 115, 121, 0.58);
   --color-card-intro-bg: linear-gradient(140deg, #ffffff, var(--color-bg-light));
   --color-card-intro-shadow: 0 16px 40px rgba(15, 23, 42, 0.1), 0 1px 0 rgba(255, 255, 255, 0.8) inset;
   --color-avatar-border: #eff6ff;
@@ -141,6 +144,9 @@
   --color-plain-btn-bg: #334155;
   --color-plain-btn: #cbd5e1;
   --color-plain-btn-hover-bg: #475569;
+  --color-scrollbar-track: rgba(30, 41, 59, 0.92);
+  --color-scrollbar-thumb: rgba(148, 163, 184, 0.38);
+  --color-scrollbar-thumb-hover: rgba(148, 163, 184, 0.58);
   --color-card-intro-bg: linear-gradient(140deg, #1e293b, #0f172a);
   --color-card-intro-shadow: 0 16px 40px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
   --color-avatar-border: #334155;

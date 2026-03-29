@@ -454,5 +454,5 @@ input.auth-input:-webkit-autofill:focus {
 // ─────────────────── 自定义滚动条 ───────────────────
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-border) transparent;
+  scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
 }
