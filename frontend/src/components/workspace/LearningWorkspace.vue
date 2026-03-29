@@ -356,9 +356,8 @@ onBeforeUnmount(() => {
 
         <template v-else>
           <div class="section-head compact pane-head">
-            <div>
-              <h3>文献列表</h3>
-            </div>
+            <h3>文献列表</h3>
+
             <span v-if="pubmedPapers.length" class="pane-count">{{ pubmedPapers.length }} 篇</span>
           </div>
 
@@ -443,7 +442,7 @@ onBeforeUnmount(() => {
 
             <div v-if="displayTypes(currentPaper.pub_type).length" class="paper-detail-types">
               <span v-for="type in displayTypes(currentPaper.pub_type)" :key="type" :class="pillClass(type)">{{ type
-                }}</span>
+              }}</span>
             </div>
 
             <section class="paper-detail-section">

@@ -86,7 +86,7 @@ onBeforeUnmount(() => {
         :aria-haspopup="tab.children?.length ? 'menu' : undefined" @click.stop="handleTabClick(tab)">
         <span>{{ tab.label }}</span>
         <small v-if="tab.key === activeTab && activeSubtitles[tab.key]" class="tab-subtitle">{{ activeSubtitles[tab.key]
-          }}</small>
+        }}</small>
         <span v-if="tab.children?.length" class="tab-caret" aria-hidden="true"></span>
       </button>
 
@@ -222,6 +222,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
+  margin: 4px 0;
   color: var(--color-text-medium);
   text-align: left;
   cursor: pointer;
