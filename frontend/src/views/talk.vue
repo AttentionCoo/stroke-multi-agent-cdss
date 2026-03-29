@@ -29,7 +29,7 @@ import { analyzePatientAPI, syncTalkToPatientAPI } from '@/api/ai'
 defineOptions({ name: 'TalkIndex' })
 
 const tabs = [
-  { key: 'chat', label: '智能问诊', hint: '对话与同步分析' },
+  { key: 'chat', label: '智能诊疗', hint: '对话与同步分析' },
   { key: 'patients', label: '患者管理', hint: '病历与AI意见' },
   { key: 'learning', label: '医生学习', hint: '资料检索与阅读' },
 ]
@@ -357,10 +357,10 @@ async function handleSendMessage({ text, images } = {}) {
       currentTalkId.value === NEW_TALK_ID
         ? await newChatStreamAPI({ question: text, ...imagesPayload }, onChunk, onThinking)
         : await sendQuestionStreamAPI(
-            { talkId: currentTalkId.value, question: text, ...imagesPayload },
-            onChunk,
-            onThinking,
-          )
+          { talkId: currentTalkId.value, question: text, ...imagesPayload },
+          onChunk,
+          onThinking,
+        )
 
     const { title, content } = finalResult.data || {}
     const talkId = normalizeTalkId(finalResult.data?.talkId)
@@ -807,13 +807,12 @@ function openPatientWorkspace(patientId) {
       <ChatWorkspace v-if="activeTab === 'chat'" v-model:sync-patient-id="syncPatientId"
         :talk-title-list="talkTitleList" :current-talk-id="currentTalkId" :current-talk-list="currentTalkList"
         :is-streaming="isStreaming" :is-thinking="isThinking" :thinking-hint="thinkingHint"
-        :thinking-history-list="thinkingHistoryList"
-        :chat-loading="chatLoading" :patients="patients" :sync-patient="syncPatient"
-        :conversation-preview="conversationPreview" :can-sync-conversation="canSyncConversation"
-        :sync-result="syncResult"
-        @select-talk="handleSelectTalk" @new-chat="handleNewChat"
-        @delete-chat="handleDeleteChat" @delete-all="handleDeleteAll" @send-message="handleSendMessage"
-        @sync-conversation="handleSyncConversation" @open-patient-workspace="openPatientWorkspace" />
+        :thinking-history-list="thinkingHistoryList" :chat-loading="chatLoading" :patients="patients"
+        :sync-patient="syncPatient" :conversation-preview="conversationPreview"
+        :can-sync-conversation="canSyncConversation" :sync-result="syncResult" @select-talk="handleSelectTalk"
+        @new-chat="handleNewChat" @delete-chat="handleDeleteChat" @delete-all="handleDeleteAll"
+        @send-message="handleSendMessage" @sync-conversation="handleSyncConversation"
+        @open-patient-workspace="openPatientWorkspace" />
 
       <PatientWorkspace v-else-if="activeTab === 'patients'" v-model:query="patientQuery"
         v-model:analysis-text="patientAnalysisText" :patients="patients" :patient-total="patientTotal"

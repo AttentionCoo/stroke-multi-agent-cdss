@@ -1,9 +1,15 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import PdfPreviewModal from '@/components/PdfPreviewModal.vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import VuePdfEmbed from 'vue-pdf-embed'
+import * as pdfjsLib from 'pdfjs-dist'
 import PapersSidebar from './PapersSidebar.vue'
 import { getDocumentsAPI, getDocumentUrlAPI } from '@/api/documents'
 import { searchPubMedAPI } from '@/api/learning'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.js',
+  import.meta.url,
+).href
 
 defineOptions({ name: 'LearningWorkspace' })
 
@@ -38,113 +44,76 @@ defineProps({
   },
 })
 
-const query = defineModel('query', { required: true })
+defineModel('query', { required: true })
+defineEmits(['search', 'select-material', 'page-change', 'open-material-link'])
 
-const emit = defineEmits(['search', 'select-material', 'page-change', 'open-material-link'])
+const MOBILE_BREAKPOINT = 900
+const activeView = ref('pdfs')
+const isMobileLayout = ref(false)
+const activeMobilePane = ref('list')
 
-function shortText(value, fallback = '暂无内容') {
-  const text = String(value || '').trim()
-  return text || fallback
-}
-
-// ── 顶部视图切换：PDF文档库 | PubMed文献 ────────────────────────────────
-const activeView = ref('pdfs')   // 'pdfs' | 'pubmed'
-
-// ── PDF 文档库状态（自管理，不走父组件 props） ─────────────────────────
 const pdfLoading = ref(false)
 const pdfError = ref('')
-// 结构：{ 指南: [DocumentVO], 教材: [...], ... }
 const pdfDocuments = ref({})
-const pdfCategories = computed(() => Object.keys(pdfDocuments.value))
 const activeCategory = ref('')
+const selectedPdfId = ref(null)
+const pdfPreviewCache = ref({})
+const pdfRequestToken = ref(0)
+const pdfPreviewState = ref(createEmptyPdfPreview())
 
-const categoryDocs = computed(() =>
-  activeCategory.value ? (pdfDocuments.value[activeCategory.value] || []) : []
-)
-
-// PDF 预览弹窗状态
-const pdfPreview = ref({
-  visible: false,
-  url: '',
-  downloadUrl: '',
-  fileName: '',
-  loading: false,
-})
-
-async function loadPdfDocuments() {
-  pdfLoading.value = true
-  pdfError.value = ''
-  try {
-    const res = await getDocumentsAPI()
-    pdfDocuments.value = res.data || {}
-    // 默认选中第一个分类
-    const categories = Object.keys(pdfDocuments.value)
-    if (categories.length) activeCategory.value = categories[0]
-  } catch (e) {
-    pdfError.value = e?.msg || '网络错误，请稍后重试'
-  } finally {
-    pdfLoading.value = false
-  }
-}
-
-async function openPreview(doc) {
-  pdfPreview.value = { visible: true, url: '', downloadUrl: '', fileName: doc.name, loading: true }
-  try {
-    const res = await getDocumentUrlAPI(doc.id)
-    pdfPreview.value.url = res.data.previewUrl
-    pdfPreview.value.downloadUrl = res.data.downloadUrl
-  } catch (e) {
-    alert(e?.msg ? '获取预览链接失败：' + e.msg : '网络错误，无法获取预览链接')
-    pdfPreview.value.visible = false
-  } finally {
-    pdfPreview.value.loading = false
-  }
-}
-
-async function downloadDoc(doc) {
-  try {
-    const res = await getDocumentUrlAPI(doc.id)
-    window.open(res.data.downloadUrl, '_blank')
-  } catch (e) {
-    alert(e?.msg ? '获取下载链接失败：' + e.msg : '网络错误，无法获取下载链接')
-  }
-}
-
-// 切换到 PDF 文档库时懒加载
-function switchView(view) {
-  activeView.value = view
-  if (view === 'pdfs' && !pdfCategories.value.length && !pdfLoading.value) {
-    loadPdfDocuments()
-  }
-}
-
-// 默认视图是 pdfs，组件挂载时直接加载
-onMounted(() => {
-  loadPdfDocuments()
-})
-
-// ── PubMed 文献检索状态（自管理） ────────────────────────────────────
 const pubmedQuery = ref('')
 const pubmedLoading = ref(false)
 const pubmedError = ref('')
 const pubmedPapers = ref([])
-const pubmedSearched = ref(false)  // 是否已执行过一次搜索
+const pubmedSearched = ref(false)
+const activePaperPmid = ref('')
 
-async function handlePubMedSearch() {
-  const q = pubmedQuery.value.trim()
-  if (!q) return
-  pubmedLoading.value = true
-  pubmedError.value = ''
-  pubmedPapers.value = []
-  pubmedSearched.value = true
-  try {
-    const res = await searchPubMedAPI(q, 5)
-    pubmedPapers.value = res.data?.papers || []
-  } catch (e) {
-    pubmedError.value = e?.msg || '检索失败，请稍后重试'
-  } finally {
-    pubmedLoading.value = false
+const pdfCategories = computed(() => Object.keys(pdfDocuments.value))
+const categoryDocs = computed(() =>
+  activeCategory.value ? (pdfDocuments.value[activeCategory.value] || []) : [],
+)
+const currentPdfDoc = computed(() =>
+  categoryDocs.value.find((doc) => doc.id === selectedPdfId.value) || null,
+)
+const currentPaper = computed(() =>
+  pubmedPapers.value.find((paper) => paper.pmid === activePaperPmid.value) || null,
+)
+
+const EVIDENCE_HIGH = new Set(['Practice Guideline', 'Guideline', 'Meta-Analysis', 'Systematic Review'])
+const EVIDENCE_MID = new Set(['Randomized Controlled Trial', 'Clinical Trial'])
+const DISPLAY_TYPES = new Set([
+  'Practice Guideline',
+  'Guideline',
+  'Meta-Analysis',
+  'Systematic Review',
+  'Randomized Controlled Trial',
+  'Clinical Trial',
+  'Review',
+  'Case Reports',
+])
+
+function createEmptyPdfPreview() {
+  return {
+    fileName: '',
+    url: '',
+    downloadUrl: '',
+    loading: false,
+    error: '',
+    currentPage: 1,
+    totalPages: 0,
   }
+}
+
+function updateLayoutMode() {
+  isMobileLayout.value = window.innerWidth <= MOBILE_BREAKPOINT
+  if (!isMobileLayout.value) {
+    activeMobilePane.value = 'list'
+  }
+}
+
+function shortText(value, fallback = '暂无内容') {
+  const text = String(value || '').trim()
+  return text || fallback
 }
 
 function formatSize(bytes) {
@@ -152,119 +121,365 @@ function formatSize(bytes) {
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
   return (bytes / 1024 / 1024).toFixed(1) + ' MB'
 }
+
+function displayTypes(pubTypes) {
+  return (pubTypes || []).filter((type) => DISPLAY_TYPES.has(type))
+}
+
+function pillClass(type) {
+  if (EVIDENCE_HIGH.has(type)) return 'pill pill--high'
+  if (EVIDENCE_MID.has(type)) return 'pill pill--mid'
+  return 'pill pill--low'
+}
+
+function switchView(view) {
+  activeView.value = view
+  activeMobilePane.value = 'list'
+  if (view === 'pdfs' && !pdfCategories.value.length && !pdfLoading.value) {
+    loadPdfDocuments()
+  }
+}
+
+async function loadPdfDocuments() {
+  pdfLoading.value = true
+  pdfError.value = ''
+
+  try {
+    const res = await getDocumentsAPI()
+    pdfDocuments.value = res.data || {}
+    const categories = Object.keys(pdfDocuments.value)
+    activeCategory.value = categories[0] || ''
+  } catch (error) {
+    pdfError.value = error?.msg || '网络错误，请稍后重试'
+  } finally {
+    pdfLoading.value = false
+  }
+}
+
+async function selectPdfDoc(doc, options = {}) {
+  if (!doc?.id) return
+
+  selectedPdfId.value = doc.id
+  if (options.switchPane && isMobileLayout.value) {
+    activeMobilePane.value = 'preview'
+  }
+
+  const cached = pdfPreviewCache.value[doc.id]
+  pdfPreviewState.value = {
+    fileName: doc.name,
+    url: cached?.url || '',
+    downloadUrl: cached?.downloadUrl || '',
+    loading: true,
+    error: '',
+    currentPage: 1,
+    totalPages: cached?.totalPages || 0,
+  }
+
+  if (cached?.url) return
+
+  const token = ++pdfRequestToken.value
+  try {
+    const res = await getDocumentUrlAPI(doc.id)
+    if (token !== pdfRequestToken.value || selectedPdfId.value !== doc.id) return
+
+    pdfPreviewCache.value = {
+      ...pdfPreviewCache.value,
+      [doc.id]: {
+        url: res.data.previewUrl,
+        downloadUrl: res.data.downloadUrl,
+        totalPages: 0,
+      },
+    }
+    pdfPreviewState.value = {
+      ...pdfPreviewState.value,
+      url: res.data.previewUrl,
+      downloadUrl: res.data.downloadUrl,
+      loading: true,
+      error: '',
+    }
+  } catch (error) {
+    if (token !== pdfRequestToken.value || selectedPdfId.value !== doc.id) return
+    pdfPreviewState.value = {
+      ...createEmptyPdfPreview(),
+      fileName: doc.name,
+      error: error?.msg || '网络错误，无法获取预览链接',
+    }
+  }
+}
+
+function handlePdfLoaded(pdf) {
+  const totalPages = pdf?.numPages ?? pdfPreviewState.value.totalPages ?? 0
+  pdfPreviewState.value = {
+    ...pdfPreviewState.value,
+    loading: false,
+    totalPages,
+  }
+
+  if (!selectedPdfId.value) return
+
+  const cached = pdfPreviewCache.value[selectedPdfId.value]
+  if (!cached) return
+
+  pdfPreviewCache.value = {
+    ...pdfPreviewCache.value,
+    [selectedPdfId.value]: {
+      ...cached,
+      totalPages,
+    },
+  }
+}
+
+function goPdfPage(direction) {
+  if (!pdfPreviewState.value.totalPages) return
+
+  const nextPage = pdfPreviewState.value.currentPage + direction
+  if (nextPage < 1 || nextPage > pdfPreviewState.value.totalPages) return
+
+  pdfPreviewState.value = {
+    ...pdfPreviewState.value,
+    currentPage: nextPage,
+  }
+}
+
+function handlePdfDownload() {
+  if (pdfPreviewState.value.downloadUrl) {
+    window.open(pdfPreviewState.value.downloadUrl, '_blank')
+  }
+}
+
+async function handlePubMedSearch() {
+  const keyword = pubmedQuery.value.trim()
+  if (!keyword) return
+
+  pubmedLoading.value = true
+  pubmedError.value = ''
+  pubmedPapers.value = []
+  activePaperPmid.value = ''
+  pubmedSearched.value = true
+
+  try {
+    const res = await searchPubMedAPI(keyword, 5)
+    const papers = res.data?.papers || []
+    pubmedPapers.value = papers
+    activePaperPmid.value = papers[0]?.pmid || ''
+  } catch (error) {
+    pubmedError.value = error?.msg || '检索失败，请稍后重试'
+  } finally {
+    pubmedLoading.value = false
+  }
+}
+
+function handlePaperSelect(paper) {
+  if (!paper?.pmid) return
+  activePaperPmid.value = paper.pmid
+  if (isMobileLayout.value) {
+    activeMobilePane.value = 'preview'
+  }
+}
+
+watch(
+  categoryDocs,
+  (docs) => {
+    if (!docs.length) {
+      selectedPdfId.value = null
+      pdfPreviewState.value = createEmptyPdfPreview()
+      return
+    }
+
+    const exists = docs.some((doc) => doc.id === selectedPdfId.value)
+    if (!exists) {
+      selectPdfDoc(docs[0], { switchPane: false })
+    }
+  },
+  { immediate: true },
+)
+
+watch(activeView, () => {
+  if (!isMobileLayout.value) return
+  activeMobilePane.value = 'list'
+})
+
+onMounted(() => {
+  updateLayoutMode()
+  window.addEventListener('resize', updateLayoutMode)
+  loadPdfDocuments()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateLayoutMode)
+})
 </script>
 
 <template>
   <section class="learning-workspace">
-    <!-- ── 视图切换 Tab ─────────────────────────────────── -->
     <div class="view-tabs">
-      <button
-        type="button"
-        class="view-tab"
-        :class="{ active: activeView === 'pdfs' }"
-        @click="switchView('pdfs')"
-      >PDF 文档库</button>
-      <button
-        type="button"
-        class="view-tab"
-        :class="{ active: activeView === 'pubmed' }"
-        @click="switchView('pubmed')"
-      >PubMed 文献</button>
+      <button type="button" class="view-tab" :class="{ active: activeView === 'pdfs' }" @click="switchView('pdfs')">PDF
+        文档库</button>
+      <button type="button" class="view-tab" :class="{ active: activeView === 'pubmed' }"
+        @click="switchView('pubmed')">PubMed 文献</button>
     </div>
 
-    <!-- ══════════════════════════════════════════════════════ -->
-    <!--  视图 A：PDF 文档库                                   -->
-    <!-- ══════════════════════════════════════════════════════ -->
-    <template v-if="activeView === 'pdfs'">
-      <div class="pdf-panel">
-        <!-- 加载 / 错误状态 -->
-        <div v-if="pdfLoading" class="empty-card">正在从文档库加载 PDF 列表...</div>
-        <div v-else-if="pdfError" class="empty-card error">{{ pdfError }}</div>
-
-        <template v-else-if="pdfCategories.length">
-          <!-- 分类 Tab -->
-          <div class="pdf-category-tabs">
-            <button
-              v-for="cat in pdfCategories"
-              :key="cat"
-              type="button"
-              class="pdf-cat-tab"
-              :class="{ active: activeCategory === cat }"
-              @click="activeCategory = cat"
-            >{{ cat }}</button>
+    <div class="learning-layout" :class="{
+      mobile: isMobileLayout,
+      'mobile-show-preview': isMobileLayout && activeMobilePane === 'preview',
+    }">
+      <aside class="selection-pane">
+        <template v-if="activeView === 'pdfs'">
+          <div class="section-head compact pane-head">
+            <div>
+              <h3>文档选择</h3>
+            </div>
+            <span class="pane-count">{{ categoryDocs.length }} 篇</span>
           </div>
 
-          <!-- 文档列表 -->
-          <div class="pdf-list">
-            <div v-if="!categoryDocs.length" class="empty-card">该分类暂无文档。</div>
-            <article v-for="doc in categoryDocs" :key="doc.id" class="pdf-item">
-              <div class="pdf-item-info">
-                <span class="pdf-icon">📄</span>
-                <div>
-                  <p class="pdf-name">{{ doc.name }}</p>
-                  <small class="pdf-size">{{ formatSize(doc.size) }}</small>
-                </div>
-              </div>
-              <div class="pdf-item-actions">
-                <button type="button" class="secondary-action small" @click="openPreview(doc)">在线预览</button>
-                <button type="button" class="secondary-action small" @click="downloadDoc(doc)">下载</button>
-              </div>
-            </article>
-          </div>
+          <div v-if="pdfLoading" class="empty-card pane-state">正在从文档库加载 PDF 列表...</div>
+          <div v-else-if="pdfError" class="empty-card error pane-state">{{ pdfError }}</div>
+
+          <template v-else-if="pdfCategories.length">
+            <div class="pdf-category-tabs">
+              <button v-for="cat in pdfCategories" :key="cat" type="button" class="pdf-cat-tab"
+                :class="{ active: activeCategory === cat }" @click="activeCategory = cat">{{ cat
+                }}</button>
+            </div>
+
+            <div class="selection-list">
+              <button v-for="doc in categoryDocs" :key="doc.id" type="button" class="selection-item"
+                :class="{ active: selectedPdfId === doc.id }" @click="selectPdfDoc(doc, { switchPane: true })">
+                <span class="selection-icon">PDF</span>
+                <span class="selection-copy">
+                  <strong>{{ doc.name }}</strong>
+                  <small>{{ formatSize(doc.size) }}</small>
+                </span>
+              </button>
+            </div>
+          </template>
+
+          <div v-else class="empty-card pane-state">文档库暂无内容，请先完成 OSS 上传。</div>
         </template>
 
-        <div v-else class="empty-card">文档库暂无内容，请先完成 OSS 上传。</div>
-      </div>
-    </template>
-
-    <!-- ══════════════════════════════════════════════════════ -->
-    <!--  视图 C：PubMed 文献检索                             -->
-    <!-- ══════════════════════════════════════════════════════ -->
-    <template v-if="activeView === 'pubmed'">
-      <div class="pubmed-panel">
-        <div class="section-head">
-          <div>
-            <h3>PubMed 文献检索</h3>
-            <p>检索 PubMed 最新循证医学证据，支持英文关键词或 MeSH 术语。</p>
+        <template v-else>
+          <div class="section-head compact pane-head">
+            <div>
+              <h3>文献列表</h3>
+            </div>
+            <span v-if="pubmedPapers.length" class="pane-count">{{ pubmedPapers.length }} 篇</span>
           </div>
+
+          <form class="toolbar pubmed-toolbar" @submit.prevent="handlePubMedSearch">
+            <input v-model="pubmedQuery" type="text" placeholder="例如：acute ischemic stroke thrombolysis" />
+            <button type="submit" class="secondary-action" :disabled="pubmedLoading">
+              {{ pubmedLoading ? '检索中...' : '检索' }}
+            </button>
+          </form>
+
+          <div v-if="pubmedError" class="empty-card error pane-state">{{ pubmedError }}</div>
+          <PapersSidebar v-else :papers="pubmedPapers" :loading="pubmedLoading" :active-paper-pmid="activePaperPmid"
+            :searched="pubmedSearched" @select="handlePaperSelect" />
+        </template>
+      </aside>
+
+      <section class="preview-pane">
+        <header class="section-head compact preview-head">
+          <div class="preview-head-main">
+            <button v-if="isMobileLayout && activeMobilePane === 'preview'" type="button" class="back-link"
+              @click="activeMobilePane = 'list'">返回列表</button>
+
+            <div v-if="activeView === 'pdfs'">
+              <h3>{{ currentPdfDoc?.name || '文档预览' }}</h3>
+            </div>
+
+            <div v-else>
+              <h3>{{ currentPaper?.journal || '详情' }}</h3>
+            </div>
+          </div>
+
+          <div v-if="activeView === 'pdfs' && pdfPreviewState.downloadUrl" class="preview-actions">
+            <button type="button" class="secondary-action" @click="handlePdfDownload">下载原文</button>
+          </div>
+
+          <div v-if="activeView === 'pubmed' && currentPaper?.url" class="preview-actions">
+            <a class="secondary-action external-link" :href="currentPaper.url" target="_blank"
+              rel="noopener noreferrer">
+              打开 PubMed
+            </a>
+          </div>
+        </header>
+
+        <div v-if="activeView === 'pdfs'" class="preview-body pdf-preview-body">
+          <div v-if="pdfPreviewState.error" class="empty-card error pane-state">{{ pdfPreviewState.error }}
+          </div>
+
+          <template v-else-if="pdfPreviewState.url">
+            <div class="pdf-preview-toolbar">
+              <span class="preview-meta">{{ activeCategory || '未分类' }}</span>
+              <div class="pdf-page-controls">
+                <button type="button" class="secondary-action small" :disabled="pdfPreviewState.currentPage <= 1"
+                  @click="goPdfPage(-1)">上一页</button>
+                <span class="page-indicator">
+                  {{ pdfPreviewState.totalPages ? `第 ${pdfPreviewState.currentPage} /
+                  ${pdfPreviewState.totalPages} 页` : '加载中...' }}
+                </span>
+                <button type="button" class="secondary-action small"
+                  :disabled="pdfPreviewState.currentPage >= pdfPreviewState.totalPages"
+                  @click="goPdfPage(1)">下一页</button>
+              </div>
+            </div>
+
+            <div class="pdf-canvas-shell">
+              <div v-if="pdfPreviewState.loading" class="inline-pdf-loading">正在加载 PDF...</div>
+              <VuePdfEmbed class="pdf-canvas" :key="pdfPreviewState.url" :source="pdfPreviewState.url"
+                :page="pdfPreviewState.currentPage" @loaded="handlePdfLoaded" />
+            </div>
+          </template>
+
+          <div v-else class="empty-card pane-state">从左侧选择文档后，在这里预览内容。</div>
         </div>
 
-        <form class="toolbar" @submit.prevent="handlePubMedSearch">
-          <input
-            v-model="pubmedQuery"
-            type="text"
-            placeholder="例如：acute ischemic stroke thrombolysis"
-          />
-          <button type="submit" class="secondary-action" :disabled="pubmedLoading">
-            {{ pubmedLoading ? '检索中...' : '检索' }}
-          </button>
-        </form>
+        <div v-else class="preview-body paper-preview-body">
+          <article v-if="currentPaper" class="paper-detail-card">
+            <div class="paper-detail-topline">{{ shortText(currentPaper.journal, 'PubMed') }}</div>
+            <h2 class="paper-detail-title">{{ shortText(currentPaper.title) }}</h2>
 
-        <div v-if="pubmedError" class="empty-card error">{{ pubmedError }}</div>
+            <p class="paper-detail-meta">
+              {{ [currentPaper.authors, currentPaper.pub_date].filter(Boolean).join(' · ') || '暂无发表信息' }}
+            </p>
 
-        <div v-else-if="pubmedLoading || pubmedSearched" class="pubmed-results">
-          <PapersSidebar :papers="pubmedPapers" :loading="pubmedLoading" />
+            <div v-if="displayTypes(currentPaper.pub_type).length" class="paper-detail-types">
+              <span v-for="type in displayTypes(currentPaper.pub_type)" :key="type" :class="pillClass(type)">{{ type
+                }}</span>
+            </div>
+
+            <section class="paper-detail-section">
+              <h4>摘要</h4>
+              <p>{{ shortText(currentPaper.abstract, '当前文献未返回摘要。') }}</p>
+            </section>
+
+            <section class="paper-detail-section">
+              <h4>来源</h4>
+              <p>{{ shortText(currentPaper.url, '当前文献暂无外部链接。') }}</p>
+            </section>
+          </article>
+
+          <div v-else-if="pubmedLoading" class="empty-card pane-state">PubMed 检索中，请稍候...</div>
+          <div v-else-if="pubmedSearched" class="empty-card pane-state">暂无可预览文献，请尝试调整关键词。</div>
+          <div v-else class="empty-card pane-state">输入关键词后点击检索，将从 PubMed 返回最相关的 5 篇文献。</div>
         </div>
-
-        <div v-else class="empty-card">输入关键词后点击检索，将从 PubMed 返回最相关的 5 篇文献。</div>
-      </div>
-    </template>
-
-    <!-- PDF 预览弹窗（全局复用） -->
-    <PdfPreviewModal
-      :visible="pdfPreview.visible"
-      :url="pdfPreview.url"
-      :file-name="pdfPreview.fileName"
-      :download-url="pdfPreview.downloadUrl"
-      @close="pdfPreview.visible = false"
-    />
+      </section>
+    </div>
   </section>
 </template>
 
 <style scoped lang="scss">
-// ── 顶部 Tab ────────────────────────────────────────────────
+.learning-workspace {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-bg-base);
+}
+
 .view-tabs {
-  grid-column: 1 / -1;   // 跨越两列，占满宽度
   display: flex;
   gap: 4px;
   padding: 10px 14px 0;
@@ -281,9 +496,11 @@ function formatSize(bytes) {
   font-weight: 600;
   color: var(--color-text-medium);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--transition-fast), color var(--transition-fast);
 
-  &:hover { background: var(--color-bg-base); }
+  &:hover {
+    background: var(--color-bg-base);
+  }
 
   &.active {
     background: var(--color-bg-base);
@@ -292,50 +509,54 @@ function formatSize(bytes) {
   }
 }
 
-// ── 整体布局 ────────────────────────────────────────────────
-.learning-workspace {
+.learning-layout {
   display: grid;
-  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
-  grid-template-rows: auto 1fr;
-  height: 100%;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
 }
 
-/* ───────────────── Panels ───────────────── */
-.material-list-card {
+.selection-pane,
+.preview-pane {
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+}
+
+.selection-pane {
   border-right: 1px solid var(--color-border);
   background: var(--color-bg-light);
-  overflow: hidden;
 }
 
-.material-detail-card {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
+.preview-pane {
   background: var(--color-bg-base);
-  overflow-y: auto;
 }
 
-// ── PDF 文档库面板（占满两列） ───────────────────────────────
-.pdf-panel {
-  grid-column: 1 / -1;
+.preview-head-main {
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--color-bg-base);
+  gap: 6px;
+}
+
+.pane-count,
+.preview-meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-secondary-bg);
+  color: var(--color-text-medium);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .pdf-category-tabs {
   display: flex;
-  gap: 4px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0;
+  gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border-light);
   flex-wrap: wrap;
 }
 
@@ -343,12 +564,16 @@ function formatSize(bytes) {
   padding: 5px 14px;
   border-radius: var(--radius-pill);
   border: 1px solid var(--color-border);
-  background: var(--color-bg-light);
-  font-size: 13px;
+  background: var(--color-bg-base);
+  color: var(--color-text-medium);
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: all var(--transition-fast);
 
-  &:hover { background: var(--color-patient-select-hover); }
+  &:hover {
+    background: var(--color-hover-bg);
+  }
 
   &.active {
     background: var(--color-primary);
@@ -357,186 +582,326 @@ function formatSize(bytes) {
   }
 }
 
-.pdf-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px 0;
-}
-
-.pdf-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--color-border-item);
-  gap: 12px;
-
-  &:hover { background: var(--color-patient-select-hover); }
-}
-
-.pdf-item-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.pdf-icon { font-size: 20px; flex-shrink: 0; }
-
-.pdf-name {
-  margin: 0 0 2px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text-strong);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pdf-size {
-  font-size: 12px;
-  color: var(--color-text-medium);
-}
-
-.pdf-item-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-/* ───────────────── Material head ───────────────── */
-.material-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 4px;
-}
-
-/* ───────────────── Material list ───────────────── */
-.material-list {
+.selection-list {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+}
+
+.selection-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid var(--color-border-item);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+
+  &:hover {
+    background: var(--color-hover-bg);
+  }
+
+  &.active {
+    background: var(--color-active-bg);
+    box-shadow: inset 3px 0 0 var(--color-active-border);
+  }
+}
+
+.selection-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(17, 150, 127, 0.12);
+  color: var(--color-primary-dark);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.selection-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  strong,
+  small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    font-size: 14px;
+    color: var(--color-text-strong);
+  }
+
+  small {
+    font-size: 12px;
+    color: var(--color-text-medium);
+  }
+}
+
+.preview-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pdf-preview-body {
   display: flex;
   flex-direction: column;
 }
 
-.material-item {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--color-border-item);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-  flex-shrink: 0;
+.pdf-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border-light);
+  flex-wrap: wrap;
+}
 
-  &:hover { background: var(--color-patient-select-hover); }
+.pdf-page-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 
-  &.active {
-    background: var(--color-patient-select-active);
-    border-left: 3px solid var(--color-active-border);
-    padding-left: 11px;
-  }
+.page-indicator {
+  min-width: 120px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-medium);
+}
+
+.pdf-canvas-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: #eef3f2;
+  padding: 16px;
+}
+
+.pdf-canvas {
+  display: flex;
+  justify-content: center;
+}
+
+.inline-pdf-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--color-text-medium);
+  font-size: 14px;
+}
+
+.paper-preview-body {
+  overflow-y: auto;
+  padding: 18px;
+}
+
+.paper-detail-card {
+  max-width: 860px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.paper-detail-topline {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-primary-dark);
+}
+
+.paper-detail-title {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.35;
+  color: var(--color-text-strong);
+}
+
+.paper-detail-meta {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-medium);
+}
+
+.paper-detail-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.paper-detail-section {
+  padding: 16px 18px;
+  border: 1px solid var(--color-border-item);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-light);
 
   h4 {
-    margin: 0 0 3px;
+    margin: 0 0 8px;
     font-size: 14px;
-    font-weight: 700;
     color: var(--color-text-strong);
   }
 
   p {
     margin: 0;
-    font-size: 13px;
+    font-size: 14px;
+    line-height: 1.7;
     color: var(--color-text-medium);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 }
 
-.type-badge {
+.pill {
+  display: inline-flex;
+  align-items: center;
   padding: 3px 9px;
   border-radius: var(--radius-pill);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  background: var(--color-badge-accent-bg);
+  line-height: 1.5;
+}
+
+.pill--high {
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+}
+
+.pill--mid {
+  background: rgba(180, 83, 9, 0.1);
   color: var(--color-orange);
-  white-space: nowrap;
 }
 
-/* ───────────────── Material detail ───────────────── */
-.detail-card.accent {
-  background: var(--color-detail-accent-bg);
-  border-top: 3px solid var(--color-primary);
-  border-left: none;
+.pill--low {
+  background: var(--color-badge-status-bg);
+  color: var(--color-badge-status-color);
 }
 
-.detail-title-row h4 { font-size: 16px; }
-
-.material-content {
-  padding: 12px 14px;
-  border-left: 2px solid var(--color-border);
-  background: var(--color-bg-light);
-
-  p {
-    margin: 0;
-    color: var(--color-text-medium);
-    font-size: 14px;
-    line-height: 1.6;
-  }
-}
-
-/* ───────────────── Buttons ───────────────── */
 .secondary-action.small {
-  padding: 4px 10px;
+  padding: 5px 10px;
   font-size: 12px;
 }
 
-/* ───────────────── Error state ───────────────── */
-.empty-card.error { color: #dc2626; }
-
-// ── PubMed 面板（占满两列，可滚动） ─────────────────────────────────
-.pubmed-panel {
-  grid-column: 1 / -1;
+.preview-actions {
   display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow-y: auto;
-  background: var(--color-bg-base);
-  padding-bottom: 16px;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-.pubmed-results {
-  padding: 0 16px;
+.external-link {
+  text-decoration: none;
 }
 
-@media (max-width: 1080px) {
-  .learning-workspace {
+.back-link {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-primary-dark);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pane-state {
+  margin: auto 0;
+}
+
+.pubmed-toolbar {
+  background: var(--color-bg-light);
+}
+
+.empty-card.error {
+  color: var(--color-red);
+}
+
+.section-head {
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .learning-layout {
     grid-template-columns: 1fr;
-    height: auto;
-    overflow: visible;
   }
 
-  .material-list-card {
+  .selection-pane,
+  .preview-pane {
+    min-width: 0;
     border-right: none;
-    border-bottom: 1px solid var(--color-border);
-    max-height: 340px;
-    overflow: hidden;
+  }
+
+  .learning-layout.mobile .preview-pane {
+    display: none;
+  }
+
+  .learning-layout.mobile.mobile-show-preview .selection-pane {
+    display: none;
+  }
+
+  .learning-layout.mobile.mobile-show-preview .preview-pane {
+    display: flex;
+  }
+
+  .paper-preview-body {
+    padding: 14px;
+  }
+
+  .paper-detail-title {
+    font-size: 20px;
   }
 }
 
 @media (max-width: 640px) {
-  .section-head,
-  .toolbar,
-  .pager,
-  .material-head,
-  .detail-title-row {
-    flex-wrap: wrap;
+  .view-tabs {
+    padding: 8px 10px 0;
   }
 
-  .pdf-item {
-    flex-wrap: wrap;
-    gap: 8px;
+  .view-tab {
+    flex: 1;
+    padding: 9px 12px;
+  }
+
+  .pdf-category-tabs,
+  .pdf-preview-toolbar,
+  .paper-preview-body {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .selection-item {
+    padding: 12px;
+  }
+
+  .selection-icon {
+    min-width: 40px;
+    height: 40px;
+  }
+
+  .page-indicator {
+    min-width: 96px;
+  }
+
+  .pdf-canvas-shell {
+    padding: 12px;
   }
 }
 </style>
