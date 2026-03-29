@@ -442,7 +442,7 @@ onBeforeUnmount(() => {
 
             <div v-if="displayTypes(currentPaper.pub_type).length" class="paper-detail-types">
               <span v-for="type in displayTypes(currentPaper.pub_type)" :key="type" :class="pillClass(type)">{{ type
-              }}</span>
+                }}</span>
             </div>
 
             <section class="paper-detail-section">
@@ -679,13 +679,26 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  background: #eef3f2;
-  padding: 16px;
+  background: var(--color-pdf-surface);
 }
 
 .pdf-canvas {
   display: flex;
   justify-content: center;
+
+  :deep(.vue-pdf-embed__page) {
+    margin: 0 auto;
+    background: var(--color-pdf-frame);
+    box-shadow: var(--color-pdf-page-shadow);
+  }
+
+  :deep(canvas) {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    filter: var(--filter-pdf-page);
+    transition: filter var(--transition-normal);
+  }
 }
 
 .inline-pdf-loading {

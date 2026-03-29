@@ -72,13 +72,10 @@ function handleBackdropClick(e) {
 
         <!-- PDF 渲染区 -->
         <div class="pdf-modal-body">
-          <div v-if="loading" class="pdf-loading">正在加载 PDF...</div>
-          <VuePdfEmbed
-            v-if="url"
-            :source="url"
-            :page="currentPage"
-            @loaded="onRendered"
-          />
+          <div class="pdf-document-shell">
+            <div v-if="loading" class="pdf-loading">正在加载 PDF...</div>
+            <VuePdfEmbed v-if="url" class="pdf-document" :source="url" :page="currentPage" @loaded="onRendered" />
+          </div>
         </div>
 
         <!-- 翻页栏 -->
@@ -94,11 +91,11 @@ function handleBackdropClick(e) {
   </Teleport>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .pdf-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--color-overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -106,14 +103,15 @@ function handleBackdropClick(e) {
 }
 
 .pdf-modal {
-  background: #fff;
+  background: var(--color-dialog-bg);
+  border: 1px solid var(--color-dialog-border);
   border-radius: 10px;
   display: flex;
   flex-direction: column;
   width: min(860px, 95vw);
   height: min(90vh, 900px);
   overflow: hidden;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-dialog);
 }
 
 .pdf-modal-header {
@@ -121,7 +119,8 @@ function handleBackdropClick(e) {
   align-items: center;
   justify-content: space-between;
   padding: 12px 18px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-border-light);
+  background: var(--color-pdf-toolbar-bg);
   flex-shrink: 0;
   gap: 12px;
 }
@@ -129,7 +128,7 @@ function handleBackdropClick(e) {
 .pdf-modal-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--color-text-strong);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -144,7 +143,7 @@ function handleBackdropClick(e) {
 .pdf-modal-body {
   flex: 1;
   overflow-y: auto;
-  background: #f3f4f6;
+  background: var(--color-pdf-surface);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -152,13 +151,49 @@ function handleBackdropClick(e) {
   position: relative;
 }
 
+.pdf-document-shell {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.pdf-document {
+  width: min-content;
+  max-width: 100%;
+}
+
+.pdf-document :deep(.vue-pdf-embed__page) {
+  margin: 0 auto 16px;
+  padding: 8px;
+  border: 1px solid var(--color-pdf-frame-border);
+  border-radius: 18px;
+  background: var(--color-pdf-frame);
+  box-shadow: var(--color-pdf-page-shadow);
+}
+
+.pdf-document :deep(.vue-pdf-embed__page:last-child) {
+  margin-bottom: 0;
+}
+
+.pdf-document :deep(canvas) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  filter: var(--filter-pdf-page);
+  transition: filter var(--transition-normal);
+}
+
 .pdf-loading {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: #6b7280;
+  color: var(--color-text-medium);
   font-size: 14px;
+  z-index: 1;
 }
 
 .pdf-modal-footer {
@@ -167,13 +202,14 @@ function handleBackdropClick(e) {
   justify-content: center;
   gap: 16px;
   padding: 12px 18px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--color-border-light);
+  background: var(--color-pdf-toolbar-bg);
   flex-shrink: 0;
 }
 
 .pdf-page-info {
   font-size: 14px;
-  color: #374151;
+  color: var(--color-text-medium);
   min-width: 120px;
   text-align: center;
 }
@@ -181,16 +217,16 @@ function handleBackdropClick(e) {
 .pdf-btn {
   padding: 6px 14px;
   border-radius: 6px;
-  border: 1px solid #d1d5db;
-  background: #fff;
-  color: #374151;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-base);
+  color: var(--color-text-medium);
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .pdf-btn:hover:not(:disabled) {
-  background: #f3f4f6;
+  background: var(--color-hover-bg);
 }
 
 .pdf-btn:disabled {
@@ -199,7 +235,7 @@ function handleBackdropClick(e) {
 }
 
 .pdf-btn.close {
-  border-color: #e5e7eb;
-  color: #6b7280;
+  border-color: var(--color-border-light);
+  color: var(--color-text-weak);
 }
 </style>

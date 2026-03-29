@@ -65,6 +65,12 @@
   --color-scrollbar-track: rgba(226, 238, 235, 0.8);
   --color-scrollbar-thumb: rgba(94, 115, 121, 0.38);
   --color-scrollbar-thumb-hover: rgba(94, 115, 121, 0.58);
+  --color-pdf-surface: #eef3f2;
+  --color-pdf-frame: #ffffff;
+  --color-pdf-frame-border: rgba(209, 228, 223, 0.9);
+  --color-pdf-toolbar-bg: rgba(255, 255, 255, 0.82);
+  --color-pdf-page-shadow: 0 14px 32px rgba(15, 23, 42, 0.12);
+  --filter-pdf-page: none;
   --color-card-intro-bg: linear-gradient(140deg, #ffffff, var(--color-bg-light));
   --color-card-intro-shadow: 0 16px 40px rgba(15, 23, 42, 0.1), 0 1px 0 rgba(255, 255, 255, 0.8) inset;
   --color-avatar-border: #eff6ff;
@@ -147,6 +153,12 @@
   --color-scrollbar-track: rgba(30, 41, 59, 0.92);
   --color-scrollbar-thumb: rgba(148, 163, 184, 0.38);
   --color-scrollbar-thumb-hover: rgba(148, 163, 184, 0.58);
+  --color-pdf-surface: #020617;
+  --color-pdf-frame: #0f172a;
+  --color-pdf-frame-border: rgba(51, 65, 85, 0.92);
+  --color-pdf-toolbar-bg: rgba(15, 23, 42, 0.78);
+  --color-pdf-page-shadow: 0 20px 44px rgba(0, 0, 0, 0.42);
+  --filter-pdf-page: invert(1) hue-rotate(180deg) contrast(0.92) brightness(0.95);
   --color-card-intro-bg: linear-gradient(140deg, #1e293b, #0f172a);
   --color-card-intro-shadow: 0 16px 40px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
   --color-avatar-border: #334155;
