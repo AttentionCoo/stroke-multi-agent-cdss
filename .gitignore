@@ -21,7 +21,12 @@ frontend/(backup01)dist/
 
 # Claude Code memory (local tool, not project code)
 memory/
-ﬁ
 
 # frontend
-node_modules/流式输出架构改进方案.md
+node_modules/
+
+# Java 编译产物
+*.class
+
+# 本地文档（不入库）
+流式输出架构改进方案.md
