@@ -343,6 +343,19 @@ class qwenAgent:
 
         if not clinical_questions:
             clinical_questions = ["该患者当前最紧急的临床问题和处置要点"]
+
+        # 兜底约束：若用户明确询问诊断/分型，过滤掉偏治疗的检索子问题，
+        # 防止 LLM 仍生成与用户意图无关的治疗类问题污染检索结果
+        _DIAGNOSTIC_INTENT_KW = {"TOAST", "分型", "病因", "定位", "定性", "鉴别", "卒中类型", "发病机制", "卒中原因"}
+        _TREATMENT_QUESTION_KW = {"溶栓", "取栓", "抗凝", "降压", "手术", "时间窗", "剂量", "适应证", "禁忌"}
+        if any(kw in case_text for kw in _DIAGNOSTIC_INTENT_KW):
+            filtered = [q for q in clinical_questions if not any(kw in q for kw in _TREATMENT_QUESTION_KW)]
+            if filtered:  # 至少保留1条，全部被过滤时回退到原列表
+                clinical_questions = filtered
+                logger.info(f"[TaskConstraint] 检测到诊断意图，过滤治疗类子问题后剩余: {clinical_questions}")
+            else:
+                logger.warning("[TaskConstraint] 过滤后子问题为空，保留原列表")
+
         clinical_questions = clinical_questions[:MAX_SUB_QUESTIONS]
 
         return {
@@ -601,6 +614,21 @@ class qwenAgent:
             return "生成答案时出现错误，请稍后重试。"
 
     async def _unified_analysis(self, case_text: str, all_info: str) -> Dict[str, Any]:
+        # 根据用户输入关键词推断意图方向，注入 prompt 约束检索问题的生成方向，
+        # 避免 LLM 把"诊断分型"任务漂移为"治疗决策"任务（task drift）
+        _DIAGNOSTIC_KW = {"TOAST", "分型", "病因", "定位", "定性", "鉴别", "卒中类型", "发病机制", "卒中原因"}
+        _TREATMENT_KW  = {"溶栓", "取栓", "抗凝", "降压", "手术", "用药", "时间窗", "剂量", "治疗方案"}
+        _PROGNOSIS_KW  = {"预后", "复发", "康复", "二级预防", "随访", "致残", "死亡率"}
+
+        if any(kw in case_text for kw in _DIAGNOSTIC_KW):
+            intent_hint = "诊断/分型方向：重点生成定位、定性、病因分型（TOAST）、鉴别诊断类问题，不生成溶栓/取栓等治疗操作类问题。"
+        elif any(kw in case_text for kw in _TREATMENT_KW):
+            intent_hint = "治疗决策方向：重点生成治疗方案、禁忌症、时间窗、用药安全性类问题。"
+        elif any(kw in case_text for kw in _PROGNOSIS_KW):
+            intent_hint = "预后/随访方向：重点生成预后评估、复发风险、二级预防类问题。"
+        else:
+            intent_hint = "综合分析方向：按临床优先级生成最需查证的问题，优先覆盖诊断，再覆盖治疗。"
+
         prompt = f"""你是神经急诊专家。请对以下病例完成三项任务，一次性输出。
 
 【病例】
@@ -627,9 +655,9 @@ class qwenAgent:
     "complexity": "low/medium/high/critical",
     "key_risks": ["最危险的问题1", "最危险的问题2"],
     "clinical_questions": [
-        "需查证的中文临床问题1（30字以内）",
-        "需查证的中文临床问题2",
-        "需查证的中文临床问题3"
+        "服务于用户问题方向的检索子问题1（30字以内）",
+        "服务于用户问题方向的检索子问题2",
+        "服务于用户问题方向的检索子问题3"
     ],
     "user_questions": [
         "如果输入中包含"请回答以下问题："或类似明确的问题列表，请将每个问题原文提取出来；若没有，则返回空列表"
@@ -639,7 +667,7 @@ class qwenAgent:
 要求：
 - structured_context: 提取所有临床信息
 - complexity: critical=危及生命
-- clinical_questions: 3个最需要查证的问题，用于检索医学文献，必须用中文
+- clinical_questions: 【重要】{intent_hint} 问题必须用中文，每条30字以内，用于检索医学文献
 - user_questions: 若输入中用户明确提出了若干具体问题（例如以"请回答以下问题："引导的列表），请将每个问题原文提取为字符串数组；若无，则返回空数组。"""
 
         response = await self.llm_critic.ainvoke([HumanMessage(content=prompt)])
