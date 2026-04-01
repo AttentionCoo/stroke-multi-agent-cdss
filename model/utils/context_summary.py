@@ -4,6 +4,7 @@ import re
 from typing import Tuple
 
 from dotenv import load_dotenv
+from langchain_core.output_parsers import StrOutputParser
 
 load_dotenv()
 # 配置日志
@@ -99,9 +100,10 @@ class ConversationSummaryService:
             return heuristic_score, "heuristic score"
 
         try:
-            response = self.llm.invoke(prompt)
-            content = getattr(response, "content", response)
-            return parse_score_response(str(content), default_score=0.0)
+            # 使用 StrOutputParser 链，替代手写 getattr(response, "content", response)
+            chain = self.llm | StrOutputParser()
+            content = chain.invoke(prompt)
+            return parse_score_response(content, default_score=0.0)
         except Exception as e:
             logger.warning(f"对话价值评分失败，使用启发式评分: {e}")
             return 0.5 if len(answer) > 80 else 0.2, "fallback heuristic"
@@ -143,9 +145,9 @@ class ConversationSummaryService:
             return "\n".join(parts).strip()
 
         try:
-            response = self.llm.invoke(prompt)
-            content = getattr(response, "content", response)
-            merged = str(content).strip()
+            # 使用 StrOutputParser 链，直接获取字符串输出
+            chain = self.llm | StrOutputParser()
+            merged = chain.invoke(prompt).strip()
             return merged or previous_all_info
         except Exception as e:
             logger.warning(f"摘要合并失败，回退拼接策略: {e}")

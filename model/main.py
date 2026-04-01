@@ -11,19 +11,19 @@ import uuid
 import jwt
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sse_starlette.sse import EventSourceResponse
 import uvicorn
 
 from Agent.qwen.qwen_agent import qwenAgent
 from services.pubmed_service import PubMedService
 from Agent.qwen.qwen_assistant import MedicalAssistant
 from utils.naming_model import NamingModel
-from makeData.Retrieve import UnifiedSearchEngine, CONFIG
+from makeData.retrieve import UnifiedSearchEngine, CONFIG
 from config.config_loader import get_prompt_manager, get_report_manager
 from vision_service import VisionAnalysisService
 
-from langchain_community.chat_models import ChatTongyi
+from langchain_dashscope import ChatTongyi
 from utils.context_summary import ConversationSummaryService
 from error_codes import build_error_event, format_error_log
 
@@ -77,8 +77,8 @@ def init_all_resources():
     report_mgr = get_report_manager()
     logging.info(f">>> 可用报告模式: {report_mgr.list_modes()}")
 
-    llm_max = ChatTongyi(model_name="qwen-max", streaming=True)
-    llm_plus = ChatTongyi(model_name="qwen-plus", streaming=True)
+    llm_max = ChatTongyi(model="qwen-max")
+    llm_plus = ChatTongyi(model="qwen-plus")
     context_summary = ConversationSummaryService(
         llm=llm_plus,
         prompt_manager=prompt_mgr
@@ -170,24 +170,21 @@ async def get_model_result(request: QueryRequest):
         raise HTTPException(status_code=503, detail="Model service not ready")
 
     async def generate():
-        # 每次请求生成唯一 ID，贯穿本次流的所有日志，便于排查问题
+        # 每次请求生成唯一 ID，贯穿本次流的所有日志
         req_id = uuid.uuid4().hex[:12]
         try:
             logging.info(f"[{req_id}] === 开始处理请求 ===")
-            logging.info(f"[{req_id}] 请求问题: {request.question}")
-            logging.info(f"[{req_id}] 请求all_info: {request.all_info}")
-            logging.info(f"[{req_id}] 请求report_mode: {request.report_mode}")
-            logging.info(f"[{req_id}] 请求show_thinking: {request.show_thinking}")
-            logging.info(f"[{req_id}] 请求图片数量: {len(request.images)}")
+            logging.info(f"[{req_id}] 问题: {request.question[:100]}")
+            logging.info(f"[{req_id}] report_mode: {request.report_mode}, images: {len(request.images)}")
 
             loop = asyncio.get_running_loop()
             final_answer_parts = []
 
-            # ===== 影像识别分支：有图片时直接走 vision_service，跳过 Agent 推理 =====
+            # ── 影像识别分支（有图片时直接走 vision_service，跳过 Agent 推理）────
             if request.images:
                 vision_svc = resources.get("vision_service")
                 if not vision_svc:
-                    yield json.dumps({"type": "chunk", "content": "影像识别服务未就绪，请稍后重试。"}, ensure_ascii=False) + "\n"
+                    yield json.dumps({"type": "token", "content": "影像识别服务未就绪，请稍后重试。"}, ensure_ascii=False)
                 else:
                     async for event in vision_svc.analyze_stream(
                         images=request.images,
@@ -196,134 +193,65 @@ async def get_model_result(request: QueryRequest):
                     ):
                         if event.get("type") == "thinking":
                             yield json.dumps({
-                                "type": "thinking",
-                                "step": event.get("step", ""),
-                                "title": event.get("title", ""),
-                                "content": event.get("content", ""),
-                            }, ensure_ascii=False) + "\n"
+                                "type": "node_start",
+                                "node": "vision",
+                                "label": event.get("title", "正在分析影像..."),
+                            }, ensure_ascii=False)
                         elif event.get("type") == "chunk":
                             content_str = str(event.get("content", ""))
                             if content_str:
                                 final_answer_parts.append(content_str)
-                                yield json.dumps({"type": "chunk", "content": content_str}, ensure_ascii=False) + "\n"
+                                yield json.dumps({"type": "token", "content": content_str}, ensure_ascii=False)
 
                 answer_text = "".join(final_answer_parts).strip()
                 yield json.dumps({
                     "type": "done",
-                    "content": "",
-                    "result": answer_text,
-                    "summary": request.all_info,
+                    "request_id": req_id,
                     "name": "影像分析",
                     "all_info": request.all_info,
-                    "request_id": req_id
-                }, ensure_ascii=False) + "\n"
+                }, ensure_ascii=False)
                 return
 
-            # 并行启动命名任务（首轮对话时生成会话标题，sync 函数放入线程池）
+            # ── 并行启动命名任务（首轮对话时生成会话标题）────────────────────────
             naming_future = None
             if not request.all_info and resources.get("naming_model"):
                 naming_future = loop.run_in_executor(
                     resources["executor"],
                     resources["naming_model"].run_naming,
-                    request.question
+                    request.question,
                 )
 
-            generated_name = None
-
-            # 直接迭代异步生成器
-            # 心跳用 asyncio.wait({task}, timeout) 而非 wait_for：
-            # wait_for 超时会取消 task 并向 generator 注入 CancelledError，导致 generator 损坏；
-            # asyncio.wait 超时只是"还没好"，task 继续运行，下次循环复用同一个 task。
-            async_gen = resources["model"].run_clinical_reasoning(
+            # ── 主推理流（sse-starlette 的 ping_interval 负责保活，无需手动心跳）──
+            async for event in resources["model"].run_clinical_reasoning(
                 case_text=request.question,
                 all_info=request.all_info,
                 report_mode=request.report_mode,
-                show_thinking=request.show_thinking
-            )
-
-            pending_task = None
-            while True:
-                if pending_task is None:
-                    pending_task = asyncio.ensure_future(async_gen.__anext__())
-
-                done, _ = await asyncio.wait({pending_task}, timeout=10.0)
-
-                if not done:
-                    # 超时：发心跳，task 继续在后台等 LLM，下次循环复用
-                    logging.debug("异步流空闲超时，发送 SSE 心跳事件")
-                    yield json.dumps({"type": "heartbeat", "talkId": None}, ensure_ascii=False) + "\n"
-                    continue
-
-                # task 已完成，取结果并重置，下次循环创建新 task
-                pending_task = None
-                try:
-                    event = done.pop().result()
-                except StopAsyncIteration:
-                    break
-                except Exception as e:
-                    yield json.dumps(build_error_event(e, talk_id=None), ensure_ascii=False) + "\n"
-                    return
-
+                show_thinking=request.show_thinking,
+            ):
                 if not isinstance(event, dict):
                     continue
 
-                # 顺带检查命名任务是否已完成
-                if naming_future and naming_future.done() and not generated_name:
-                    try:
-                        generated_name = naming_future.result()
-                    except Exception:
-                        generated_name = "咨询"
-
-                chunk_type = event.get("type", "")
-
-                if chunk_type == "error":
-                    # 透传完整结构化错误事件后终止流
-                    yield json.dumps(event, ensure_ascii=False) + "\n"
+                if event.get("type") == "error":
+                    yield json.dumps(event, ensure_ascii=False)
                     return
 
-                elif chunk_type == "chunk":
-                    # 打字机效果：逐块转发，同时累计到 final_answer_parts
+                if event.get("type") == "token":
                     content_str = str(event.get("content", ""))
                     if content_str:
                         final_answer_parts.append(content_str)
-                        yield json.dumps({"type": "chunk", "content": content_str}, ensure_ascii=False) + "\n"
 
-                elif chunk_type == "result":
-                    content = event["content"]
-                    if hasattr(content, "content"):
-                        content = content.content
-                    content_str = str(content)
-                    final_answer_parts.append(content_str)
-                    yield json.dumps({"type": "result", "content": content_str}, ensure_ascii=False) + "\n"
+                yield json.dumps(event, ensure_ascii=False)
 
-                elif chunk_type == "thinking":
-                    yield json.dumps({
-                        "type": "thinking",
-                        "step": event.get("step", ""),
-                        "title": event.get("title", ""),
-                        "content": str(event.get("content", ""))
-                    }, ensure_ascii=False) + "\n"
-
-                elif chunk_type == "meta":
-                    yield json.dumps({"type": "meta", "content": event["content"]}, ensure_ascii=False) + "\n"
-
-            # 流正常结束：等待命名任务，然后生成 meta + done
-            if not generated_name and naming_future:
+            # ── 流结束：等待命名 + 更新 all_info + 发送 done ─────────────────────
+            generated_name = "咨询"
+            if naming_future:
                 try:
-                    generated_name = await naming_future
+                    generated_name = await naming_future or "咨询"
                 except Exception:
-                    generated_name = "咨询"
-            generated_name = generated_name or "咨询"
+                    pass
 
-            answer_text = "".join(final_answer_parts).strip()
-            updated_summary = request.all_info
-            summary_meta = {
-                "score": 0.0,
-                "is_valuable": False,
-                "reason": "no final answer",
-                "summary": updated_summary,
-                "all_info": updated_summary
-            }
+            answer_text    = "".join(final_answer_parts).strip()
+            updated_all_info = request.all_info
 
             if answer_text and resources.get("context_summary"):
                 try:
@@ -333,51 +261,27 @@ async def get_model_result(request: QueryRequest):
                         request.all_info,
                         request.question,
                         answer_text,
-                        0.4
+                        0.4,
                     )
-                    updated_summary = summary_result.get("updated_all_info", request.all_info)
-                    summary_meta = {
-                        "score": summary_result.get("score", 0.0),
-                        "is_valuable": summary_result.get("is_valuable", False),
-                        "reason": summary_result.get("reason", ""),
-                        "summary": updated_summary,
-                        "all_info": updated_summary
-                    }
+                    updated_all_info = summary_result.get("updated_all_info", request.all_info)
                 except Exception as summary_error:
-                    logging.error(f"all_info 更新失败: {summary_error}")
-                    summary_meta["reason"] = f"summary failed: {summary_error}"
+                    logging.error(f"[{req_id}] all_info 更新失败: {summary_error}")
 
-            summary_meta["name"] = generated_name
-
-            # 标准格式：meta 事件携带 all_info 更新信息
-            yield json.dumps({"type": "meta", "content": {"all_info_update": summary_meta}}, ensure_ascii=False) + "\n"
-            # done 事件：标志流结束，携带汇总信息及请求 ID（供前端展示/日志关联）
             yield json.dumps({
-                "type": "done",
-                "content": "",
-                "result": answer_text,
-                "summary": updated_summary,
-                "name": generated_name,
-                "all_info": updated_summary,
-                "request_id": req_id
-            }, ensure_ascii=False) + "\n"
+                "type":       "done",
+                "request_id": req_id,
+                "name":       generated_name,
+                "all_info":   updated_all_info,
+            }, ensure_ascii=False)
             logging.info(f"[{req_id}] === 请求处理完成 ===")
 
         except Exception as e:
-            # 记录含完整堆栈的错误日志
             logging.error(f"[{req_id}] generate() 外层异常 | {format_error_log(e)}")
-            # 构造结构化错误事件并 yield（双写 content 字段保持旧前端兼容）
-            yield json.dumps(build_error_event(e, talk_id=None), ensure_ascii=False) + "\n"
+            yield json.dumps(build_error_event(e, talk_id=None), ensure_ascii=False)
 
-    return StreamingResponse(
-        generate(),
-        media_type="text/plain",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "Access-Control-Allow-Origin": "*"
-        }
-    )
+    # sse-starlette 的 ping_interval 每 15 秒发送 SSE 注释心跳（": ping\n\n"），
+    # 替代原来的 asyncio.wait 业务层心跳，Java WebFlux 过滤掉该注释帧即可
+    return EventSourceResponse(generate(), ping_interval=15)
 
 
 @app.post("/ai/analyze", response_model=AnalyzeResponse)

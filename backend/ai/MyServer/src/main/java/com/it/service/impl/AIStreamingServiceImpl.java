@@ -292,11 +292,15 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                 .bodyValue(request)
                 .retrieve()
                 .bodyToFlux(String.class)
+                // 背压控制：限制每次向上游请求的元素数量，防止 Python 推流速度远超 Java 处理能力
+                .limitRate(32)
                 // 每个数据块最多等待 CHUNK_TIMEOUT，防止模型中途挂起导致连接永久卡死
                 .timeout(CHUNK_TIMEOUT)
 
                 .filter(line -> line != null && !line.trim().isEmpty())
                 .map(String::trim)
+                // 过滤 SSE 协议层心跳注释帧（sse-starlette 发出的 ": ping"），不作为业务数据处理
+                .filter(line -> !line.startsWith(":"))
                 .map(line -> line.startsWith("data:")
                         ? line.substring(5).trim()
                         : line)
@@ -517,6 +521,38 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                 chunkResp.put("content", chunk);
                 return Flux.just(objectMapper.writeValueAsString(chunkResp));
             }
+
+            // ── 新事件格式（Python 重构后，LangGraph astream_events 翻译层输出）────────
+
+            // token 事件：LLM 流式输出每个 token（替代旧版 chunk/result），追加全文并透传前端
+            if ("token".equalsIgnoreCase(type)) {
+                String tokenContent = json.path("content").asText("");
+                fullAnswer.append(tokenContent);
+                // 映射为前端已有的 chunk 事件，保持 Vue 层向后兼容
+                Map<String, Object> tokenResp = baseResponse(talkId, generatedTitle[0], "chunk");
+                tokenResp.put("content", tokenContent);
+                return Flux.just(objectMapper.writeValueAsString(tokenResp));
+            }
+
+            // node_start 事件：LangGraph 节点开始执行（替代旧版 thinking），透传为 thinking 事件
+            if ("node_start".equalsIgnoreCase(type)) {
+                String node = json.path("node").asText("");
+                String label = json.path("label").asText("");
+                Map<String, Object> thinkingData = new HashMap<>();
+                thinkingData.put("step", node);
+                thinkingData.put("title", label);
+                thinkingData.put("content", "");
+                Map<String, Object> nodeStartResp = baseResponse(talkId, generatedTitle[0], "thinking");
+                nodeStartResp.put("thinking", thinkingData);
+                return Flux.just(objectMapper.writeValueAsString(nodeStartResp));
+            }
+
+            // node_done 事件：LangGraph 节点执行完毕，Java 侧静默丢弃，不透传前端
+            if ("node_done".equalsIgnoreCase(type)) {
+                return Flux.empty();
+            }
+
+            // ── 旧事件格式兼容（Python 回滚时仍能正常工作）──────────────────────────
 
             // heartbeat 事件：Python 端心跳保活，Java 侧静默丢弃，不透传前端
             if ("heartbeat".equalsIgnoreCase(type)) {

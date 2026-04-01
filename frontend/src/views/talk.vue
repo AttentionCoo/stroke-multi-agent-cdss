@@ -320,6 +320,49 @@ function safeChunkToChars(chunk) {
   return Array.from(chunk)
 }
 
+// ── 【新增】Markdown 安全渲染边界检测（借鉴 claw-code render.rs）──────
+// 核心思路：只在"空行 且 不处于代码块内部"处分割，防止 ``` 代码块被截断导致
+// 后续整段文字渲染为代码样式，也防止标题/列表等块级元素在半完成状态被 marked() 解析。
+//
+// 返回值：可安全截取的字符位置（即下一段开始处）；找不到则返回 -1。
+//
+// 降级策略：当 pendingBuffer 积压超过 300 字符仍无段落边界时（长段落场景），
+// 回退到句末标点（。！？\n）作为次级分割点，确保用户始终能看到进度。
+function findSafeBoundary(text) {
+  let inCodeBlock = false
+  let lastSafe = -1
+
+  for (let i = 0; i < text.length; i++) {
+    // 检测 ``` 代码块边界（行首三反引号）
+    if (
+      text[i] === '`' &&
+      text[i + 1] === '`' &&
+      text[i + 2] === '`' &&
+      (i === 0 || text[i - 1] === '\n')
+    ) {
+      inCodeBlock = !inCodeBlock
+    }
+
+    // 段落边界：连续两个换行（空行），且不在代码块内
+    if (!inCodeBlock && text[i] === '\n' && text[i + 1] === '\n') {
+      lastSafe = i + 2  // 包含两个换行符，指向下一段起始位置
+    }
+  }
+
+  // 降级：长段落无段落边界时，找最近的句末标点作为次级分割
+  if (lastSafe === -1 && text.length > 300) {
+    const sentenceEnd = Math.max(
+      text.lastIndexOf('。'),
+      text.lastIndexOf('！'),
+      text.lastIndexOf('？'),
+      text.lastIndexOf('\n'),
+    )
+    if (sentenceEnd > 0) lastSafe = sentenceEnd + 1
+  }
+
+  return lastSafe
+}
+
 async function handleSendMessage({ text, images } = {}) {
   if (!text || isStreaming.value) return
 
@@ -348,10 +391,31 @@ async function handleSendMessage({ text, images } = {}) {
     })
   }
 
-  // ── 打字机缓冲区（仅作用于本次对话的生命周期）──────────────────
-  const charBuffer = []   // 字符缓冲池，网络 chunk 先推入此处
+  // ── 双缓冲区（仅作用于本次对话的生命周期）────────────────────────
+  // pendingBuffer：网络 token 的原始积累区，未经安全边界检测，不直接渲染
+  // charBuffer：通过安全边界检测后的字符队列，由打字机逐字消费
+  let pendingBuffer = ''  // 原始 token 积累（字符串），等待段落边界
+  const charBuffer = []   // 安全段落的字符队列，打字机从此消费
   let displayText = ''    // 已输出到屏幕的累积文本
   let timerId = null      // setTimeout 句柄（替换 RAF，以便精确控制输出间隔）
+
+  // ── 将 pendingBuffer 中已越过安全边界的部分转移到 charBuffer ──────
+  // forceAll=true 时（流结束）忽略边界，强制 flush 所有剩余内容
+  function flushSafe(forceAll = false) {
+    if (!pendingBuffer) return
+    const boundary = findSafeBoundary(pendingBuffer)
+    if (boundary > 0) {
+      // 找到安全边界：只移动边界前的完整段落
+      charBuffer.push(...safeChunkToChars(pendingBuffer.slice(0, boundary)))
+      pendingBuffer = pendingBuffer.slice(boundary)
+      startTypewriter()
+    } else if (forceAll) {
+      // 流结束：无论是否找到边界，强制 flush 全部剩余内容
+      charBuffer.push(...safeChunkToChars(pendingBuffer))
+      pendingBuffer = ''
+      startTypewriter()
+    }
+  }
 
   // ── 【重写】打字机调速算法：动态 Delay 而非动态 Batch Size ────────
   // 黄金法则：永远每次输出固定 1-2 个字符，维持极度平滑的视觉感受。
@@ -385,10 +449,10 @@ async function handleSendMessage({ text, images } = {}) {
       thinkingHint.value = ''
       thinkingEntry.elapsedSeconds = Math.round((Date.now() - thinkingEntry.startTime) / 1000)
     }
-    // 【修复】使用 safeChunkToChars 安全拆分 Unicode/Emoji，
-    // 废弃旧版 charBuffer.push(...chunk) 展开字符串，防止多码位字符被截断乱码
-    charBuffer.push(...safeChunkToChars(chunk))
-    startTypewriter()
+    // 【升级】token 先进入 pendingBuffer，由 flushSafe 在段落边界处批量转移到 charBuffer，
+    // 防止 ``` 代码块和块级 Markdown 在半完成状态被 marked() 解析导致渲染闪烁。
+    pendingBuffer += chunk
+    flushSafe()
   }
 
   try {
@@ -405,6 +469,10 @@ async function handleSendMessage({ text, images } = {}) {
 
     const { title, content } = finalResult.data || {}
     const talkId = normalizeTalkId(finalResult.data?.talkId)
+
+    // 流结束：将 pendingBuffer 中尚未越过段落边界的剩余内容强制 flush 到 charBuffer
+    // （最后一段往往没有结尾空行，必须在此处手动触发）
+    flushSafe(true)
 
     // done 到达后先等打字机把缓冲区自然排空，解决 consultant/multi-mcq 大块文字一次性蹦出的问题
     // knowledge 的缓冲区在 done 到达时通常已接近空，等待时间极短

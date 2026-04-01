@@ -6,9 +6,7 @@ import hashlib
 import time
 from typing import List
 from dotenv import load_dotenv
-from langchain.schema import Document
-from langchain_community.embeddings import DashScopeEmbeddings
-from chromadb.config import Settings
+from langchain_dashscope import DashScopeEmbeddings
 from http import HTTPStatus
 import dashscope
 
@@ -71,7 +69,7 @@ def load_pdfs_from_dir(dir_path: str):
     return documents
 
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 def split_documents(documents):
@@ -130,19 +128,16 @@ class BGEReranker:
 # VectorStore
 # ==========================================
 
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 
 
 def build_or_load_vectorstore(chunks, persist_dir: str):
     logger.info(f"🔌 [VectorStore] 连接: {persist_dir}")
-    embeddings = DashScopeEmbeddings(
-        model="text-embedding-v2",
-        dashscope_api_key=os.getenv("DASHSCOPE_API_KEY")
-    )
+    # langchain_dashscope 通过环境变量 DASHSCOPE_API_KEY 自动读取密钥
+    embeddings = DashScopeEmbeddings(model="text-embedding-v2")
     vectordb = Chroma(
         persist_directory=persist_dir,
         embedding_function=embeddings,
-        client_settings=Settings(anonymized_telemetry=False)
     )
     try:
         count = vectordb._collection.count()

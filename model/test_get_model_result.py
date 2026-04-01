@@ -12,7 +12,7 @@ class StubModel:
     def __init__(self, answer_text):
         self.answer_text = answer_text
 
-    def run_clinical_reasoning(self, case_text: str, all_info: str = "", report_mode: str = "emergency", show_thinking: bool = True):
+    async def run_clinical_reasoning(self, case_text: str, all_info: str = "", report_mode: str = "emergency", show_thinking: bool = True):
         if self.answer_text:
             yield {"type": "result", "content": self.answer_text}
 

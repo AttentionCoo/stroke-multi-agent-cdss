@@ -19,12 +19,12 @@ class NamingModel(object):
             raise ValueError("未找到环境变量 DEEPSEEK-API-KEY，请设置该环境变量")
         # 使用更快的模型：deepseek-chat
         self.llm = ChatOpenAI(
-            model_name="deepseek-chat",  # 使用更快的模型
-            openai_api_base="https://api.deepseek.com/v1",
-            openai_api_key=api_key,
-            temperature=0.3,  # 降低温度以获得更一致的标题
-            max_tokens=300,  # 标题不需要太长，减少token数
-            request_timeout=25  # 设置较短的超时时间
+            model="deepseek-chat",
+            base_url="https://api.deepseek.com/v1",
+            api_key=api_key,
+            temperature=0.3,
+            max_tokens=300,
+            timeout=25
         )
 
     def run_naming(self, question):
