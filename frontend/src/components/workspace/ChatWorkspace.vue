@@ -552,11 +552,11 @@ function getThinkingData(msgIndex) {
       <div class="history-list" :class="{ collapsed: isHistoryCollapsed }">
         <div v-for="talk in talkTitleList" :key="talk.talkId" class="history-item"
           :class="{ active: talk.talkId === currentTalkId }" @click="emit('select-talk', talk.talkId)">
-          <div>
+          <div class="history-item-content">
             <p class="history-title">{{ talk.title }}</p>
             <small>{{ talk.talkId === NEW_TALK_ID ? '待发送问题' : `会话 #${talk.talkId}` }}</small>
           </div>
-          <button type="button" class="ghost-icon" @click.stop="emit('delete-chat', talk.talkId)">
+          <button type="button" class="ghost-icon history-delete-btn" @click.stop="emit('delete-chat', talk.talkId)">
             <DeleteSVG size="16" color="currentColor" />
           </button>
         </div>
@@ -881,10 +881,10 @@ function getThinkingData(msgIndex) {
 }
 
 .history-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--color-border-item);
   cursor: pointer;
@@ -902,10 +902,32 @@ function getThinkingData(msgIndex) {
   }
 
   small {
+    display: block;
     color: var(--color-text-weak);
     font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
+}
+
+.history-item-content {
+  min-width: 0;
+}
+
+.history-delete-btn {
+  flex-shrink: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--transition-fast), visibility var(--transition-fast), color var(--transition-fast);
+}
+
+.history-item:hover .history-delete-btn,
+.history-item:focus-within .history-delete-btn {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .history-title {
@@ -1589,6 +1611,14 @@ function getThinkingData(msgIndex) {
       text-overflow: clip;
       word-break: break-word;
       line-height: 1.5;
+    }
+  }
+
+  .ghost-icon {
+    display: none;
+
+    :hover {
+      display: inline-flex;
     }
   }
 }
