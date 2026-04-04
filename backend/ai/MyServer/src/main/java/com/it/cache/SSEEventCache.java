@@ -51,6 +51,19 @@ public class SSEEventCache {
      * @param talkId 对话 ID（字符串形式，作为缓存 key）
      */
     public void registerStream(String talkId) {
+        Sinks.Many<SequencedEvent> existing = sinks.get(talkId);
+        if (existing != null) {
+            try {
+                existing.tryEmitComplete();
+            } catch (Exception e) {
+                // ignore exception when emitting complete
+            }
+            long expiryMs = System.currentTimeMillis() + cacheTtlMinutes * 60_000L;
+            expiryTimes.put(talkId, expiryMs);
+            seqCounters.remove(talkId);
+            log.debug("替换已有 SSE sink，并设置旧 sink 的过期时间: talkId={}, expiresInMin={}", talkId, cacheTtlMinutes);
+        }
+
         Sinks.Many<SequencedEvent> sink = Sinks.many().replay().limit(ringBufferSize);
         sinks.put(talkId, sink);
         seqCounters.put(talkId, new AtomicLong(0));
@@ -70,7 +83,11 @@ public class SSEEventCache {
         long seq = counter.incrementAndGet();
         Sinks.Many<SequencedEvent> sink = sinks.get(talkId);
         if (sink != null) {
-            sink.tryEmitNext(new SequencedEvent(seq, data));
+            if (data != null && data.length() > 200_000) {
+                log.warn("SSE 事件过大，跳过写入缓存以保护内存: length={}, talkId={}", data.length(), talkId);
+            } else {
+                sink.tryEmitNext(new SequencedEvent(seq, data));
+            }
         }
         return seq;
     }

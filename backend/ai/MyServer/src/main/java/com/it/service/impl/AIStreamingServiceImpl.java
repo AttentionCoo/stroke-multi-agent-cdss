@@ -351,7 +351,7 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                                 .doOnError(e -> log.warn("异步持久化失败，进入重试队列: talkId={}", finalTalkId, e))
                                 .onErrorResume(e -> {
                                     retryQueue.offer(new PersistenceTask(
-                                            userId, finalTalkId, question, snapshotAnswer, snapshotTitle, snapshotImages, 0));
+                                            userId, finalTalkId, question, snapshotAnswer, snapshotTitle, null, 0));
                                     return Mono.empty();
                                 })
                                 .subscribe();
@@ -696,7 +696,7 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                 // 重新入队，retryCount + 1
                 retryQueue.offer(new PersistenceTask(
                         task.userId(), task.talkId(), task.question(),
-                        task.answer(), task.title(), task.images(), nextRetry));
+                        task.answer(), task.title(), null, nextRetry));
             }
         }
     }
@@ -771,6 +771,10 @@ public class AIStreamingServiceImpl implements AIStreamingService {
         );
 
         log.debug("从 DB 加载历史记录: userId={}, talkId={}, size={}", userId, talkId, history == null ? 0 : history.size());
+
+        if (history == null) {
+            history = Collections.emptyList();
+        }
 
         try {
             String key = buildHistoryKey(userId, talkId);

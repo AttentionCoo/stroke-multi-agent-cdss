@@ -172,14 +172,13 @@ public class QuesController {
         // 业务数据流：init/resume（无 id）串联 chat（有 id），终止时触发心跳停止和缓存完成
         Flux<ServerSentEvent<String>> dataStream = initResumeSSE
                 .concatWith(chatSSE)
-                .doOnTerminate(() -> {
-                    // 业务流结束（正常完成或错误恢复后完成）时，通知心跳流停止并完成缓存 sink
-                    log.debug("业务流终止，停止 SSE 心跳 comment, talkId={}", finalTalkId);
+                .doFinally(signal -> {
+                    log.debug("涓氬姟娴佺粓姝紙signal={}锛夛紝鍋滄 SSE 蹇冭烦 comment, talkId={}", signal, finalTalkId);
                     doneSink.tryEmitEmpty();
                     eventCache.completeStream(finalTalkIdStr);
                 });
 
-        // 心跳流：每 15 秒发送一次 SSE comment（冒号开头，前端 EventSource 会忽略）
+        // 蹇冭烦娴侊细姣?15 绉掑彂送一次 SSE comment（冒号开头，前端 EventSource 会忽略）
         // 使用 takeUntilOther 监听 doneSink，业务流结束后立即终止心跳
         Flux<ServerSentEvent<String>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
                 .map(i -> {
@@ -262,7 +261,10 @@ public class QuesController {
         Flux<ServerSentEvent<String>> replaySSE = replayStream
                 .map(se -> sseWithId(finalTalkIdStr + ":" + se.seq(),
                         resolveEventName(se.data()), se.data()))
-                .doOnComplete(() -> doneSink.tryEmitEmpty());
+                .doFinally(signal -> {
+                    log.debug("回放流终止 (signal={})，停止心跳", signal);
+                    doneSink.tryEmitEmpty();
+                });
 
         // 重连连接复用相同的心跳和优雅关闭逻辑
         Flux<ServerSentEvent<String>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
