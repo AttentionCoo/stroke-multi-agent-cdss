@@ -192,8 +192,8 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
                 if (trimmed.isEmpty() || "[DONE]".equalsIgnoreCase(trimmed)) continue;
                 try {
                     JsonNode node = objectMapper.readTree(trimmed);
-                    // 标准格式：{"type":"result","content":"..."}
-                    if ("result".equals(node.path("type").asText()) && node.has("content")) {
+                    // Python 端流式事件类型为 "token"（内容片段）
+                    if ("token".equals(node.path("type").asText()) && node.has("content")) {
                         sb.append(node.get("content").asText());
                     }
                 } catch (Exception ignored) {
