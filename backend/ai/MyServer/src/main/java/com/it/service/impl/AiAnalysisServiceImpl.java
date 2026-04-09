@@ -62,26 +62,40 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
         hd.setDataContent(param.getData());
         healthDataMapper.insert(hd);
 
-        // 构建发给 AI 的问题
-        String question = buildAnalyzeQuestion(patient, param.getData());
+        // 调用 Python /ai/analyze（独立 HealthRiskAnalyzer，不依赖主推理链）
+        Map<String, Object> body = new HashMap<>();
+        body.put("patientId", param.getPatientId());
+        body.put("data", param.getData());
+        body.put("token", token == null ? "" : token);
 
-        // 调用 AI 模型（同步收集完整答案）
-        String answer = callModel(question, "", token);
-        if (answer == null) {
+        JsonNode responseNode;
+        try {
+            String raw = webClient.post()
+                    .uri("/ai/analyze")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofMinutes(2))
+                    .block();
+            responseNode = objectMapper.readTree(raw);
+        } catch (Exception e) {
+            log.error("调用 Python /ai/analyze 失败: {}", e.getMessage(), e);
             return Result.error("AI 分析服务异常");
         }
 
-        // 解析 AI 答案
-        String riskLevel       = extractRiskLevel(answer);
-        String suggestion      = extractSection(answer, "建议");
-        String analysisDetails = extractSection(answer, "分析");
+        // 提取结构化字段
+        JsonNode data       = responseNode.path("data");
+        String riskLevel    = data.path("riskLevel").asText("中风险");
+        String suggestion   = data.path("suggestion").asText("");
+        String analysisDetails = data.path("analysisDetails").asText("");
 
         // 写入 ai_opinion
         AiOpinion opinion = new AiOpinion();
         opinion.setPatientId(param.getPatientId());
         opinion.setRiskLevel(riskLevel);
-        opinion.setSuggestions(StringUtils.hasText(suggestion) ? suggestion : answer);
-        opinion.setAnalysisDetails(StringUtils.hasText(analysisDetails) ? analysisDetails : answer);
+        opinion.setSuggestions(StringUtils.hasText(suggestion) ? suggestion : analysisDetails);
+        opinion.setAnalysisDetails(StringUtils.hasText(analysisDetails) ? analysisDetails : suggestion);
         opinion.setSourceType("health_data");
         opinion.setSourceId(hd.getId());
         aiOpinionMapper.insert(opinion);

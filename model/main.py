@@ -15,7 +15,7 @@ from sse_starlette.sse import EventSourceResponse
 import uvicorn
 
 from Agent.qwen.qwen_agent import qwenAgent
-from Agent.bailian.health_risk_analyzer import HealthRiskAnalyzer
+from Agent.qwen.bailian.health_risk_analyzer import HealthRiskAnalyzer
 from services.pubmed_service import PubMedService
 from Agent.qwen.qwen_assistant import MedicalAssistant
 from utils.naming_model import NamingModel
