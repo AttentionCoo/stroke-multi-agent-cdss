@@ -90,7 +90,7 @@ class ClinicalState(TypedDict, total=False):
 
 class qwenAgent:
 
-    _STREAMING_NODES = {"knowledge_answer", "report"}
+    _STREAMING_NODES = {"knowledge_answer", "generate_report"}
 
     def __init__(
         self,
@@ -119,7 +119,7 @@ class qwenAgent:
         graph.add_node("analysis",         self._node_analysis)
         graph.add_node("retrieve",         self._node_retrieve)
         graph.add_node("reason",           self._node_reason)
-        graph.add_node("report",           self._node_report)
+        graph.add_node("generate_report",  self._node_report)
 
         graph.set_entry_point("intent")
         graph.add_conditional_edges(
@@ -135,8 +135,8 @@ class qwenAgent:
         graph.add_edge("knowledge_answer", END)
         graph.add_edge("analysis",  "retrieve")
         graph.add_edge("retrieve",  "reason")
-        graph.add_edge("reason",    "report")
-        graph.add_edge("report",    END)
+        graph.add_edge("reason",    "generate_report")
+        graph.add_edge("generate_report",    END)
 
         return graph.compile()
 
