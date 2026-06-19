@@ -1,4 +1,3 @@
-@@ -1,32 +0,0 @@
 # IntelliJ IDEA
 .idea/
 *.iml
@@ -12,19 +11,15 @@ target/
 # Python
 __pycache__/
 *.pyc
+*.pyo
 .env
 
 # macOS
 .DS_Store
 
-# Backup build artifacts
-frontend/(backup01)dist/
-
-# Claude Code memory (local tool, not project code)
-memory/
-
-# frontend
+# Frontend
 node_modules/
+dist/
 
 # Java 编译产物
 *.class
