@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">🧠 MedLLM / MultiAgentNeuroSystem</h1>
+  <h1 align="center">🧠 MedLLM / Stroke-Multi-Agent-CDSS</h1>
 </p>
 
 <p align="center">
