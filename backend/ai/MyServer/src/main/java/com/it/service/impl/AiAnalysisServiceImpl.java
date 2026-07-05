@@ -18,28 +18,83 @@ import com.it.pojo.Result;
 import com.it.service.IAiAnalysisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RSemaphore;
+import org.redisson.api.RedissonClient;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class AiAnalysisServiceImpl implements IAiAnalysisService {
 
-    private final WebClient        webClient;
-    private final PatientMapper    patientMapper;
-    private final HealthDataMapper healthDataMapper;
-    private final AiOpinionMapper  aiOpinionMapper;
-    private final ObjectMapper     objectMapper;
+    private final WebClient           webClient;
+    private final PatientMapper       patientMapper;
+    private final HealthDataMapper    healthDataMapper;
+    private final AiOpinionMapper     aiOpinionMapper;
+    private final ObjectMapper        objectMapper;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final RedissonClient      redissonClient;
+
+    // ── 并发控制与容错 ──────────────────────────────────────────────────────────
+    /** AI 分析并发信号量 key，与 AIStreamingServiceImpl 共享同一把锁 */
+    private static final String SEMAPHORE_KEY  = "ai:concurrent";
+    /** 分析请求最长等待获取信号量的时间 */
+    private static final long   ACQUIRE_WAIT_S = 10;
+    /** syncTalk 调用 /ai/quick-analyze 的单次超时 */
+    private static final Duration QUICK_ANALYZE_TIMEOUT = Duration.ofSeconds(60);
+    /** analyze 调用 /ai/analyze 的单次超时 */
+    private static final Duration ANALYZE_TIMEOUT       = Duration.ofSeconds(60);
+    /** 最大重试次数（仅对超时可重试） */
+    private static final int    MAX_RETRIES   = 2;
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 熔断与并发控制
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** 检查 AI 服务熔断开关（与 AIStreamingServiceImpl 共享同一个 Redis key） */
+    private boolean allowAICircuit() {
+        try {
+            String state = stringRedisTemplate.opsForValue().get("ai:circuit");
+            return !"open".equals(state);
+        } catch (Exception e) {
+            log.warn("检查熔断开关失败，默认放行: {}", e.getMessage());
+            return true; // Redis 不可用时默认放行
+        }
+    }
+
+    /** 尝试获取并发信号量，超时返回 false */
+    private boolean tryAcquireSemaphore() {
+        try {
+            RSemaphore semaphore = redissonClient.getSemaphore(SEMAPHORE_KEY);
+            return semaphore.tryAcquire(ACQUIRE_WAIT_S, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("获取信号量失败，默认放行: {}", e.getMessage());
+            return true; // Redis 不可用时默认放行
+        }
+    }
+
+    /** 释放并发信号量 */
+    private void releaseSemaphore() {
+        try {
+            RSemaphore semaphore = redissonClient.getSemaphore(SEMAPHORE_KEY);
+            semaphore.release();
+        } catch (Exception e) {
+            log.warn("释放信号量失败: {}", e.getMessage());
+        }
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // POST /api/ai/analyze
@@ -62,26 +117,20 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
         hd.setDataContent(param.getData());
         healthDataMapper.insert(hd);
 
+        // 熔断检查
+        if (!allowAICircuit()) {
+            return Result.error("AI 服务当前不可用，请稍后重试");
+        }
+
         // 调用 Python /ai/analyze（独立 HealthRiskAnalyzer，不依赖主推理链）
         Map<String, Object> body = new HashMap<>();
         body.put("patientId", param.getPatientId());
         body.put("data", param.getData());
         body.put("token", token == null ? "" : token);
 
-        JsonNode responseNode;
-        try {
-            String raw = webClient.post()
-                    .uri("/ai/analyze")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(body)
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .timeout(Duration.ofMinutes(2))
-                    .block();
-            responseNode = objectMapper.readTree(raw);
-        } catch (Exception e) {
-            log.error("调用 Python /ai/analyze 失败: {}", e.getMessage(), e);
-            return Result.error("AI 分析服务异常");
+        JsonNode responseNode = callWithRetry("/ai/analyze", body, ANALYZE_TIMEOUT);
+        if (responseNode == null) {
+            return Result.error("AI 分析服务异常，请稍后重试");
         }
 
         // 提取结构化字段
@@ -117,6 +166,11 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
             return Result.error("patientId 和 conversation 不能为空");
         }
 
+        // 熔断检查
+        if (!allowAICircuit()) {
+            return Result.error("AI 服务当前不可用，请稍后重试");
+        }
+
         Patient patient = patientMapper.selectById(param.getPatientId());
         if (patient == null) {
             return Result.error("病人不存在");
@@ -124,39 +178,70 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
 
         String conversationText = buildConversationText(param.getConversation());
 
-        // 如果需要合并病史，把病史拼进 all_info
-        String allInfo = "";
+        // 构建分析问题：直接使用 /ai/quick-analyze（轻量 qwen-turbo，秒级返回）
+        StringBuilder questionBuilder = new StringBuilder();
+        questionBuilder.append("请根据以下医患对话内容");
         if (param.isMergeWithHistory() && StringUtils.hasText(patient.getHistory())) {
-            allInfo = "病人既往病史：" + patient.getHistory() + "\n";
+            questionBuilder.append("并结合病人既往病史（").append(patient.getHistory()).append("）");
+        }
+        questionBuilder.append("，对病人进行综合健康风险评估，给出风险等级（低风险/中风险/高风险）、快速专业意见和关键要点。\n\n");
+        questionBuilder.append("【对话内容】\n").append(conversationText);
+
+        String question = questionBuilder.toString();
+
+        // 调用 /ai/quick-analyze（轻量非流式，60s 超时 + 指数退避重试）
+        Map<String, Object> body = new HashMap<>();
+        body.put("question", question);
+        body.put("token", token == null ? "" : token);
+
+        JsonNode responseNode = callWithRetry("/ai/quick-analyze", body, QUICK_ANALYZE_TIMEOUT);
+        if (responseNode == null) {
+            return Result.error("AI 分析服务异常，请稍后重试");
         }
 
-        String question = "请根据以下医患对话内容" +
-                (param.isMergeWithHistory() ? "并结合病人既往病史" : "") +
-                "，对病人进行综合健康风险评估，给出风险等级（低/中/高）、改善建议和详细分析。\n\n" +
-                "【对话内容】\n" + conversationText;
+        // 解析 /ai/quick-analyze 响应：{ code, msg, data: { quickOpinion, keyPoints, riskLevel } }
+        JsonNode data = responseNode.path("data");
+        String riskLevel = data.path("riskLevel").asText("");
+        if (!StringUtils.hasText(riskLevel) || riskLevel.contains("风险")) {
+            // 已是有效风险等级，直接使用
+        } else {
+            riskLevel = "中风险"; // 兜底
+        }
+        // 规范化风险等级
+        riskLevel = normalizeRiskLevel(riskLevel);
 
-        String answer = callModel(question, allInfo, token);
-        if (answer == null) {
-            return Result.error("AI 分析服务异常");
+        String suggestion = data.path("quickOpinion").asText("");
+        if (!StringUtils.hasText(suggestion)) {
+            suggestion = "建议结合临床实际进一步评估。";
         }
 
-        String riskLevel       = extractRiskLevel(answer);
-        String suggestion      = extractSection(answer, "建议");
-        String analysisDetails = extractSection(answer, "分析");
+        // keyPoints 数组拼接为分析详情
+        StringBuilder analysisBuilder = new StringBuilder();
+        JsonNode keyPoints = data.path("keyPoints");
+        if (keyPoints.isArray()) {
+            for (JsonNode kp : keyPoints) {
+                if (analysisBuilder.length() > 0) analysisBuilder.append("；");
+                analysisBuilder.append(kp.asText());
+            }
+        }
+        String analysisDetails = analysisBuilder.length() > 0
+                ? analysisBuilder.toString()
+                : suggestion;
 
+        // 写入 ai_opinion
         AiOpinion opinion = new AiOpinion();
         opinion.setPatientId(param.getPatientId());
         opinion.setRiskLevel(riskLevel);
-        opinion.setSuggestions(StringUtils.hasText(suggestion) ? suggestion : answer);
-        opinion.setAnalysisDetails(StringUtils.hasText(analysisDetails) ? analysisDetails : answer);
+        opinion.setSuggestions(suggestion);
+        opinion.setAnalysisDetails(analysisDetails);
         opinion.setSourceType("sync_talk");
         opinion.setSourceId(param.getTalkId());
         aiOpinionMapper.insert(opinion);
 
         AiOpinionVO opinionVO = new AiOpinionVO();
         opinionVO.setRiskLevel(riskLevel);
-        opinionVO.setSuggestion(opinion.getSuggestions());
-        opinionVO.setAnalysisDetails(opinion.getAnalysisDetails());
+        opinionVO.setSuggestion(suggestion);
+        opinionVO.setAnalysisDetails(analysisDetails);
         opinionVO.setLastUpdatedAt(LocalDateTime.now());
 
         AiSyncTalkVO vo = new AiSyncTalkVO();
@@ -172,67 +257,76 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * 调用 AI 模型（阻塞式，收集流式响应中所有 result 片段拼成完整答案）。
-     * 若模型不可用返回 null。
+     * 带熔断、并发控制、重试的轻量 HTTP 调用。
+     * <p>
+     * 仅用于 /ai/analyze 和 /ai/quick-analyze 两个非流式端点。
+     * 超时异常自动重试（指数退避），非超时异常不重试。
+     *
+     * @param uri     目标路径
+     * @param body    请求体
+     * @param timeout 单次调用超时
+     * @return 解析后的 JSON 响应节点，失败返回 null
      */
-    private String callModel(String question, String allInfo, String token) {
+    private JsonNode callWithRetry(String uri, Map<String, Object> body, Duration timeout) {
+        boolean acquired = tryAcquireSemaphore();
+        if (!acquired) {
+            log.warn("AI 并发已满，拒绝请求: uri={}", uri);
+            return null;
+        }
+
         try {
-            Map<String, Object> body = new HashMap<>();
-            body.put("question", question);
-            body.put("round", 1);
-            body.put("all_info", allInfo == null ? "" : allInfo);
-            body.put("token", token == null ? "" : token);
-            body.put("report_mode", "analysis");
-            body.put("show_thinking", false);
-
-            // 收集完整的流式响应；最长等待 5 分钟，超时后释放 Tomcat 线程
-            List<String> lines = webClient.post()
-                    .uri("/model/get_result")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .accept(MediaType.TEXT_PLAIN)
-                    .bodyValue(body)
-                    .retrieve()
-                    .bodyToFlux(String.class)
-                    .timeout(Duration.ofMinutes(5))
-                    .collectList()
-                    .block();
-
-            if (lines == null || lines.isEmpty()) return null;
-
-            StringBuilder sb = new StringBuilder();
-            for (String line : lines) {
-                String trimmed = line.trim();
-                if (trimmed.startsWith("data:")) trimmed = trimmed.substring(5).trim();
-                if (trimmed.isEmpty() || "[DONE]".equalsIgnoreCase(trimmed)) continue;
+            Exception lastError = null;
+            for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
                 try {
-                    JsonNode node = objectMapper.readTree(trimmed);
-                    // Python 端流式事件类型为 "token"（内容片段）
-                    if ("token".equals(node.path("type").asText()) && node.has("content")) {
-                        sb.append(node.get("content").asText());
+                    String raw = webClient.post()
+                            .uri(uri)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .bodyValue(body)
+                            .retrieve()
+                            .bodyToMono(String.class)
+                            .timeout(timeout)
+                            .block();
+                    return objectMapper.readTree(raw);
+                } catch (Exception e) {
+                    // 检查是否为超时异常（Reactor 的 timeout() 产生 TimeoutException，
+                    // 但 block() 可能将其包装为 RuntimeException 的 cause）
+                    if (isTimeoutException(e)) {
+                        lastError = e;
+                        if (attempt < MAX_RETRIES) {
+                            long backoffMs = (attempt + 1) * 2000L; // 2s, 4s 指数退避
+                            log.warn("调用 {} 超时，{}ms 后重试 ({}/{})", uri, backoffMs, attempt + 1, MAX_RETRIES);
+                            try { Thread.sleep(backoffMs); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); break; }
+                            continue; // 重试
+                        }
+                        // 已达最大重试次数，跳出到统一错误日志
+                        break;
                     }
-                } catch (Exception ignored) {
-                    // 非 JSON 行，跳过
+                    // HTTP 4xx/5xx 不重试
+                    if (e instanceof WebClientResponseException wcre) {
+                        log.error("调用 {} 返回 HTTP {}: {}", uri, wcre.getStatusCode().value(), wcre.getResponseBodyAsString());
+                    } else {
+                        log.error("调用 {} 失败: {}", uri, e.getMessage(), e);
+                    }
+                    return null;
                 }
             }
-            return sb.length() > 0 ? sb.toString() : null;
-        } catch (Exception e) {
-            log.error("调用 AI 模型失败: {}", e.getMessage(), e);
+            if (lastError != null) {
+                log.error("调用 {} 重试 {} 次后仍失败: {}", uri, MAX_RETRIES, lastError.getMessage());
+            }
             return null;
+        } finally {
+            releaseSemaphore();
         }
     }
 
-    private String buildAnalyzeQuestion(Patient patient, String data) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("请对以下病人的健康数据进行专业医疗分析，给出风险等级（低/中/高）、改善建议和详细分析。\n\n");
-        sb.append("【病人信息】\n姓名：").append(patient.getName()).append("\n");
-        if (StringUtils.hasText(patient.getHistory())) {
-            sb.append("既往病史：").append(patient.getHistory()).append("\n");
+    /** 递归检查异常链中是否包含 TimeoutException */
+    private boolean isTimeoutException(Throwable e) {
+        Throwable root = e;
+        while (root != null) {
+            if (root instanceof java.util.concurrent.TimeoutException) return true;
+            root = root.getCause();
         }
-        if (StringUtils.hasText(patient.getNotes())) {
-            sb.append("医嘱：").append(patient.getNotes()).append("\n");
-        }
-        sb.append("\n【本次健康数据】\n").append(data);
-        return sb.toString();
+        return false;
     }
 
     private String buildConversationText(List<ConversationMessage> messages) {
@@ -243,35 +337,12 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
         return sb.toString();
     }
 
-    /** 从 AI 返回文本中提取风险等级关键词 */
-    private String extractRiskLevel(String text) {
-        if (text == null) return "未知";
-        if (text.contains("高风险") || text.contains("高危") ||
-                (text.contains("高") && text.contains("风险"))) return "高";
-        if (text.contains("中风险") || text.contains("中度") ||
-                (text.contains("中") && text.contains("风险"))) return "中";
-        if (text.contains("低风险") || text.contains("低危") ||
-                (text.contains("低") && text.contains("风险"))) return "低";
-        return "中";
-    }
-
-    /**
-     * 从 AI 文本中提取特定小节内容（如"建议：XXX"段落）。
-     * 找不到时返回 null，由调用方降级处理。
-     */
-    private String extractSection(String text, String sectionName) {
-        if (text == null) return null;
-        int idx = text.indexOf(sectionName + "：");
-        if (idx < 0) idx = text.indexOf(sectionName + ":");
-        if (idx < 0) return null;
-        int start = idx + sectionName.length() + 1;
-        // 截取到下一个"段落标题"或文本末尾
-        int end = text.length();
-        for (String marker : new String[]{"风险等级", "建议", "分析", "总结"}) {
-            if (marker.equals(sectionName)) continue;
-            int next = text.indexOf(marker, start);
-            if (next > start && next < end) end = next;
-        }
-        return text.substring(start, end).trim();
+    /** 规范化 /ai/quick-analyze 返回的风险等级字符串 */
+    private String normalizeRiskLevel(String text) {
+        if (text == null) return "中风险";
+        if (text.contains("高")) return "高风险";
+        if (text.contains("中")) return "中风险";
+        if (text.contains("低")) return "低风险";
+        return "中风险";
     }
 }
