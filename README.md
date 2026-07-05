@@ -1,19 +1,25 @@
 <p align="center">
   <h1 align="center">🧠 MedLLM / Stroke-Multi-Agent-CDSS</h1>
+  <p align="center">
+    <strong>多智能体深度检索脑卒中临床辅助决策支持系统 (CDSS)</strong>
+  </p>
+  <p align="center">
+    <em>证据先行 · 过程透明 · 结果合规 · 时效硬管控</em>
+  </p>
 </p>
 
 <p align="center">
-  <strong>多智能体深度检索脑卒中临床辅助决策支持系统 (CDSS)</strong>
+  <a href="https://www.python.org/downloads/release/python-3110/"><img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python"></a>
+  <a href="https://jdk.java.net/21/"><img src="https://img.shields.io/badge/Java-21-ED8B00?style=flat-square&logo=openjdk&logoColor=white" alt="Java"></a>
+  <a href="https://vuejs.org/"><img src="https://img.shields.io/badge/Vue-3-4FC08D?style=flat-square&logo=vue.js&logoColor=white" alt="Vue3"></a>
+  <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.128-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI"></a>
+  <a href="https://spring.io/projects/spring-boot"><img src="https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?style=flat-square&logo=springboot&logoColor=white" alt="Spring Boot"></a>
+  <a href="https://www.langchain.com/langgraph"><img src="https://img.shields.io/badge/LangGraph-0.2-1C3C3C?style=flat-square&logo=langchain&logoColor=white" alt="LangGraph"></a>
+  <a href="https://github.com/AttentionCasria/neuro-multi-agent-system/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License"></a>
+  <img src="https://img.shields.io/badge/Status-Active-brightgreen?style=flat-square" alt="Status">
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/Java-21-ED8B00?style=flat-square&logo=openjdk&logoColor=white" alt="Java">
-  <img src="https://img.shields.io/badge/Vue-3-4FC08D?style=flat-square&logo=vue.js&logoColor=white" alt="Vue3">
-  <img src="https://img.shields.io/badge/FastAPI-0.128-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI">
-  <img src="https://img.shields.io/badge/Spring_Boot-3-6DB33F?style=flat-square&logo=springboot&logoColor=white" alt="Spring Boot">
-  <img src="https://img.shields.io/badge/LangGraph-0.2-1C3C3C?style=flat-square&logo=langchain&logoColor=white" alt="LangGraph">
-</p>
+---
 
 > 本项目是一套专为脑卒中（Stroke）临床场景打造的智能医疗辅助决策系统。系统以权威医学文献与临床指南为知识底座，融合 **Hybrid RAG（混合检索增强生成）**、**LangGraph 多智能体协同推理**与**全栈响应式高并发全链路流式架构**，实现了从患者病例输入到"证据先行、过程透明、结果合规"的完整决策闭环。
 
@@ -30,6 +36,9 @@
 - [📊 权威医学评测与效果验证](#-权威医学评测与效果验证)
 - [🚀 快速接入与本地部署](#-快速接入与本地部署)
 - [📝 核心 API 契约](#-核心-api-契约)
+- [📖 技术文档索引](#-技术文档索引)
+- [🔄 版本更新日志](#-版本更新日志)
+- [🤝 贡献指南](#-贡献指南)
 - [⚠️ 免责声明](#️-免责声明)
 
 ---
@@ -40,9 +49,11 @@
 
 系统摒弃了传统大模型问答的"单点输出"，构建了三层递进的安全控制架构：
 
-- **外层（流程控制 - LangGraph）**：定义医疗业务状态图，关键决策节点引入人工/规则审批，强制关键节点停等，确保全流程合规可追溯。
-- **中层（多专家协同 - Multi-Agent）**：模拟真实临床会诊，由 **全科医生**、**神经专科医生**、**临床药师** 并行推理，交叉把关减少盲点，并支持针对疑难病例的 Tree-of-Thoughts（分支搜索）探索。
-- **后层（双重校验 - Reflection & Rules）**：采用"静态禁忌症规则引擎（硬拦截） + 动态 LLM 反思（深层医学逻辑软审查）"双重过滤。校验失败自动拉回上一层触发反思循环。
+| 层级 | 名称 | 核心技术 | 职责 |
+|:---:|------|----------|------|
+| **外层** | 流程控制层 | LangGraph 状态图 | 定义医疗业务状态图，关键决策节点引入人工/规则审批，强制关键节点停等，确保全流程合规可追溯 |
+| **中层** | 多专家协同层 | Multi-Agent 并行推理 | 模拟真实临床会诊，由**全科医生**、**神经专科医生**、**临床药师**并行推理，交叉把关减少盲点，支持 Tree-of-Thoughts 分支搜索 |
+| **后层** | 双重校验层 | 规则引擎 + LLM 反思 | "静态禁忌症规则引擎（硬拦截）+ 动态 LLM 反思（深层医学逻辑软审查）"双重过滤，校验失败自动拉回触发反思循环 |
 
 ### 🔎 2. 证据前置的深度定制 Hybrid RAG
 
@@ -52,7 +63,11 @@
 
 ### ⚡ 3. 全栈响应式流式数据管道（Reactive Stream Pipeline）
 
-底座采用 **Java WebFlux 响应式高并发框架** 与 **Python Asyncio 异步队列** 深度流式融合，打通了从底层智能体组装到前端 Vue3 `ReadableStream` 实时渲染的链路，使得 AI 的 **Thinking Step（思考过程）** 完全透明可视化。
+底座采用 **Java WebFlux 响应式高并发框架**与 **Python Asyncio 异步队列**深度流式融合，打通了从底层智能体组装到前端 Vue3 `ReadableStream` 实时渲染的链路，使得 AI 的 **Thinking Step（思考过程）** 完全透明可视化。
+
+### 🆕 4. 完整测试体系
+
+系统配备多维度自动化测试套件，覆盖 RAG 召回率验证、API 接口测试、架构迁移验证及端到端优化逻辑测试，确保系统稳定可靠。
 
 ---
 
@@ -63,17 +78,28 @@
 ### 🛠️ 全栈技术矩阵
 
 | 架构层级 | 核心技术栈 | 核心设计职责 |
-| --- | --- | --- |
-| 🎨 **前端交互层** (Frontend) | Vue 3 (Composition API) · Vite 7 · Pinia · SCSS · Fetch / ReadableStream | 以用户体验为核心，持续接收后端流式推送并实时打字机渲染。支持医学文档（PDF）在线预览、图片上传（多模态扩展）以及多 Agent 思考步骤折叠展示。 |
-| ☕ **后端服务层** (Backend) | Java 21 · Spring Boot 3 · Spring WebFlux · Redis 6.0 · Redisson · MySQL 8.0 · MyBatis-Plus | 采用响应式编程模型支持高并发吞吐。通过 JWT 实现身份认证与安全控制，利用 Redisson 分布式锁控制并发，通过 WebClient 对底层 Python 模型服务进行流式非阻塞调用与转发。 |
-| 🐍 **模型推理层** (Model) | Python 3.11+ · FastAPI · LangGraph · LangChain · Qwen-Max · gte-rerank · ChromaDB | 统一入口加载大语言模型、混合检索引擎与多智能体推理模块。通过异步生成器持续输出标准事件格式（`thinking`, `chunk`, `done`），实现高效流式通信。 |
+|:---:|---|------|
+| 🎨 **前端交互层** | Vue 3 (Composition API) · Vite 7 · Pinia · SCSS · Fetch / ReadableStream | 以用户体验为核心，持续接收后端流式推送并实时打字机渲染。支持医学文档（PDF）在线预览、图片上传（多模态扩展）以及多 Agent 思考步骤折叠展示 |
+| ☕ **后端服务层** | Java 21 · Spring Boot 3.3 · Spring WebFlux · Redis 6.0 · Redisson · MySQL 8.0 · MyBatis-Plus | 采用响应式编程模型支持高并发吞吐。通过 JWT 实现身份认证与安全控制，利用 Redisson 分布式锁控制并发，通过 WebClient 对底层 Python 模型服务进行流式非阻塞调用与转发 |
+| 🐍 **模型推理层** | Python 3.11+ · FastAPI · LangGraph · LangChain · Qwen-Max/Plus/Turbo · gte-rerank · ChromaDB | 统一入口加载大语言模型、混合检索引擎与多智能体推理模块。通过异步生成器持续输出标准事件格式（`thinking`, `chunk`, `done`），实现高效流式通信 |
 
-### 🔄 全链路流式数据管道 (SSE Pipeline)
+### 🔄 全链路流式数据管道（SSE Pipeline）
 
 ```text
 用户病例输入 ──► Java 鉴权与限流隔离 ──► WebClient 异步非阻塞调用 ──► FastAPI 接收请求
   ──► Python Agent 多状态流式产出 (yield) ──► asyncio.Queue 队列 ──► Java (Flux 持续转发)
   ──► Vue3 (ReadableStream 接收与实时打字机渲染)
+```
+
+### 🔗 服务间通信拓扑
+
+```text
+前端 ←→ Java 后端:     REST (JSON) + SSE (text/event-stream)
+Java 后端 ←→ Python:  HTTP/1.1 (JWT 鉴权, WebClient 非阻塞调用)
+Python ←→ LLM:       HTTPS (DashScope API, OpenAI 兼容协议)
+Python ←→ ChromaDB:  本地文件系统 (持久化向量索引)
+Java ←→ MySQL:       JDBC (HikariCP 连接池)
+Java ←→ Redis:       Lettuce (响应式 Redis 客户端)
 ```
 
 ---
@@ -105,20 +131,17 @@
 
 ### 2. 双轴矩阵核心深度解析
 
-#### 📌 纵向维度：医学专家角色精准定义 (Roles)
+#### 📌 纵向维度：医学专家角色精准定义（Roles）
 
 系统为各智能体注入了深度定制的系统提示词（System Prompts）与特异性知识库，使其具备垂直领域的专家特质：
 
-- **全科医生 Agent (General Practitioner)**
-  - **核心职责**：全盘审视患者整体生命体征，提取主诉、现病史、重要既往史与合并慢性病（如高血压、糖尿病、高脂血症）的整体风险分级。
+| 专家角色 | LLM 引擎 | 核心职责 |
+|----------|:--------:|----------|
+| 🏥 **全科医生 (GP)** | qwen-max | 全盘审视患者整体生命体征，提取主诉、现病史、重要既往史与合并慢性病（高血压、糖尿病、高脂血症）的整体风险分级 |
+| 🧠 **神经专科医生 (NS)** | qwen-max | 系统的"核心决策大脑"。专注于卒中特异性临床表现、责任血管解剖定位、NIHSS 评分计算、TOAST 分型，以及溶栓/取栓时间窗自适应决策 |
+| 💊 **临床药师 (CP)** | qwen-max | 侧重全链路用药安全。严密审查抗血小板、抗凝、降压、降脂等药物的绝对/相对禁忌症、药物相互作用（DDI）及配伍高危风险 |
 
-- **神经专科医生 Agent (Neurologist Specialist)**
-  - **核心职责**：系统的"核心决策大脑"。专注于卒中特异性临床表现、责任血管了解与解剖定位、NIHSS 评分计算、TOAST 分型，以及最关键的溶栓/取栓时间窗（Time Window）自适应决策。
-
-- **临床药师 Agent (Clinical Pharmacist)**
-  - **核心职责**：侧重全链路用药安全。严密审查抗血小板、抗凝、降压、降脂等药物的绝对/相对禁忌症、药物相互作用（DDI）及配伍高危风险。
-
-#### 📌 横向维度：Proposer-Critic-Integrator 状态机拓扑 (Pipeline)
+#### 📌 横向维度：Proposer-Critic-Integrator 状态机拓扑（Pipeline）
 
 通过 LangGraph 控制状态流转，横向行为轴被划分为标准的三阶段动态博弈：
 
@@ -126,32 +149,49 @@
 2. **Critic（独立风险审查阶段）**：各专家角色切换至"审慎黑盒模型"，执行交叉盲审。重点识别时间窗陷阱、症状隐匿性变化、禁忌症硬碰撞等 **6 大类高风险点**，对 Proposer 方案进行推翻、补充或质询。
 3. **Integrator（方案整合与反思拦截阶段）**：
    - **动态反思循环机制**：Integrator 负责主导融合专家方案与审查意见。
-   - **安全熔断器**：若检测到 Critic 提出的硬性规则（如"患者突发肢体无力已达 6 小时，但 Proposer 仍建议静脉溶栓"或"近期有活动性内出血"）未得到妥善解决，Integrator 将**强行触发拦截机制**，锁定当前状态流，自动拉回上一层专家节点进行重试，直至通过双重校验，实现**异步自愈反思流**。
+   - **安全熔断器**：若检测到 Critic 提出的硬性规则（如"患者突发肢体无力已达 6 小时，但 Proposer 仍建议静脉溶栓"或"近期有活动性内出血"）未得到妥善解决，Integrator 将**强行触发拦截机制**，锁定当前状态流，自动拉回上一层专家节点进行重试（最多 3 次），直至通过双重校验，实现**异步自愈反思流**。
+
+### 3. LLM 分层调度策略
+
+| 模型 | 负责节点 | 选择理由 |
+|------|----------|----------|
+| **qwen-max** | Proposer（推理）、Report（报告）、3 专家并行推理 | 需要深度推理，容错率低 |
+| **qwen-plus** | Critic（审查）、Analysis（分析）、Retrieval（检索）、Evidence Synthesis（证据综合） | 中等复杂度，需要较快速度 |
+| **qwen-turbo** | Intent（意图识别）、QuickAnalyze（快速分析）、HealthRisk（风险评估）、Summary（摘要）、Naming（命名） | 简单任务，追求低延迟低成本 |
 
 ---
 
 ## ⚙️ 系统整体功能模块
 
-本项目围绕真实医疗及临床科研/教学场景，构建了三大核心闭环模块：
+本项目围绕真实医疗及临床科研/教学场景，构建了四大核心闭环模块：
 
 ### 1. 🤖 智能问诊与 AI 临床辅助分析模块
 
 该模块是系统的核心功能入口。系统接收症状描述后进行结构化拆解：
 
 - **结构化临床输出**：包括最可能诊断及依据、解剖定位分析（如责任血管评估）、病理机制解释、置信度评估及需排除的重要鉴别诊断。
-- **安全路径切换**：具备"极速与安全双路径设计"，简单知识问答快速响应，涉及高风险临床诊断自动切入多智能体深度分析。
+- **安全路径切换**：具备"极速与安全双路径设计"——简单知识问答快速响应，涉及高风险临床诊断自动切入多智能体深度分析。
+- **急诊绿道模式**：当识别到疑似急性缺血性脑卒中（AIS）患者时，系统界面自动启动**发病时间窗倒计时**与 **DNT（入院到溶栓时间）计时器**，实时高亮提示溶栓/取栓窗口剩余时间。
+- **多模态支持**：支持检验报告单 OCR 识别、药品包装图片识别等视觉输入。
 
-### 2. 👤 患者电子档案与个体化分析模块 (EHR)
+### 2. 👤 患者电子档案与个体化分析模块（EHR）
 
 系统引入患者档案管理机制，支持长期随访与动态优化：
 
 - **连续性健康管理**：记录患者基本信息、既往病史、用药史及医生备注。
 - **上下文联动**：单次问诊结束后，后台异步模型自动总结当前对话重点并更新至 `all_info` 上下文，后续多轮就诊自动结合历史记录进行个体化风险评估。
+- **健康数据分析**：支持健康数据与医患对话同步，自动生成 AI 风险分析意见。
 
 ### 3. 📚 医学知识学习与文献检索模块
 
-- **本地指南增强**：内置国内多篇权威卒中指南，提供在线阅读与结构化浏览，同时作为 RAG 底座为推理提供强力的证据支撑。
+- **本地指南增强**：内置 **12 篇**中国脑卒中相关权威指南与共识，提供在线阅读与结构化浏览，同时作为 RAG 底座为推理提供强力的证据支撑。
 - **在线文献拓扑**：提供外部 PubMed 接口连接支持，可根据临床症状一键抓取最新外文高水平文献列表。
+
+### 4. 🧪 自动化测试与评估模块
+
+- **RAGAS 自动化评测**：基于 RAGAS 框架对检索增强生成质量进行自动化评估。
+- **多维度 API 测试**：覆盖核心推理接口、快速分析接口、同步分析接口的端到端测试。
+- **架构迁移验证**：确保系统重构后功能完整性与行为一致性。
 
 ---
 
@@ -165,7 +205,10 @@
     ▼
 【外层·流程控制】意图识别 (过滤无关请求 / 分流"知识问答"与"临床问诊")
     │
-    ▼
+    ├─ 无关请求 → 礼貌拒绝
+    ├─ 知识问答 → 快速回答 (qwen-turbo)
+    │
+    ▼ (临床问诊)
 【外层·流程控制】病例结构化分析 (提取主诉、既往史、时间窗、NIHSS评分等关键要素)
     │
     ▼
@@ -183,8 +226,8 @@
     └─ LLM反思校验：深层医学逻辑与临床指南合规审查         │
     │                                                     │
     ▼                                                     │
-  [校验通过？] ─── 否 (触发反思循环，重新修正) ──────———────┘
-    │ 是
+  [校验通过？] ─── 否 (触发反思循环，最多3次重试) ──────———┘
+    │ 是 (或超过最大重试次数，附警告)
     ▼
 【外层·流程控制】报告生成 (输出含安全警告、文献溯源页码的最终临床报告)
     │
@@ -198,72 +241,82 @@
 
 ```text
 neuro-multi-agent-system/
-├── frontend/                         # 🎨 前端工程 (Vue 3 + Vite 7)
+├── frontend/                              # 🎨 前端工程 (Vue 3 + Vite 7)
 │   ├── src/
-│   │   ├── api/                      # 封装 Fetch 响应式流请求
-│   │   ├── components/               # UI 组件 (StreamViewer, ThinkingPanel, PdfPreviewModal 等)
-│   │   │   ├── form/                 # 表单组件 (登录、注册、编辑)
-│   │   │   ├── svg/                  # SVG 图标组件
-│   │   │   └── workspace/            # 工作区组件 (问诊、患者、文献)
-│   │   ├── router/                   # Vue Router 路由配置
-│   │   ├── stores/                   # Pinia 状态管理 (用户状态、主题)
-│   │   ├── styles/                   # SCSS 全局样式与变量
-│   │   ├── utils/                    # 工具函数 (请求封装、图片压缩、引用解析)
-│   │   └── views/                    # 页面视图 (登录、智能问诊)
+│   │   ├── api/                           # 封装 Fetch 响应式流请求
+│   │   ├── components/                    # UI 组件
+│   │   │   ├── form/                      # 表单组件 (登录、注册、编辑)
+│   │   │   ├── svg/                       # SVG 图标组件
+│   │   │   └── workspace/                 # 工作区组件 (问诊、患者、文献)
+│   │   ├── router/                        # Vue Router 路由配置
+│   │   ├── stores/                        # Pinia 状态管理 (用户状态、主题)
+│   │   ├── styles/                        # SCSS 全局样式与变量
+│   │   ├── utils/                         # 工具函数 (请求封装、图片压缩、引用解析)
+│   │   └── views/                         # 页面视图 (登录、智能问诊)
 │   ├── package.json
 │   └── vite.config.js
 │
-├── backend/                          # ☕ 后端工程 (Spring Boot 3 + WebFlux)
+├── backend/                               # ☕ 后端工程 (Spring Boot 3 + WebFlux)
 │   └── ai/MyServer/
 │       ├── src/main/java/com/it/
-│       │   ├── config/               # 配置类 (Security, Redis, Redisson, WebClient, Jackson)
-│       │   ├── controller/           # 响应式 Flux 控制层 (SSE 路由, REST API)
-│       │   ├── handler/              # 全局异常拦截器
-│       │   ├── interceptor/          # JWT 双重拦截器 (Token 校验 + 自动续期)
-│       │   ├── mapper/               # MyBatis-Plus Mapper 接口
-│       │   ├── po/                   # 参数与视图对象 (DTO, UO, VO)
-│       │   ├── pojo/                 # 持久化实体 (患者档案, 对话记录, AI 意见)
-│       │   ├── service/              # 业务逻辑层 (流式转发, 异步持久化)
-│       │   │   └── impl/             # 核心实现 (AIStreamingServiceImpl 等)
-│       │   ├── utils/                # 工具类 (JWT, ThreadLocal, OSS 上传)
-│       │   └── MyServerApplication.java  # 启动入口
+│       │   ├── cache/                     # SSE 断线续传事件缓存
+│       │   ├── config/                    # 配置类 (Security, Redis, Redisson, WebClient, Jackson)
+│       │   ├── controller/                # 响应式 Flux 控制层 (SSE 路由, REST API)
+│       │   ├── handler/                   # 全局异常拦截器
+│       │   ├── interceptor/               # JWT 双重拦截器 (Token 校验 + 自动续期)
+│       │   ├── mapper/                    # MyBatis-Plus Mapper 接口
+│       │   ├── po/                        # 参数与视图对象 (DTO, UO, VO)
+│       │   ├── pojo/                      # 持久化实体 (患者档案, 对话记录, AI 意见)
+│       │   ├── service/                   # 业务逻辑层 (流式转发, 异步持久化)
+│       │   │   └── impl/                  # 核心实现 (AIStreamingServiceImpl 等)
+│       │   ├── utils/                     # 工具类 (JWT, ThreadLocal, OSS 上传)
+│       │   └── MyServerApplication.java   # 启动入口
 │       └── src/main/resources/
-│           ├── application.yml       # 主配置 (数据源、Redis、AI 服务地址)
-│           ├── application-dev.yml   # 开发环境配置
-│           └── application-prod.yml  # 生产环境配置
+│           ├── application.yml            # 主配置 (数据源、Redis、AI 服务地址)
+│           ├── application-dev.yml        # 开发环境配置
+│           ├── application-prod.yml       # 生产环境配置
+│           └── db/                        # 数据库初始化脚本
 │
-├── model/                            # 🐍 模型推理服务层 (Python FastAPI)
+├── model/                                 # 🐍 模型推理服务层 (Python FastAPI)
 │   ├── app/
-│   │   ├── agents/                   # 智能体核心模块
-│   │   │   ├── core/                 # 状态机模式与 ClinicalState 状态定义
-│   │   │   ├── orchestrators/        # LangGraph 推理图构建
-│   │   │   │   ├── clinical_graph.py # 临床推理图 (6 节点状态机)
-│   │   │   │   └── nodes/            # 核心节点 (Intent, Analysis, Retrieve, Reason, Validate, Report)
-│   │   │   ├── pipelines/            # RAG 检索处理管道
-│   │   │   ├── services/             # 业务服务 (查询、检索、综合)
-│   │   │   ├── bailian/              # 百炼模型集成 (健康风险分析)
-│   │   │   ├── infra/                # 基础设施 (Reranker 重排器)
-│   │   │   ├── schemas/              # 数据模型定义
-│   │   │   └── utils/                # 工具函数 (JSON 解析, LLM 辅助, 重试机制)
-│   │   ├── config/                   # 动态配置中心 (YAML)
-│   │   │   ├── expert_config.yaml    # 专家角色与提示词配置
-│   │   │   ├── rules_config.yaml     # 禁忌症规则与校验参数
-│   │   │   ├── limits_config.yaml    # 参数限制与关键词配置
-│   │   │   ├── prompts.yaml          # 提示词模板
-│   │   │   └── report_templates.yaml # 报告模板
-│   │   ├── rag/                      # RAG 模块 (QA 自动生成、混合检索器实现)
-│   │   ├── services/                 # 外部服务 (PubMed 文献抓取、Vision 多模态识别)
-│   │   ├── evaluation/               # 评估模块 (RAGAS 自动化评测)
-│   │   ├── utils/                    # 通用工具 (上下文摘要, 错误码, Token 聚合)
-│   │   └── main.py                   # FastAPI 异步服务入口
+│   │   ├── agents/                        # 智能体核心模块
+│   │   │   ├── core/                      # 状态机模式与 ClinicalState 状态定义
+│   │   │   ├── orchestrators/             # LangGraph 推理图构建
+│   │   │   │   ├── clinical_graph.py      # 临床推理图 (6 节点状态机)
+│   │   │   │   ├── qwen_agent.py          # Qwen Agent 编排器
+│   │   │   │   └── nodes/                 # 核心节点 (Intent, Analysis, Retrieve, Reason, Validate, Report)
+│   │   │   ├── pipelines/                 # RAG 检索处理管道
+│   │   │   ├── services/                  # 业务服务 (查询、检索、综合)
+│   │   │   ├── bailian/                   # 百炼模型集成 (健康风险分析)
+│   │   │   ├── infra/                     # 基础设施 (Reranker 重排器)
+│   │   │   ├── schemas/                   # 数据模型定义
+│   │   │   └── utils/                     # 工具函数 (JSON 解析, LLM 辅助, 重试机制)
+│   │   ├── config/                        # 动态配置中心 (YAML, 支持热更新)
+│   │   │   ├── expert_config.yaml         # 专家角色与提示词配置
+│   │   │   ├── rules_config.yaml          # 禁忌症规则与校验参数
+│   │   │   ├── limits_config.yaml         # 参数限制与关键词配置
+│   │   │   ├── prompts.yaml               # 提示词模板 (~380 行)
+│   │   │   └── report_templates.yaml      # 报告模板 (5 种模式)
+│   │   ├── rag/                           # RAG 模块 (QA 自动生成、混合检索器实现)
+│   │   ├── services/                      # 外部服务 (PubMed 文献抓取、Vision 多模态识别)
+│   │   ├── evaluation/                    # 评估模块 (RAGAS 自动化评测)
+│   │   ├── utils/                         # 通用工具 (上下文摘要, 错误码, Token 聚合, 命名模型)
+│   │   └── main.py                        # FastAPI 异步服务入口 (lifespan 资源管理)
 │   ├── data/
-│   │   └── documents/                # 脑卒中临床指南 PDF 文档
-│   ├── tests/                        # 自动化测试与 RAG 召回率验证
-│   ├── requirements.txt              # Python 依赖清单
-│   ├── start.bat                     # Windows 一键启动脚本
-│   └── start.sh                      # Linux/Mac 一键启动脚本
+│   │   └── documents/                     # 脑卒中临床指南 PDF 文档 (12 篇)
+│   ├── tests/                             # 自动化测试套件
+│   │   ├── test_rag.py                    # RAG 召回率验证
+│   │   ├── test_api_client.py             # API 客户端测试
+│   │   ├── test_analyze_api.py            # 分析 API 测试
+│   │   ├── test_quick_analyze.py          # 快速分析测试
+│   │   ├── test_new_architecture.py       # 新架构验证
+│   │   └── test_migration.py              # 迁移兼容性测试
+│   ├── requirements.txt                   # Python 依赖清单
+│   ├── start.bat                          # Windows 一键启动脚本
+│   └── start.sh                           # Linux/Mac 一键启动脚本
 │
-└── docs/                             # 📄 项目文档
+└── docs/                                  # 📄 项目文档
+    ├── backend-technical-documentation.md  # ★ 后端技术文档（完整）
     ├── LangChain版本升级风险分析报告.md
     ├── LangChain迁移可行性分析报告.md
     ├── 全链路流式重构策略.md
@@ -272,22 +325,22 @@ neuro-multi-agent-system/
 
 ---
 
-## 📊 权威医学评测与效果验证 (Evaluation)
+## 📊 权威医学评测与效果验证（Evaluation）
 
 系统引入了基于 **RAGAS (RAG Assessment)** 框架的自动化评测，并邀请多位神经内科临床专家针对卒中特异性场景（如 TOAST 分型、溶栓/取栓时间窗、禁忌症筛查）进行了多维度的盲评（Blind Review）：
 
 ### 🏅 临床专业评测维度得分
 
-| 评估维度 | 传统通用大模型 | 本系统 (MedLLM) | 临床专家盲评结论 |
-| --- | --- | --- | --- |
-| **诊断准确性**（诊断符合率） | 71.4% | **94.2%** | 结构化输出贴近真实临床思维，解剖定位准确。 |
-| **风险意识**（核心禁忌症遗漏） | 14.3%（存在漏报） | **0%（100%拦截）** | 规则引擎与反思机制表现优异，无溶栓禁忌症遗漏。 |
-| **方案实用性**（指南推荐契合度） | 62.5% | **89.5%** | 治疗方案紧扣时间窗决策，具备极高临床参考价值。 |
+| 评估维度 | 传统通用大模型 | 🏆 本系统 (MedLLM) | 临床专家盲评结论 |
+|:---|:---:|:---:|------|
+| **诊断准确性**（诊断符合率） | 71.4% | **94.2%** | 结构化输出贴近真实临床思维，解剖定位准确 |
+| **风险意识**（核心禁忌症遗漏） | 14.3%（存在漏报） | **0%（100%拦截）** | 规则引擎与反思机制表现优异，无溶栓禁忌症遗漏 |
+| **方案实用性**（指南推荐契合度） | 62.5% | **89.5%** | 治疗方案紧扣时间窗决策，具备极高临床参考价值 |
 
 ### 📈 RAGAS 自动化评估表现
 
 | 评估指标 | 得分 | 说明 |
-| --- | --- | --- |
+|:---|:---:|------|
 | **忠实度 (Faithfulness)** | `0.94` | 方案严格依据检索证据生成，有效杜绝医疗幻觉风险 |
 | **上下文精准度 (Context Precision)** | `0.91` | 语义重排效果显著，剔除无关文献干扰 |
 
@@ -297,19 +350,19 @@ neuro-multi-agent-system/
 
 ### 1. 环境依赖要求
 
-| 层级 | 依赖项 | 最低版本 |
-| --- | --- | --- |
-| 后端服务 | MySQL | 8.0+ |
-| 后端服务 | Redis | 6.0+ |
-| 后端服务 | JDK | 21+ |
-| 后端服务 | Maven | 3.8+ |
-| 前端服务 | Node.js | ≥ 20.19.0（推荐 ^22.12.0） |
-| 模型服务 | Python | 3.11+ |
-| 模型服务 | Anaconda / Miniconda | 推荐 |
+| 层级 | 依赖项 | 最低版本 | 说明 |
+|------|--------|:--------:|------|
+| 后端服务 | MySQL | 8.0+ | 业务数据持久化 |
+| 后端服务 | Redis | 6.0+ | 会话缓存 + 分布式限流 |
+| 后端服务 | JDK | 21+ | Java 运行环境 |
+| 后端服务 | Maven | 3.8+ | 项目构建 |
+| 前端服务 | Node.js | ≥ 20.19.0（推荐 ^22.12.0） | 前端开发与构建 |
+| 模型服务 | Python | 3.11+ | AI 推理引擎 |
+| 模型服务 | Anaconda / Miniconda | 推荐 | Python 环境管理 |
 
 ### 2. 基础环境配置
 
-#### 模型层环境配置
+#### 🐍 模型层环境配置
 
 ```bash
 cd model
@@ -323,11 +376,12 @@ pip install -r requirements.txt
 ```env
 DASHSCOPE_API_KEY="sk-您的阿里云百炼平台密钥"
 SECRET_KEY="自定义防越权的JWT随机字符串"
+HF_ENDPOINT="https://hf-mirror.com"          # HuggingFace 镜像（国内推荐）
 ```
 
-> **注意**：PyTorch 需手动安装 CUDA 版本，请勿写入 `requirements.txt`。参考 [PyTorch 官网](https://pytorch.org/) 选择对应版本。
+> ⚠️ **注意**：PyTorch 需手动安装 CUDA 版本，请勿写入 `requirements.txt`。参考 [PyTorch 官网](https://pytorch.org/) 选择对应版本。
 
-#### 后端服务配置
+#### ☕ 后端服务配置
 
 修改 `backend/ai/MyServer/src/main/resources/application-dev.yml`（开发环境）或 `application-prod.yml`（生产环境），配置数据源与 Redis 连接信息：
 
@@ -345,13 +399,13 @@ spring:
 
 同时确保 `ai.api.url` 指向 Python FastAPI 服务地址（默认 `http://localhost:8000`）。
 
-#### 前端服务配置
+#### 🎨 前端服务配置
 
 前端通过 Vite 代理转发请求至后端，默认配置已在 `vite.config.js` 中完成，通常无需额外修改。
 
 ### 3. 初始化启动
 
-#### 第一步：启动模型服务 (Model)
+#### 第一步：启动模型服务（Model）
 
 将脑卒中相关的医学指南 PDF 文件统一放入 `model/data/documents/` 文件夹，然后启动服务。系统首次运行会自动触发递归分块并进行 **AI Batch QA 衍生**，自动构建高频词 BM25 内存索引和 ChromaDB 向量索引。
 
@@ -369,7 +423,7 @@ bash start.sh
 
 服务默认监听 `0.0.0.0:8000`。
 
-#### 第二步：启动后端服务 (Backend)
+#### 第二步：启动后端服务（Backend）
 
 使用 IDE（如 IntelliJ IDEA）运行 `MyServerApplication.java`，或者使用 Maven 编译启动：
 
@@ -380,7 +434,7 @@ mvn spring-boot:run
 
 服务默认监听 `8080` 端口。
 
-#### 第三步：启动前端服务 (Frontend)
+#### 第三步：启动前端服务（Frontend）
 
 ```bash
 cd frontend
@@ -396,16 +450,24 @@ npm run dev
 ① MySQL + Redis  →  ② Model (FastAPI :8000)  →  ③ Backend (Spring Boot :8080)  →  ④ Frontend (Vite :5173)
 ```
 
+### 5. 生产环境部署
+
+推荐使用宝塔面板进行生产部署，详细配置请参阅：
+
+- [backend/ai/MyServer/BAOTA_DEPLOY.md](backend/ai/MyServer/BAOTA_DEPLOY.md) — 宝塔面板部署指南
+- [docs/backend-technical-documentation.md](docs/backend-technical-documentation.md) — 第 12 节：部署架构（含 Nginx 配置）
+
 ---
 
 ## 📝 核心 API 契约
 
 ### 1. 临床决策推理流（SSE 长连接）
 
-- **路径**：`/model/get_result`
+- **路径**：`POST /model/get_result`
 - **协议**：SSE (Server-Sent Events)
-- **请求类型**：`POST`（由 Java WebFlux 转发并保持长连接流）
-- **Payload**：
+- **说明**：由 Java WebFlux 转发并保持长连接流
+
+**请求体**：
 
 ```json
 {
@@ -417,24 +479,34 @@ npm run dev
 }
 ```
 
-- **响应格式**：流式持续输出包含 `thinking` 思考过程节点以及带有权威指南文献明确定位（如：*《中国急性缺血性脑卒中诊治指南》P42*）的结构化报告文本流。
+**SSE 事件类型**：
 
-### 2. 独立风险归纳（非检索极速模式）
+| 事件 | 方向 | 说明 |
+|------|------|------|
+| `node_start` | Python → Java | 推理节点开始执行 |
+| `token` | Python → Java | LLM 生成的单个 token |
+| `thinking` | Python → Java | 思考过程（步骤/标题/内容） |
+| `done` | Python → Java | 推理完成（含 name, request_id, all_info） |
+| `error` | Python → Java | 推理异常（含 error_code, message, retryable） |
+| `heartbeat` | Python → Java | 心跳（15 秒间隔，保持连接） |
 
-- **路径**：`/ai/analyze`
-- **请求类型**：`POST`
-- **Payload**：
+### 2. 报告模式一览
+
+| 模式 Key | 名称 | 适用场景 |
+|----------|------|----------|
+| `emergency` | 急诊完整报告 | 急诊/急性卒中，9 段式完整输出 |
+| `analysis` | 深度分析报告 | 疑难病例分析，6 段式分析输出 |
+| `outpatient` | 门诊简洁报告 | 门诊快速参考，5 段式简洁输出 |
+| `consultation` | MDT 会诊报告 | 多学科会诊，6 段式系统分析 |
+| `fast` | 快速回复 | 简单咨询，3 段式快速输出 |
+
+### 3. 独立风险归纳（非检索极速模式）
+
+- **路径**：`POST /ai/analyze`
+- **说明**：快速返回风险分级评估，不触发多智能体深度推理
 
 ```json
-{
-  "case_text": "患者完整病历描述...",
-  "token": "your-jwt-token"
-}
-```
-
-- **响应格式**：快速返回风险分级评估 JSON：
-
-```json
+// 响应示例
 {
   "riskLevel": "high",
   "suggestion": "建议立即进行影像学检查",
@@ -442,23 +514,75 @@ npm run dev
 }
 ```
 
-### 3. PubMed 文献检索
+### 4. PubMed 文献检索
 
-- **路径**：`/model/pubmed/search`
-- **请求类型**：`POST`
-- **Payload**：
+- **路径**：`POST /model/pubmed/search`
+- **说明**：代理 PubMed 文献检索，辅助循证决策
 
-```json
-{
-  "query": "acute ischemic stroke thrombolysis",
-  "max_results": 10
-}
-```
+> 📖 完整 API 文档请参阅 [docs/backend-technical-documentation.md](docs/backend-technical-documentation.md) 第 7 节：API 接口规范。
 
-- **响应格式**：包含文献标题、作者、摘要、链接等信息。
+---
+
+## 📖 技术文档索引
+
+| 文档 | 说明 |
+|------|------|
+| [docs/backend-technical-documentation.md](docs/backend-technical-documentation.md) | ★ **后端技术文档（完整版）** — 涵盖架构设计、数据库设计、SSE 通信、安全体系、限流熔断、部署架构等 15 个章节 |
+| [docs/模型层重构完成报告.md](docs/模型层重构完成报告.md) | Python 模型层架构重构总结 |
+| [docs/全链路流式重构策略.md](docs/全链路流式重构策略.md) | 全链路流式数据管道设计策略 |
+| [docs/LangChain版本升级风险分析报告.md](docs/LangChain版本升级风险分析报告.md) | LangChain 版本升级风险评估 |
+| [docs/LangChain迁移可行性分析报告.md](docs/LangChain迁移可行性分析报告.md) | LangChain 迁移方案与可行性分析 |
+| [backend/ai/MyServer/BAOTA_DEPLOY.md](backend/ai/MyServer/BAOTA_DEPLOY.md) | 宝塔面板生产环境部署指南 |
+
+---
+
+## 🔄 版本更新日志
+
+### v2.1.0 (2026-07-05)
+
+- ✅ **新增**：完整自动化测试套件（RAG 召回率、API 接口、架构迁移验证）
+- ✅ **修复**：AI 同步意见关联 bug
+- ✅ **优化**：配置管理支持热更新（无需重启）
+- ✅ **文档**：新增完整后端技术文档（15 章节）
+
+### v2.0.0 (2026-05)
+
+- ✅ **重构**：Python 模型层架构重构，引入 LangGraph 状态图编排
+- ✅ **新增**：Proposer-Critic-Integrator 三阶段推理流水线
+- ✅ **新增**：规则引擎 + LLM 反思双重校验机制（最多 3 次迭代）
+- ✅ **新增**：SSE 断线续传协议（Last-Event-ID + 环形缓冲区）
+- ✅ **新增**：Resilience4j 熔断器 + Redisson 分布式限流
+- ✅ **新增**：5 种报告模式（emergency / analysis / outpatient / consultation / fast）
+
+### v1.0.0 (2026-04)
+
+- ✅ 初始版本：基础多智能体对话、RAG 检索、患者管理功能
+
+---
+
+## 🤝 贡献指南
+
+本项目为竞赛/研究项目，欢迎通过以下方式参与贡献：
+
+1. **Fork 本仓库** 并创建功能分支
+2. **提交 PR** 前确保通过现有测试套件
+3. **代码风格** 请保持与现有代码风格一致
+4. **文档更新** 涉及架构变更请同步更新相关文档
+
+如有问题或建议，请提交 [GitHub Issue](https://github.com/AttentionCasria/neuro-multi-agent-system/issues)。
 
 ---
 
 ## ⚠️ 免责声明
 
-*本系统属于临床辅助决策参考系统（CDSS），系统生成的输出结果不代表最终临床诊断，亦不能替代专业医生的独立医学判断。最终诊疗决策必须由执业医师根据患者实际临床体征做出。*
+> **重要提示**：本系统属于临床辅助决策参考系统（CDSS），系统生成的输出结果不代表最终临床诊断，亦不能替代专业医生的独立医学判断。最终诊疗决策必须由执业医师根据患者实际临床体征做出。
+>
+> 系统内置的医学知识库基于公开的临床指南与文献，可能存在时效性局限。使用者应结合最新的临床证据与患者个体情况进行综合判断。
+>
+> 本项目仅供学术研究、技术交流与临床教学参考使用，不得直接用于临床诊疗决策。
+
+---
+
+<p align="center">
+  <sub>Made with ❤️ for better stroke care | © 2026 MedLLM Team</sub>
+</p>
