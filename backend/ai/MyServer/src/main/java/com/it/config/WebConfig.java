@@ -1,5 +1,6 @@
 package com.it.config;
 
+import com.it.interceptor.RedisRateLimiterInterceptor;
 import com.it.interceptor.RefreshTokenInterceptor;
 import com.it.interceptor.Tokeninterceptor;
 import lombok.RequiredArgsConstructor;
@@ -16,26 +17,38 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        // ⭐ 第一步：RefreshTokenInterceptor 处理单点登录（order=0）
+        // ⭐ 第一步：RedisRateLimiterInterceptor 全局限流（order=0），最先执行
+        registry.addInterceptor(new RedisRateLimiterInterceptor(stringRedisTemplate))
+                .addPathPatterns("/**")
+                .excludePathPatterns(
+                        "/api/monitor/**",
+                        "/error",
+                        "/actuator/**"
+                )
+                .order(0);
+
+        // ⭐ 第二步：RefreshTokenInterceptor 处理单点登录 / Token 校验（order=1）
         registry.addInterceptor(new RefreshTokenInterceptor(stringRedisTemplate))
                 .addPathPatterns("/**")
                 .excludePathPatterns(
                         "/api/user/login",
                         "/api/user/register",
                         "/api/user/upload/**",
-                        "/error"
+                        "/error",
+                        "/api/monitor/**"
                 )
-                .order(0);
+                .order(1);
 
-        // ⭐ 第二步：Tokeninterceptor 检查 ThreadLocal 中是否有用户（order=1）
+        // ⭐ 第三步：Tokeninterceptor 检查 ThreadLocal 中是否有用户（order=2）
         registry.addInterceptor(new Tokeninterceptor())
                 .addPathPatterns("/**")
                 .excludePathPatterns(
                         "/api/user/login",
                         "/api/user/register",
                         "/api/user/upload/**",
-                        "/error"
+                        "/error",
+                        "/api/monitor/**"
                 )
-                .order(1);
+                .order(2);
     }
 }

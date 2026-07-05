@@ -8,6 +8,8 @@ import com.aliyun.oss.model.ListObjectsV2Request;
 import com.aliyun.oss.model.ListObjectsV2Result;
 import com.aliyun.oss.model.OSSObjectSummary;
 import com.aliyun.oss.model.ResponseHeaderOverrides;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.it.pojo.AliOssProperties;
 import com.it.pojo.DocumentUrlVO;
 import com.it.pojo.DocumentVO;
@@ -15,15 +17,19 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  * OSS 文档访问服务
- * 负责列出 documents/ 下的 PDF、生成签名 URL、按文献名模糊匹配
+ * 负责列出 documents/ 下的 PDF、生成签名 URL、按文献名模糊匹配。
+ *
+ * <p>文档列表通过 Redis 缓存，TTL 30 分钟，减少 OSS ListObjects API 调用次数。
  */
 @Slf4j
 @Service
@@ -31,6 +37,11 @@ import java.util.*;
 public class OssDocumentService {
 
     private final AliOssProperties ossProperties;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private static final String DOC_LIST_CACHE_KEY = "oss:documents:list";
+    private static final long DOC_LIST_TTL_MINUTES = 30;
 
     /** 长连接 OSS 客户端，在 Bean 生命周期内复用 */
     private OSS ossClient;
@@ -54,10 +65,60 @@ public class OssDocumentService {
     }
 
     /**
-     * 列出 documents/ 下所有 PDF，按第一级子目录（分类）分组返回
-     * 返回结构：{ "指南": [{id, name, category, size}, ...], "教材": [...] }
+     * 列出 documents/ 下所有 PDF，按第一级子目录（分类）分组返回。
+     * 结果通过 Redis 缓存 30 分钟。
+     *
+     * @return { "指南": [{id, name, category, size}, ...], "教材": [...] }
      */
     public Map<String, List<DocumentVO>> listDocuments() {
+        // 尝试从 Redis 读取缓存
+        try {
+            String cached = stringRedisTemplate.opsForValue().get(DOC_LIST_CACHE_KEY);
+            if (cached != null && !cached.isEmpty()) {
+                log.debug("[OSS] 文档列表缓存命中");
+                return objectMapper.readValue(cached,
+                        new TypeReference<Map<String, List<DocumentVO>>>() {});
+            }
+        } catch (Exception e) {
+            log.warn("[OSS] 读取文档列表缓存失败，降级查询OSS: {}", e.getMessage());
+        }
+
+        // 缓存未命中，从 OSS 查询
+        Map<String, List<DocumentVO>> grouped = fetchFromOss();
+
+        // 写入 Redis 缓存
+        try {
+            String json = objectMapper.writeValueAsString(grouped);
+            stringRedisTemplate.opsForValue().set(DOC_LIST_CACHE_KEY, json,
+                    DOC_LIST_TTL_MINUTES, TimeUnit.MINUTES);
+            log.info("[OSS] 文档列表缓存已写入，共 {} 个分类", grouped.size());
+        } catch (Exception e) {
+            log.warn("[OSS] 写入文档列表缓存失败: {}", e.getMessage());
+        }
+
+        return grouped;
+    }
+
+    /**
+     * 强制刷新文档列表缓存（管理端调用或定时刷新）。
+     */
+    public void refreshDocumentCache() {
+        try {
+            stringRedisTemplate.delete(DOC_LIST_CACHE_KEY);
+            Map<String, List<DocumentVO>> grouped = fetchFromOss();
+            String json = objectMapper.writeValueAsString(grouped);
+            stringRedisTemplate.opsForValue().set(DOC_LIST_CACHE_KEY, json,
+                    DOC_LIST_TTL_MINUTES, TimeUnit.MINUTES);
+            log.info("[OSS] 文档列表缓存已强制刷新，共 {} 个分类", grouped.size());
+        } catch (Exception e) {
+            log.error("[OSS] 刷新文档列表缓存失败: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 实际从 OSS 拉取文档列表。
+     */
+    private Map<String, List<DocumentVO>> fetchFromOss() {
         String prefix = ossProperties.getDocumentPrefix();
         ListObjectsV2Request req = new ListObjectsV2Request(ossProperties.getBucketName());
         req.setPrefix(prefix);
@@ -94,7 +155,9 @@ public class OssDocumentService {
     }
 
     /**
-     * 根据文档 ID 生成预览和下载签名 URL
+     * 根据文档 ID 生成预览和下载签名 URL。
+     * 签名 URL 自身有过期时间，不额外缓存。
+     *
      * @param documentId Base64 URL 安全编码的 OSS key
      */
     public DocumentUrlVO generateSignedUrl(String documentId) throws Exception {

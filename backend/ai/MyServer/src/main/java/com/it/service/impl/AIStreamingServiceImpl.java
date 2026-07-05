@@ -34,7 +34,6 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import org.springframework.scheduling.annotation.Scheduled;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -80,21 +79,10 @@ public class AIStreamingServiceImpl implements AIStreamingService {
     /** 单个持久化任务最大重试次数，超过后永久丢弃（可接入告警） */
     private static final int MAX_PERSIST_RETRIES = 3;
 
-    /**
-     * 持久化失败重试任务，记录一次对话的完整上下文及当前重试次数。
-     * 应用重启后队列清空，生产环境可替换为 Redis Stream 实现跨实例持久化。
-     */
-    private record PersistenceTask(
-            Long userId,
-            Long talkId,
-            String question,
-            String answer,
-            String title,
-            List<String> images,
-            int retryCount) {}
-
-    /** 持久化失败重试队列（内存级，线程安全） */
-    private final ConcurrentLinkedQueue<PersistenceTask> retryQueue = new ConcurrentLinkedQueue<>();
+    /** Redis 持久化重试队列 key */
+    private static final String PERSIST_RETRY_QUEUE_KEY = "persist:retry:queue";
+    /** Redis 持久化重试队列最大长度（防止异常情况下无限增长） */
+    private static final int PERSIST_RETRY_QUEUE_MAX = 1000;
 
     @PostConstruct
     public void init() {
@@ -129,6 +117,8 @@ public class AIStreamingServiceImpl implements AIStreamingService {
             if (!saved) {
                 throw new RuntimeException("创建新对话失败");
             }
+            // 清除用户对话列表缓存，确保侧边栏能立即反映新对话
+            clearTalkListCache(userId);
         } catch (Exception e) {
             log.error("保存 Talk 异常: {}", e.getMessage(), e);
             throw e;
@@ -350,8 +340,7 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                                 .subscribeOn(Schedulers.boundedElastic())
                                 .doOnError(e -> log.warn("异步持久化失败，进入重试队列: talkId={}", finalTalkId, e))
                                 .onErrorResume(e -> {
-                                    retryQueue.offer(new PersistenceTask(
-                                            userId, finalTalkId, question, snapshotAnswer, snapshotTitle, null, 0));
+                                    enqueueRetryTask(userId, finalTalkId, question, snapshotAnswer, snapshotTitle, 0);
                                     return Mono.empty();
                                 })
                                 .subscribe();
@@ -659,44 +648,56 @@ public class AIStreamingServiceImpl implements AIStreamingService {
         log.info("异步持久化开始: talkId={}, answerLen={}", talkId, answer.length());
         conversationPersistenceService.persistConversation(
                 userId, talkId, question, answer, "", title, images);
-        // 持久化成功后清理历史缓存，保证下一轮对话能重新加载最新记录
+        // 持久化成功后清理相关缓存
         stringRedisTemplate.delete("chat:history:" + userId + ":" + talkId);
-        log.info("异步持久化完成，已清理历史缓存: talkId={}", talkId);
+        clearTalkListCache(userId);
+        log.info("异步持久化完成，已清理历史缓存和对话列表缓存: talkId={}", talkId);
     }
 
     /**
      * 定时重试失败的持久化任务，每 30 秒执行一次。
-     * 超过 MAX_PERSIST_RETRIES 次的任务将被永久丢弃并记录 ERROR 日志（可对接告警）。
+     * 从 Redis List 中取出任务，超过 MAX_PERSIST_RETRIES 次的任务将被永久丢弃并记录 ERROR 日志。
+     * 应用重启后任务不丢失，可跨实例共享重试队列。
      */
     @Scheduled(fixedDelay = 30_000)
     public void retryFailedPersistence() {
-        if (retryQueue.isEmpty()) return;
+        // 批量取出当前队列中所有任务（最多 100 条）
+        int batchSize = Math.toIntExact(
+                stringRedisTemplate.opsForList().size(PERSIST_RETRY_QUEUE_KEY));
+        if (batchSize == 0) return;
 
-        // 快照当前队列大小，只重试本批次任务，避免无限循环处理新入队的任务
-        int batchSize = retryQueue.size();
-        log.info("持久化重试定时任务启动: 当前队列 {} 个任务", batchSize);
+        int actualBatch = Math.min(batchSize, 100);
+        log.info("持久化重试定时任务启动: 当前队列约 {} 个任务，本批处理 {} 个", batchSize, actualBatch);
 
-        for (int i = 0; i < batchSize; i++) {
-            PersistenceTask task = retryQueue.poll();
-            if (task == null) break;
-
-            if (task.retryCount() >= MAX_PERSIST_RETRIES) {
-                log.error("持久化重试已达上限 ({} 次)，永久丢弃: talkId={}", MAX_PERSIST_RETRIES, task.talkId());
-                continue;
-            }
+        for (int i = 0; i < actualBatch; i++) {
+            String taskJson = stringRedisTemplate.opsForList().leftPop(PERSIST_RETRY_QUEUE_KEY);
+            if (taskJson == null || taskJson.isEmpty()) break;
 
             try {
-                persistAndCleanCache(task.userId(), task.talkId(),
-                        task.question(), task.answer(), task.title(), task.images());
-                log.info("持久化重试成功: talkId={}, retryCount={}", task.talkId(), task.retryCount());
+                JsonNode task = objectMapper.readTree(taskJson);
+                long userId = task.get("userId").asLong();
+                long talkId = task.get("talkId").asLong();
+                String question = task.get("question").asText();
+                String answer = task.get("answer").asText();
+                String title = task.has("title") ? task.get("title").asText() : null;
+                int retryCount = task.get("retryCount").asInt();
+
+                if (retryCount >= MAX_PERSIST_RETRIES) {
+                    log.error("持久化重试已达上限 ({} 次)，永久丢弃: talkId={}", MAX_PERSIST_RETRIES, talkId);
+                    continue;
+                }
+
+                try {
+                    persistAndCleanCache(userId, talkId, question, answer, title, null);
+                    log.info("持久化重试成功: talkId={}, retryCount={}", talkId, retryCount);
+                } catch (Exception e) {
+                    int nextRetry = retryCount + 1;
+                    log.warn("持久化重试失败 ({}/{}): talkId={}, err={}",
+                            nextRetry, MAX_PERSIST_RETRIES, talkId, e.getMessage());
+                    enqueueRetryTask(userId, talkId, question, answer, title, nextRetry);
+                }
             } catch (Exception e) {
-                int nextRetry = task.retryCount() + 1;
-                log.warn("持久化重试失败 ({}/{}): talkId={}, err={}",
-                        nextRetry, MAX_PERSIST_RETRIES, task.talkId(), e.getMessage(), e);
-                // 重新入队，retryCount + 1
-                retryQueue.offer(new PersistenceTask(
-                        task.userId(), task.talkId(), task.question(),
-                        task.answer(), task.title(), null, nextRetry));
+                log.error("解析持久化重试任务失败，丢弃: {}", e.getMessage());
             }
         }
     }
@@ -807,5 +808,46 @@ public class AIStreamingServiceImpl implements AIStreamingService {
 
     private String buildHistoryKey(Long userId, Long talkId) {
         return HISTORY_KEY_PREFIX + userId + ":" + talkId;
+    }
+
+    /** 清除用户对话列表缓存（创建/删除对话时调用） */
+    private void clearTalkListCache(Long userId) {
+        try {
+            stringRedisTemplate.delete("talk:list:" + userId);
+            log.debug("已清除对话列表缓存: userId={}", userId);
+        } catch (Exception e) {
+            log.warn("清除对话列表缓存失败: userId={}, err={}", userId, e.getMessage());
+        }
+    }
+
+    /**
+     * 将失败的持久化任务入队到 Redis List（RPUSH），供定时任务重试。
+     * 同时限制队列最大长度，防止异常情况下无限增长。
+     */
+    private void enqueueRetryTask(Long userId, Long talkId, String question,
+                                   String answer, String title, int retryCount) {
+        try {
+            Map<String, Object> task = new HashMap<>();
+            task.put("userId", userId);
+            task.put("talkId", talkId);
+            task.put("question", question);
+            task.put("answer", answer);
+            task.put("title", title != null ? title : "");
+            task.put("retryCount", retryCount);
+            task.put("timestamp", System.currentTimeMillis());
+
+            String json = objectMapper.writeValueAsString(task);
+            stringRedisTemplate.opsForList().rightPush(PERSIST_RETRY_QUEUE_KEY, json);
+
+            // 限制队列最大长度（LTRIM 保留最新的 N 条）
+            Long size = stringRedisTemplate.opsForList().size(PERSIST_RETRY_QUEUE_KEY);
+            if (size != null && size > PERSIST_RETRY_QUEUE_MAX) {
+                stringRedisTemplate.opsForList().trim(PERSIST_RETRY_QUEUE_KEY,
+                        size - PERSIST_RETRY_QUEUE_MAX, -1);
+            }
+            log.debug("持久化重试任务已入队: talkId={}, retryCount={}", talkId, retryCount);
+        } catch (Exception e) {
+            log.error("持久化重试任务入队失败: talkId={}, err={}", talkId, e.getMessage());
+        }
     }
 }

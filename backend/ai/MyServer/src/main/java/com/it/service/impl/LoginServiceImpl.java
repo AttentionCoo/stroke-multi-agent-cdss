@@ -198,9 +198,24 @@ public class LoginServiceImpl extends ServiceImpl<LoginMapper, User> implements 
 
         try {
             Long userId = JWT.getUserIdFromToken(token);
+
+            // 将当前 Token 的 JTI 加入黑名单，TTL 设为 3 天（与 JWT 过期时间一致）
+            String jti = JWT.getJtiFromToken(token);
+            if (jti != null) {
+                stringRedisTemplate.opsForValue().set(
+                        "token:blacklist:" + jti, "1", 3, TimeUnit.DAYS);
+                log.info("Token JTI 已加入黑名单: userId={}, jti={}", userId, jti);
+            }
+
+            // 清除登录记录和会话
             stringRedisTemplate.delete("login:user:" + userId);
             stringRedisTemplate.delete("user:token:" + token);
+            // 清除在线用户状态
+            stringRedisTemplate.opsForZSet().remove("online:users", userId.toString());
+            // 清除用户对话列表缓存
+            stringRedisTemplate.delete("talk:list:" + userId);
             ThreadLocalUtil.removeCurrentUser();
+            log.info("用户已退出登录: userId={}", userId);
         } catch (Exception e) {
             log.error("注销异常", e);
         }
