@@ -1,11 +1,10 @@
 spring:
   application:
-    name: MyServer
+    name: stroke-server
   main:
-    allow-circular-references: true  # 允许循环依赖，解决启动报错问�?
+    allow-circular-references: true
   profiles:
-    active: dev  # 本地开发使用dev，线上部署使�?--spring.profiles.active=prod
-
+    active: dev
   datasource:
     url: jdbc:mysql://${aiserver.datasource.host}:${aiserver.datasource.port}/${aiserver.datasource.database}?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&characterEncoding=utf8
     driver-class-name: ${aiserver.datasource.driver-class-name}
@@ -17,12 +16,11 @@ spring:
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
-
   cache:
     type: redis
   mvc:
     async:
-      request-timeout: 600000   # 10分钟
+      request-timeout: 600000
 
   data:
     redis:
@@ -40,49 +38,41 @@ spring:
           time-between-eviction-runs: 10s
 
   codec:
-    max-in-memory-size: 50MB   # 影像识别：支持最�?3 �?Base64 图片（约 15-20MB�?
+    max-in-memory-size: 50MB
 
   jackson:
     default-property-inclusion: non_null
     time-zone: Asia/Shanghai
     date-format: yyyy-MM-dd HH:mm:ss
 
-
-      # 规则持久化（如果使用 Nacos，可放开注释�?
       # datasource:
       #   flow:
       #     nacos:
       #       server-addr: 127.0.0.1:8848
-      #       data-id: MyServer-flow
+      #       data-id: stroke-server-flow
       #       group-id: DEFAULT_GROUP
       #       data-type: json
     #       rule-type: flow
 
-# Sentinel 日志目录（必须有权限写入�?
-
 mybatis-plus:
   global-config:
     db-config:
-      ddl: false  # 关键点：禁用 DDL 运行器，解决 NullBean 报错
+      ddl: false
   configuration:
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # 将原 mybatis 下的配置移至此处
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     map-underscore-to-camel-case: true
-# AI 服务配置
+
 ai:
   api:
     url: ${aiserver.ai-api.url}
     connect-timeout: 10000
     read-timeout: 600000
   security:
-    # ⚠️ 必须�?Python 模型服务�?AI_JWT_SECRET 环境变量保持完全一�?
-    # 生产环境：由 AI_API_SHARED_JWT_SECRET 环境变量注入（见 application-prod.yml�?
-    # 开发环境：�?application-dev.yml 中的 aiserver.ai-api.shared-jwt-secret 提供
     shared-jwt-secret: ${aiserver.ai-api.shared-jwt-secret}
   sse:
-    ring-buffer-size: 200   # 每个 talkId 的滑动窗口事件数上限，超出后最旧事件被淘汰
-    cache-ttl-minutes: 5    # done/error 后缓存保留时长（分钟），给重连留出窗�?
+    ring-buffer-size: 200
+    cache-ttl-minutes: 5
 
-# 阿里�?OSS
 alioss:
   endpoint: ${aiserver.alioss.endpoint}
   bucketName: ${aiserver.alioss.bucketName}
@@ -90,7 +80,6 @@ alioss:
   access-key-id: ${aiserver.alioss.access-key-id}
   access-key-secret: ${aiserver.alioss.access-key-secret}
 
-# 服务器配�?
 server:
   port: 8080
   tomcat:
@@ -101,19 +90,17 @@ server:
       min-spare: 10
     accept-count: 100
 
-# 日志配置（宝塔环境推荐）
 logging:
   file:
-    path: /www/wwwroot/myserver/logs  # 宝塔默认路径
+    path: /www/wwwroot/stroke-server/logs
     name: ${logging.file.path}/application.log
   level:
     root: INFO
-    com.yourpackage: DEBUG  # 替换成你的包�?
+    com.it: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
-# 限流配置
 rate-limiter:
   global:
     limit: 200
@@ -125,7 +112,6 @@ rate-limiter:
     limit: 3
     interval: 60
 
-# 熔断配置
 resilience4j:
   circuitbreaker:
     instances:
@@ -135,4 +121,3 @@ resilience4j:
         minimum-number-of-calls: 10
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
-

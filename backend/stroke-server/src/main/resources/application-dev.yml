@@ -1,28 +1,24 @@
-﻿aiserver:
+aiserver:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     host: localhost
     port: 3306
     database: medai
     username: root
-    password: Gongyusong666
-
+    password: ${MYSQL_PASSWORD:}
   redis:
     host: 127.0.0.1
     port: 6379
-    password: Gongyusong666
-
+    password: ""
   ai-api:
     url: http://localhost:8000
     shared-jwt-secret: dev-local-secret
-
   alioss:
     endpoint: https://oss-cn-beijing.aliyuncs.com
     bucketName: darkside
     region: cn-beijing
-    access-key-id: LTAI5tCsXMzZtiBxnUgqKPNA
-    access-key-secret: Bkp8ixYCRDicOWLeclRqdPvlNoxMiK
-
+    access-key-id: ${ALIBABA_CLOUD_ACCESS_KEY_ID:}
+    access-key-secret: ${ALIBABA_CLOUD_ACCESS_KEY_SECRET:}
 logging:
   level:
     root: INFO

@@ -9,8 +9,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @ServletComponentScan
 @MapperScan("com.it.mapper")
 @SpringBootApplication
-public class MyServerApplication {
+public class StrokeServerApplication {
     public static void main(String[] args) {
-        SpringApplication.run(MyServerApplication.class, args);
+        SpringApplication.run(StrokeServerApplication.class, args);
     }
 }

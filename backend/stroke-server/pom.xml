@@ -13,9 +13,9 @@
     </parent>
 
     <groupId>com.it</groupId>
-    <artifactId>MyServer</artifactId>
+    <artifactId>stroke-server</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>MyServer</name>
+    <name>stroke-server</name>
 
     <properties>
         <java.version>21</java.version>
