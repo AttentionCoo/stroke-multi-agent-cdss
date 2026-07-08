@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import sys
 import asyncio
 import concurrent.futures
@@ -29,11 +29,14 @@ from app.config.config_loader import (
 )
 from app.services.vision_service import VisionAnalysisService
 
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage
 from app.utils.context_summary import ConversationSummaryService
 
 
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
 ALGORITHM = "HS256"
 
@@ -492,7 +495,6 @@ async def analyze_patient_health_risk(request: AnalyzeRequest):
 - 禁止具体药物剂量"""
 
         # 直接异步调用，无需线程池包装
-        from langchain_core.messages import HumanMessage
         response = await llm_turbo.ainvoke([HumanMessage(content=prompt)])
         content = getattr(response, "content", "")
         
