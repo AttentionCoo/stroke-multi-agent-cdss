@@ -62,9 +62,18 @@ public class RedisRateLimiterInterceptor implements HandlerInterceptor {
 
     private final DefaultRedisScript<Long> rateLimitScript;
 
-    public RedisRateLimiterInterceptor(StringRedisTemplate stringRedisTemplate) {
+    public RedisRateLimiterInterceptor(StringRedisTemplate stringRedisTemplate,
+                                                       int globalLimit, int globalInterval,
+                                                       int ipLimit, int ipInterval,
+                                                       int userLimit, int userInterval) {
         this.stringRedisTemplate = stringRedisTemplate;
         this.rateLimitScript = new DefaultRedisScript<>(SLIDING_WINDOW_SCRIPT, Long.class);
+        this.globalLimit = globalLimit;
+        this.globalInterval = globalInterval;
+        this.ipLimit = ipLimit;
+        this.ipInterval = ipInterval;
+        this.userLimit = userLimit;
+        this.userInterval = userInterval;
     }
 
     @Override
