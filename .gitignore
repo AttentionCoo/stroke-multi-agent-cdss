@@ -21,8 +21,12 @@ __pycache__/
 node_modules/
 dist/
 
-# Java 编译产物
+# Java
 *.class
 
-# 本地文档（不入库）
-流式输出架构改进方案.md
+# Redis dump
+dump.rdb
+temp-*.rdb
+
+# Claude
+.claude/
