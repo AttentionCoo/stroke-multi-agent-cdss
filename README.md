@@ -15,7 +15,7 @@
   <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.128-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI"></a>
   <a href="https://spring.io/projects/spring-boot"><img src="https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?style=flat-square&logo=springboot&logoColor=white" alt="Spring Boot"></a>
   <a href="https://www.langchain.com/langgraph"><img src="https://img.shields.io/badge/LangGraph-0.2-1C3C3C?style=flat-square&logo=langchain&logoColor=white" alt="LangGraph"></a>
-  <a href="https://github.com/AttentionCasria/neuro-multi-agent-system/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License"></a>
+  <a href="https://github.com/AttentionCasria/stroke-multi-agent-system/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/badge/Status-Active-brightgreen?style=flat-square" alt="Status">
 </p>
 
@@ -240,7 +240,7 @@ Java ←→ Redis:       Lettuce (响应式 Redis 客户端)
 ## 📂 项目目录结构
 
 ```text
-neuro-multi-agent-system/
+stroke-multi-agent-system/
 ├── frontend/                              # 🎨 前端工程 (Vue 3 + Vite 7)
 │   ├── src/
 │   │   ├── api/                           # 封装 Fetch 响应式流请求
@@ -270,7 +270,7 @@ neuro-multi-agent-system/
 │       │   ├── service/                   # 业务逻辑层 (流式转发, 异步持久化)
 │       │   │   └── impl/                  # 核心实现 (AIStreamingServiceImpl 等)
 │       │   ├── utils/                     # 工具类 (JWT, ThreadLocal, OSS 上传)
-│       │   └── MyServerApplication.java   # 启动入口
+│       │   └── StrokeServerApplication.java   # 启动入口
 │       └── src/main/resources/
 │           ├── application.yml            # 主配置 (数据源、Redis、AI 服务地址)
 │           ├── application-dev.yml        # 开发环境配置
@@ -383,7 +383,7 @@ HF_ENDPOINT="https://hf-mirror.com"          # HuggingFace 镜像（国内推荐
 
 #### ☕ 后端服务配置
 
-修改 `backend/ai/MyServer/src/main/resources/application-dev.yml`（开发环境）或 `application-prod.yml`（生产环境），配置数据源与 Redis 连接信息：
+修改 `backend/stroke-server/src/main/resources/application-dev.yml`（开发环境）或 `application-prod.yml`（生产环境），配置数据源与 Redis 连接信息：
 
 ```yaml
 spring:
@@ -425,10 +425,10 @@ bash start.sh
 
 #### 第二步：启动后端服务（Backend）
 
-使用 IDE（如 IntelliJ IDEA）运行 `MyServerApplication.java`，或者使用 Maven 编译启动：
+使用 IDE（如 IntelliJ IDEA）运行 `StrokeServerApplication.java`，或者使用 Maven 编译启动：
 
 ```bash
-cd backend/ai/MyServer
+cd backend/stroke-server
 mvn spring-boot:run
 ```
 
@@ -454,7 +454,7 @@ npm run dev
 
 推荐使用宝塔面板进行生产部署，详细配置请参阅：
 
-- [backend/ai/MyServer/BAOTA_DEPLOY.md](backend/ai/MyServer/BAOTA_DEPLOY.md) — 宝塔面板部署指南
+- [backend/stroke-server/BAOTA_DEPLOY.md](backend/stroke-server/BAOTA_DEPLOY.md) — 宝塔面板部署指南
 - [docs/backend-technical-documentation.md](docs/backend-technical-documentation.md) — 第 12 节：部署架构（含 Nginx 配置）
 
 ---
@@ -532,7 +532,7 @@ npm run dev
 | [docs/全链路流式重构策略.md](docs/全链路流式重构策略.md) | 全链路流式数据管道设计策略 |
 | [docs/LangChain版本升级风险分析报告.md](docs/LangChain版本升级风险分析报告.md) | LangChain 版本升级风险评估 |
 | [docs/LangChain迁移可行性分析报告.md](docs/LangChain迁移可行性分析报告.md) | LangChain 迁移方案与可行性分析 |
-| [backend/ai/MyServer/BAOTA_DEPLOY.md](backend/ai/MyServer/BAOTA_DEPLOY.md) | 宝塔面板生产环境部署指南 |
+| [backend/stroke-server/BAOTA_DEPLOY.md](backend/stroke-server/BAOTA_DEPLOY.md) | 宝塔面板生产环境部署指南 |
 
 ---
 
@@ -569,7 +569,7 @@ npm run dev
 3. **代码风格** 请保持与现有代码风格一致
 4. **文档更新** 涉及架构变更请同步更新相关文档
 
-如有问题或建议，请提交 [GitHub Issue](https://github.com/AttentionCasria/neuro-multi-agent-system/issues)。
+如有问题或建议，请提交 [GitHub Issue](https://github.com/AttentionCasria/stroke-multi-agent-system/issues)。
 
 ---
 
