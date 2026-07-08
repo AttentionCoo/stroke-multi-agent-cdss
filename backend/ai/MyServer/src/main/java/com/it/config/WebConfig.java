@@ -18,7 +18,10 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         // ⭐ 第一步：RedisRateLimiterInterceptor 全局限流（order=0），最先执行
-        registry.addInterceptor(new RedisRateLimiterInterceptor(stringRedisTemplate))
+        registry.addInterceptor(new RedisRateLimiterInterceptor(stringRedisTemplate,
+                        200, 1,
+                        30, 60,
+                        3, 60))
                 .addPathPatterns("/**")
                 .excludePathPatterns(
                         "/api/monitor/**",
