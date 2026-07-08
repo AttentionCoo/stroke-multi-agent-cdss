@@ -59,7 +59,7 @@ public class PatientServiceImpl extends ServiceImpl<PatientMapper, Patient> impl
             if (cached != null && !cached.isEmpty()) {
                 log.debug("患者分页缓存命中: key={}", cacheKey);
                 return Result.success(
-                        com.fasterxml.jackson.databind.ObjectMapper()
+                        new com.fasterxml.jackson.databind.ObjectMapper()
                             .readValue(cached, PatientPageVO.class));
             }
         } catch (Exception e) {
