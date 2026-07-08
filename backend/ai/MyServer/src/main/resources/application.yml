@@ -2,9 +2,9 @@ spring:
   application:
     name: MyServer
   main:
-    allow-circular-references: true  # 允许循环依赖，解决启动报错问题
+    allow-circular-references: true  # 允许循环依赖，解决启动报错问�?
   profiles:
-    active: prod  # 本地开发使用dev，线上部署使用 --spring.profiles.active=prod
+    active: dev  # 本地开发使用dev，线上部署使�?--spring.profiles.active=prod
 
   datasource:
     url: jdbc:mysql://${aiserver.datasource.host}:${aiserver.datasource.port}/${aiserver.datasource.database}?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&characterEncoding=utf8
@@ -18,6 +18,8 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
 
+  cache:
+    type: redis
   mvc:
     async:
       request-timeout: 600000   # 10分钟
@@ -38,7 +40,7 @@ spring:
           time-between-eviction-runs: 10s
 
   codec:
-    max-in-memory-size: 50MB   # 影像识别：支持最多 3 张 Base64 图片（约 15-20MB）
+    max-in-memory-size: 50MB   # 影像识别：支持最�?3 �?Base64 图片（约 15-20MB�?
 
   jackson:
     default-property-inclusion: non_null
@@ -46,7 +48,7 @@ spring:
     date-format: yyyy-MM-dd HH:mm:ss
 
 
-      # 规则持久化（如果使用 Nacos，可放开注释）
+      # 规则持久化（如果使用 Nacos，可放开注释�?
       # datasource:
       #   flow:
       #     nacos:
@@ -56,7 +58,7 @@ spring:
       #       data-type: json
     #       rule-type: flow
 
-# Sentinel 日志目录（必须有权限写入）
+# Sentinel 日志目录（必须有权限写入�?
 
 mybatis-plus:
   global-config:
@@ -72,15 +74,15 @@ ai:
     connect-timeout: 10000
     read-timeout: 600000
   security:
-    # ⚠️ 必须与 Python 模型服务的 AI_JWT_SECRET 环境变量保持完全一致
-    # 生产环境：由 AI_API_SHARED_JWT_SECRET 环境变量注入（见 application-prod.yml）
-    # 开发环境：由 application-dev.yml 中的 aiserver.ai-api.shared-jwt-secret 提供
+    # ⚠️ 必须�?Python 模型服务�?AI_JWT_SECRET 环境变量保持完全一�?
+    # 生产环境：由 AI_API_SHARED_JWT_SECRET 环境变量注入（见 application-prod.yml�?
+    # 开发环境：�?application-dev.yml 中的 aiserver.ai-api.shared-jwt-secret 提供
     shared-jwt-secret: ${aiserver.ai-api.shared-jwt-secret}
   sse:
     ring-buffer-size: 200   # 每个 talkId 的滑动窗口事件数上限，超出后最旧事件被淘汰
-    cache-ttl-minutes: 5    # done/error 后缓存保留时长（分钟），给重连留出窗口
+    cache-ttl-minutes: 5    # done/error 后缓存保留时长（分钟），给重连留出窗�?
 
-# 阿里云 OSS
+# 阿里�?OSS
 alioss:
   endpoint: ${aiserver.alioss.endpoint}
   bucketName: ${aiserver.alioss.bucketName}
@@ -88,7 +90,7 @@ alioss:
   access-key-id: ${aiserver.alioss.access-key-id}
   access-key-secret: ${aiserver.alioss.access-key-secret}
 
-# 服务器配置
+# 服务器配�?
 server:
   port: 8080
   tomcat:
@@ -106,7 +108,7 @@ logging:
     name: ${logging.file.path}/application.log
   level:
     root: INFO
-    com.yourpackage: DEBUG  # 替换成你的包名
+    com.yourpackage: DEBUG  # 替换成你的包�?
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
@@ -133,3 +135,4 @@ resilience4j:
         minimum-number-of-calls: 10
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
+
