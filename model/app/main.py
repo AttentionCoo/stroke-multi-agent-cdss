@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import sys
 import asyncio
 import concurrent.futures
@@ -214,7 +214,7 @@ def init_all_resources():
     # 步骤7: 初始化其他服务
     logger.info("🔧 [7/7] 初始化其他服务...")
     vision_service = VisionAnalysisService(prompt_manager=prompt_mgr)
-    naming_model = NamingModel()
+    naming_model = NamingModel(llm=llm_turbo)
     logger.info("  ✅ 影像识别服务初始化完成")
     logger.info("  ✅ 命名模型初始化完成")
     
@@ -748,7 +748,6 @@ async def list_report_modes():
     
     logger.info(f"✅ 可用报告模式: {modes}")
     
-    return {"modes": modes}
     return {
         "modes": [
             {"key": m, "name": mgr.get_template_name(m)}
