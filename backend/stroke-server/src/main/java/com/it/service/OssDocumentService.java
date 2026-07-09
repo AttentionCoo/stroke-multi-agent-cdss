@@ -48,6 +48,11 @@ public class OssDocumentService {
 
     @PostConstruct
     public void init() {
+        if (ossProperties.getAccessKeyId() == null || ossProperties.getAccessKeyId().isBlank()
+                || ossProperties.getAccessKeySecret() == null || ossProperties.getAccessKeySecret().isBlank()) {
+            log.warn("[OSS] AccessKeyId 或 AccessKeySecret 为空，跳过 OSS 客户端初始化（文档功能不可用）");
+            return;
+        }
         ossClient = new OSSClientBuilder().build(
                 ossProperties.getEndpoint(),
                 ossProperties.getAccessKeyId(),
@@ -119,6 +124,10 @@ public class OssDocumentService {
      * 实际从 OSS 拉取文档列表。
      */
     private Map<String, List<DocumentVO>> fetchFromOss() {
+        if (ossClient == null) {
+            log.warn("[OSS] 客户端未初始化，返回空文档列表");
+            return new LinkedHashMap<>();
+        }
         String prefix = ossProperties.getDocumentPrefix();
         ListObjectsV2Request req = new ListObjectsV2Request(ossProperties.getBucketName());
         req.setPrefix(prefix);
@@ -161,6 +170,9 @@ public class OssDocumentService {
      * @param documentId Base64 URL 安全编码的 OSS key
      */
     public DocumentUrlVO generateSignedUrl(String documentId) throws Exception {
+        if (ossClient == null) {
+            throw new IllegalStateException("[OSS] 客户端未初始化，无法生成签名URL");
+        }
         String key = new String(
                 Base64.getUrlDecoder().decode(documentId), StandardCharsets.UTF_8);
         String fileName = key.substring(key.lastIndexOf('/') + 1);
