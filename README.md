@@ -243,39 +243,40 @@ Java ←→ Redis:       Lettuce (响应式 Redis 客户端)
 stroke-multi-agent-system/
 ├── frontend/                              # 🎨 前端工程 (Vue 3 + Vite 7)
 │   ├── src/
-│   │   ├── api/                           # 封装 Fetch 响应式流请求
+│   │   ├── api/                           # 封装 Fetch 响应式流请求 (ai, user, patient, talk, learning, documents)
 │   │   ├── components/                    # UI 组件
 │   │   │   ├── form/                      # 表单组件 (登录、注册、编辑)
 │   │   │   ├── svg/                       # SVG 图标组件
-│   │   │   └── workspace/                 # 工作区组件 (问诊、患者、文献)
+│   │   │   └── workspace/                 # 工作区组件 (问诊对话、患者管理、文献学习、思考面板)
 │   │   ├── router/                        # Vue Router 路由配置
 │   │   ├── stores/                        # Pinia 状态管理 (用户状态、主题)
-│   │   ├── styles/                        # SCSS 全局样式与变量
-│   │   ├── utils/                         # 工具函数 (请求封装、图片压缩、引用解析)
+│   │   ├── utils/                         # 工具函数 (请求封装、图片压缩、引用解析、暂停控制)
 │   │   └── views/                         # 页面视图 (登录、智能问诊)
 │   ├── package.json
 │   └── vite.config.js
 │
 ├── backend/                               # ☕ 后端工程 (Spring Boot 3 + WebFlux)
-│   └── ai/MyServer/
+│   └── stroke-server/
 │       ├── src/main/java/com/it/
-│       │   ├── cache/                     # SSE 断线续传事件缓存
-│       │   ├── config/                    # 配置类 (Security, Redis, Redisson, WebClient, Jackson)
-│       │   ├── controller/                # 响应式 Flux 控制层 (SSE 路由, REST API)
+│       │   ├── cache/                     # SSE 断线续传事件缓存 + 在线用户追踪
+│       │   ├── config/                    # 配置类 (Security, Redis, Redisson, WebClient, Jackson, OSS)
+│       │   ├── controller/                # 响应式 Flux 控制层 (SSE 路由, REST API, 文件上传)
 │       │   ├── handler/                   # 全局异常拦截器
-│       │   ├── interceptor/               # JWT 双重拦截器 (Token 校验 + 自动续期)
+│       │   ├── interceptor/               # JWT 双重拦截器 (Token 校验 + 自动续期) + Redis 限流
 │       │   ├── mapper/                    # MyBatis-Plus Mapper 接口
 │       │   ├── po/                        # 参数与视图对象 (DTO, UO, VO)
-│       │   ├── pojo/                      # 持久化实体 (患者档案, 对话记录, AI 意见)
-│       │   ├── service/                   # 业务逻辑层 (流式转发, 异步持久化)
-│       │   │   └── impl/                  # 核心实现 (AIStreamingServiceImpl 等)
-│       │   ├── utils/                     # 工具类 (JWT, ThreadLocal, OSS 上传)
+│       │   ├── pojo/                      # 持久化实体 (患者档案, 对话记录, AI 意见, 健康数据)
+│       │   ├── service/                   # 业务逻辑层 (流式转发, 异步持久化, OSS 文档)
+│       │   │   └── impl/                  # 核心实现 (AIStreamingServiceImpl, AiAnalysisServiceImpl 等)
+│       │   ├── utils/                     # 工具类 (JWT, ThreadLocal, OSS 上传, IP 工具)
 │       │   └── StrokeServerApplication.java   # 启动入口
-│       └── src/main/resources/
-│           ├── application.yml            # 主配置 (数据源、Redis、AI 服务地址)
-│           ├── application-dev.yml        # 开发环境配置
-│           ├── application-prod.yml       # 生产环境配置
-│           └── db/                        # 数据库初始化脚本
+│       ├── src/main/resources/
+│       │   ├── application.yml            # 主配置 (数据源、Redis、AI 服务地址)
+│       │   ├── application-dev.yml        # 开发环境配置
+│       │   ├── application-prod.yml       # 生产环境配置
+│       │   └── db/                        # 数据库初始化脚本
+│       ├── sql/                           # 数据库 Schema 脚本
+│       └── BAOTA_DEPLOY.md               # 宝塔面板部署指南
 │
 ├── model/                                 # 🐍 模型推理服务层 (Python FastAPI)
 │   ├── app/
@@ -352,15 +353,42 @@ stroke-multi-agent-system/
 
 | 层级 | 依赖项 | 最低版本 | 说明 |
 |------|--------|:--------:|------|
-| 后端服务 | MySQL | 8.0+ | 业务数据持久化 |
-| 后端服务 | Redis | 6.0+ | 会话缓存 + 分布式限流 |
+| 全局 | Docker Desktop | 最新 | MySQL + Redis 一键容器化部署（推荐） |
 | 后端服务 | JDK | 21+ | Java 运行环境 |
 | 后端服务 | Maven | 3.8+ | 项目构建 |
 | 前端服务 | Node.js | ≥ 20.19.0（推荐 ^22.12.0） | 前端开发与构建 |
 | 模型服务 | Python | 3.11+ | AI 推理引擎 |
 | 模型服务 | Anaconda / Miniconda | 推荐 | Python 环境管理 |
 
+> 💡 **提示**：如不使用 Docker，需自行安装 MySQL 8.0+ 与 Redis 6.0+。
+
 ### 2. 基础环境配置
+
+#### 🐳 Docker 一键部署 MySQL + Redis（推荐）
+
+确保 Docker Desktop 已启动，然后运行以下命令：
+
+```bash
+# 拉取并启动 MySQL 8.0
+docker run -d --name stroke-mysql \
+  -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=root \
+  -e MYSQL_DATABASE=medai \
+  mysql:8.0
+
+# 拉取并启动 Redis 6.0
+docker run -d --name stroke-redis \
+  -p 6379:6379 \
+  redis:6.0
+```
+
+启动后导入数据库 Schema：
+
+```bash
+docker exec -i stroke-mysql mysql -uroot -proot medai < backend/stroke-server/sql/medai_schema.sql
+```
+
+> ⚠️ **注意**：每次重启 Docker Desktop 后，MySQL 和 Redis 容器会自动恢复运行。如遇连接问题，请确认 Docker Desktop 已完全启动。
 
 #### 🐍 模型层环境配置
 
@@ -386,18 +414,21 @@ HF_ENDPOINT="https://hf-mirror.com"          # HuggingFace 镜像（国内推荐
 修改 `backend/stroke-server/src/main/resources/application-dev.yml`（开发环境）或 `application-prod.yml`（生产环境），配置数据源与 Redis 连接信息：
 
 ```yaml
-spring:
+aiserver:
   datasource:
-    url: jdbc:mysql://localhost:3306/medllm?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&characterEncoding=utf8
-    username: your_username
-    password: your_password
-  data:
-    redis:
-      host: localhost
-      port: 6379
+    host: localhost
+    port: 3306
+    database: medai
+    username: root
+    password: ${MYSQL_PASSWORD:root}     # Docker 默认密码为 root
+  redis:
+    host: 127.0.0.1
+    port: 6379
+    password: ""
+  ai-api:
+    url: http://localhost:8000           # Python FastAPI 模型服务地址
+    shared-jwt-secret: dev-local-secret
 ```
-
-同时确保 `ai.api.url` 指向 Python FastAPI 服务地址（默认 `http://localhost:8000`）。
 
 #### 🎨 前端服务配置
 
@@ -447,7 +478,7 @@ npm run dev
 ### 4. 启动顺序总结
 
 ```text
-① MySQL + Redis  →  ② Model (FastAPI :8000)  →  ③ Backend (Spring Boot :8080)  →  ④ Frontend (Vite :5173)
+① Docker (MySQL:3306 + Redis:6379)  →  ② Model (FastAPI :8000)  →  ③ Backend (Spring Boot :8080)  →  ④ Frontend (Vite :5173)
 ```
 
 ### 5. 生产环境部署
@@ -537,6 +568,14 @@ npm run dev
 ---
 
 ## 🔄 版本更新日志
+
+### v2.1.1 (2026-07-09)
+
+- ✅ **修复**：dev 环境 MySQL 密码配置（默认值从空改为 `root`，匹配 Docker 容器）
+- ✅ **修复**：OSS 服务空密钥容错处理（本地开发环境跳过 OSS 初始化）
+- ✅ **修复**：Vite 代理端口配置（确保前端正确代理至后端 8080 端口）
+- ✅ **新增**：Docker 一键部署 MySQL + Redis 说明
+- ✅ **文档**：README 目录结构与实际项目对齐
 
 ### v2.1.0 (2026-07-05)
 
