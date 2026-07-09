@@ -90,6 +90,7 @@ const emit = defineEmits([
   'send-message',
   'sync-conversation',
   'open-patient-workspace',
+  'create-patient',
 ])
 
 const draftMessage = ref('')
@@ -707,13 +708,17 @@ function getThinkingData(msgIndex) {
           </div>
         </div>
 
-        <label class="field-label">
-          关联患者
-          <select v-model="syncPatientModel">
-            <option :value="null">请选择患者</option>
-            <option v-for="patient in patients" :key="patient.id" :value="patient.id">{{ patient.name }}</option>
-          </select>
-        </label>
+        <div class="field-row">
+          <label class="field-label flex-1">
+            关联患者
+            <select v-model="syncPatientModel">
+              <option :value="null">请选择患者</option>
+              <option v-for="patient in patients" :key="patient.id" :value="patient.id">{{ patient.name }}</option>
+            </select>
+          </label>
+          <button type="button" class="secondary-action create-patient-btn" @click="emit('create-patient')"
+            title="快速新增患者">+ 新增</button>
+        </div>
 
         <div v-if="syncPatient" class="summary-card">
           <p class="summary-label">当前同步目标</p>
@@ -789,6 +794,25 @@ function getThinkingData(msgIndex) {
   border-left: 1px solid var(--color-border);
   background: var(--color-bg-light);
   overflow-y: auto;
+}
+
+.field-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.field-row .flex-1 {
+  flex: 1;
+  min-width: 0;
+}
+
+.create-patient-btn {
+  flex-shrink: 0;
+  padding: 9px 14px;
+  white-space: nowrap;
+  font-size: 13px;
+  border-radius: var(--radius-lg);
 }
 
 .sync-card-body {

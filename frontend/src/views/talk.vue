@@ -824,6 +824,10 @@ async function handleSyncConversation() {
     })
 
     syncResult.value = res.data || null
+
+    // 先关闭遮罩，让用户能及时看到同步结果
+    syncLoading.value = false
+
     await fetchPatients()
 
     if (selectedPatientId.value === syncPatientId.value || !selectedPatientId.value) {
@@ -833,10 +837,9 @@ async function handleSyncConversation() {
 
     alert('同步完成，患者AI意见已更新')
   } catch (error) {
+    syncLoading.value = false
     console.error('同步对话失败', error)
     alert(error?.msg || '同步失败')
-  } finally {
-    syncLoading.value = false
   }
 }
 
@@ -932,7 +935,7 @@ function openPatientWorkspace(patientId) {
         :can-sync-conversation="canSyncConversation" :sync-result="syncResult" @select-talk="handleSelectTalk"
         @new-chat="handleNewChat" @delete-chat="handleDeleteChat" @delete-all="handleDeleteAll"
         @send-message="handleSendMessage" @sync-conversation="handleSyncConversation"
-        @open-patient-workspace="openPatientWorkspace" />
+        @open-patient-workspace="openPatientWorkspace" @create-patient="openCreatePatient" />
 
       <PatientWorkspace v-else-if="activeTab === 'patients'" v-model:query="patientQuery"
         v-model:analysis-text="patientAnalysisText" :patients="patients" :patient-total="patientTotal"
