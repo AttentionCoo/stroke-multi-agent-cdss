@@ -1,5 +1,6 @@
 package com.it.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.it.mapper.AiOpinionMapper;
@@ -139,7 +140,14 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
         String suggestion   = data.path("suggestion").asText("");
         String analysisDetails = data.path("analysisDetails").asText("");
 
-        // 写入 ai_opinion
+        // 覆盖式更新：先删除该患者所有已有的 AI 意见记录，再写入新的
+        LambdaQueryWrapper<AiOpinion> deleteWrapper = new LambdaQueryWrapper<>();
+        deleteWrapper.eq(AiOpinion::getPatientId, param.getPatientId());
+        int deletedCount = aiOpinionMapper.delete(deleteWrapper);
+        if (deletedCount > 0) {
+            log.info("覆盖式更新：已删除患者 {} 的 {} 条旧 AI 意见记录", param.getPatientId(), deletedCount);
+        }
+
         AiOpinion opinion = new AiOpinion();
         opinion.setPatientId(param.getPatientId());
         opinion.setRiskLevel(riskLevel);
@@ -148,6 +156,9 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
         opinion.setSourceType("health_data");
         opinion.setSourceId(hd.getId());
         aiOpinionMapper.insert(opinion);
+
+        // 清除患者相关 Redis 缓存，确保前端拉取到最新数据
+        evictPatientCaches(param.getPatientId());
 
         AiAnalyzeVO vo = new AiAnalyzeVO();
         vo.setRiskLevel(riskLevel);
@@ -228,7 +239,14 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
                 ? analysisBuilder.toString()
                 : suggestion;
 
-        // 写入 ai_opinion
+        // 覆盖式更新：先删除该患者所有已有的 AI 意见记录，再写入新的
+        LambdaQueryWrapper<AiOpinion> deleteWrapper = new LambdaQueryWrapper<>();
+        deleteWrapper.eq(AiOpinion::getPatientId, param.getPatientId());
+        int deletedCount = aiOpinionMapper.delete(deleteWrapper);
+        if (deletedCount > 0) {
+            log.info("覆盖式更新（syncTalk）：已删除患者 {} 的 {} 条旧 AI 意见记录", param.getPatientId(), deletedCount);
+        }
+
         AiOpinion opinion = new AiOpinion();
         opinion.setPatientId(param.getPatientId());
         opinion.setRiskLevel(riskLevel);
@@ -237,6 +255,9 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
         opinion.setSourceType("sync_talk");
         opinion.setSourceId(param.getTalkId());
         aiOpinionMapper.insert(opinion);
+
+        // 清除患者相关 Redis 缓存，确保前端拉取到最新数据
+        evictPatientCaches(param.getPatientId());
 
         AiOpinionVO opinionVO = new AiOpinionVO();
         opinionVO.setRiskLevel(riskLevel);
@@ -344,5 +365,24 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
         if (text.contains("中")) return "中风险";
         if (text.contains("低")) return "低风险";
         return "中风险";
+    }
+
+    /**
+     * 清除指定患者的 Redis 缓存（详情缓存 + 分页缓存模糊匹配），
+     * 确保覆盖式更新 AI 意见后前端能立即拉取到最新数据。
+     */
+    private void evictPatientCaches(Long patientId) {
+        try {
+            // 清除患者详情缓存
+            stringRedisTemplate.delete("patient:detail:" + patientId);
+            // 模糊匹配清除该患者所属医生的所有分页缓存
+            var pageKeys = stringRedisTemplate.keys("patient:page:*");
+            if (pageKeys != null && !pageKeys.isEmpty()) {
+                stringRedisTemplate.delete(pageKeys);
+            }
+            log.debug("已清除患者 {} 的 Redis 缓存", patientId);
+        } catch (Exception e) {
+            log.warn("清除患者缓存失败: patientId={}, err={}", patientId, e.getMessage());
+        }
     }
 }
