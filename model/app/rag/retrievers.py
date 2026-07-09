@@ -170,6 +170,25 @@ class HybridRetriever:
         self._cache: dict = {}
         self._cache_ttl = 300
 
+    @staticmethod
+    def _rrf_merge(ranked_lists: List[List[Document]], k: int = 60) -> List[Document]:
+        doc_scores: dict[str, float] = {}
+        doc_map: dict[str, Document] = {}
+
+        for ranked in ranked_lists:
+            for rank, doc in enumerate(ranked, start=1):
+                key = doc.page_content
+                doc_scores[key] = doc_scores.get(key, 0.0) + 1.0 / (k + rank)
+                doc_map[key] = doc
+
+        sorted_keys = sorted(doc_scores, key=lambda x: doc_scores[x], reverse=True)
+        result = []
+        for key in sorted_keys:
+            doc = doc_map[key]
+            doc.metadata['rrf_score'] = doc_scores[key]
+            result.append(doc)
+        return result
+
     def search(self, query: str, top_k_final: int = 3) -> List[Document]:
         cache_key = hashlib.md5(f"{query}_{top_k_final}".encode("utf-8")).hexdigest()
         if cache_key in self._cache:
@@ -184,17 +203,21 @@ class HybridRetriever:
         v_docs = self.vector_retriever.invoke(query)
         b_docs = self.bm25.invoke(query) if self.bm25 else []
 
-        seen = {}
-        for d in v_docs + b_docs:
-            seen[d.page_content] = d
-        candidates = list(seen.values())
+        ranked_lists = [v_docs]
+        if b_docs:
+            ranked_lists.append(b_docs)
+
+        candidates = HybridRetriever._rrf_merge(ranked_lists, k=60)
 
         if not candidates:
             logger.warning("⚠️ 检索结果为空")
             self._cache[cache_key] = ([], time.time())
             return []
 
-        logger.info(f"🔍 召回 {len(candidates)} 条，开始 rerank...")
+        rrf_top_k = min(len(candidates), top_k_final * 4)
+        candidates = candidates[:rrf_top_k]
+
+        logger.info(f"🔍 RRF 融合 {len(candidates)} 条，开始 rerank...")
 
         result = self.reranker.rerank(query, candidates, top_k=top_k_final)
 
@@ -236,6 +259,25 @@ class UnifiedSearchEngine:
             raw_docs,
             k=CONFIG.get("reranker_initial_k", 8)
         )
+
+    @staticmethod
+    def _rrf_merge(ranked_lists: List[List[Document]], k: int = 60) -> List[Document]:
+        doc_scores: dict[str, float] = {}
+        doc_map: dict[str, Document] = {}
+
+        for ranked in ranked_lists:
+            for rank, doc in enumerate(ranked, start=1):
+                key = doc.page_content
+                doc_scores[key] = doc_scores.get(key, 0.0) + 1.0 / (k + rank)
+                doc_map[key] = doc
+
+        sorted_keys = sorted(doc_scores, key=lambda x: doc_scores[x], reverse=True)
+        result = []
+        for key in sorted_keys:
+            doc = doc_map[key]
+            doc.metadata['rrf_score'] = doc_scores[key]
+            result.append(doc)
+        return result
 
     def search(self, query: str, top_k_final: int = 3) -> List[Document]:
         try:
