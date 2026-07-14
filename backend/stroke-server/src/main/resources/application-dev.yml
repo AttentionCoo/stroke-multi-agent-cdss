@@ -1,17 +1,17 @@
 aiserver:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    host: localhost
-    port: 3306
-    database: medai
-    username: root
-    password: ${MYSQL_PASSWORD:root}
+    host: ${MYSQL_HOST:localhost}
+    port: ${MYSQL_PORT:3307}
+    database: ${MYSQL_DATABASE:medai}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
   redis:
-    host: 127.0.0.1
-    port: 6379
-    password: ""
+    host: ${REDIS_HOST:127.0.0.1}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
   ai-api:
-    url: http://localhost:8000
+    url: ${AI_API_URL:http://localhost:8000}
     shared-jwt-secret: dev-local-secret
   alioss:
     endpoint: https://oss-cn-beijing.aliyuncs.com
