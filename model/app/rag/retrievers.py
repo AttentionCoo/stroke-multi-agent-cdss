@@ -81,14 +81,14 @@ class BGEReranker:
     def rerank(self, query: str, docs: List[Document], top_k: int = None) -> List[Document]:
         if not docs:
             return []
-        
+
         actual_top_k = top_k if top_k is not None else self.top_k
-        
+
         # 如果Rerank未启用或API密钥无效，直接返回原始结果
         if not self.enabled:
             logger.info(f"ℹ️  Rerank 功能已禁用，直接返回原始结果")
             return docs[:actual_top_k]
-        
+
         try:
             doc_contents = [doc.page_content for doc in docs]
             resp = dashscope.TextReRank.call(
@@ -260,24 +260,6 @@ class UnifiedSearchEngine:
             k=CONFIG.get("reranker_initial_k", 8)
         )
 
-    @staticmethod
-    def _rrf_merge(ranked_lists: List[List[Document]], k: int = 60) -> List[Document]:
-        doc_scores: dict[str, float] = {}
-        doc_map: dict[str, Document] = {}
-
-        for ranked in ranked_lists:
-            for rank, doc in enumerate(ranked, start=1):
-                key = doc.page_content
-                doc_scores[key] = doc_scores.get(key, 0.0) + 1.0 / (k + rank)
-                doc_map[key] = doc
-
-        sorted_keys = sorted(doc_scores, key=lambda x: doc_scores[x], reverse=True)
-        result = []
-        for key in sorted_keys:
-            doc = doc_map[key]
-            doc.metadata['rrf_score'] = doc_scores[key]
-            result.append(doc)
-        return result
 
     def search(self, query: str, top_k_final: int = 3) -> List[Document]:
         try:
