@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   mysql:
-    image: mysql:8.0
+    image: ${DOCKER_BASE_IMAGE_REGISTRY:-public.ecr.aws/docker/library}/mysql:8.0
     container_name: stroke-mysql
     restart: unless-stopped
     environment:
@@ -21,7 +21,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:7-alpine
+    image: ${DOCKER_BASE_IMAGE_REGISTRY:-public.ecr.aws/docker/library}/redis:7-alpine
     container_name: stroke-redis
     restart: unless-stopped
     ports:
@@ -36,6 +36,8 @@ services:
     build:
       context: ./backend/stroke-server
       dockerfile: Dockerfile
+      args:
+        BASE_IMAGE_REGISTRY: ${DOCKER_BASE_IMAGE_REGISTRY:-public.ecr.aws/docker/library}
     container_name: stroke-backend
     restart: unless-stopped
     ports:
@@ -63,6 +65,10 @@ services:
     build:
       context: ./model
       dockerfile: Dockerfile
+      args:
+        BASE_IMAGE_REGISTRY: ${DOCKER_BASE_IMAGE_REGISTRY:-public.ecr.aws/docker/library}
+        DEBIAN_MIRROR: ${DEBIAN_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
     container_name: stroke-model
     restart: unless-stopped
     ports:
@@ -80,6 +86,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        BASE_IMAGE_REGISTRY: ${DOCKER_BASE_IMAGE_REGISTRY:-public.ecr.aws/docker/library}
     container_name: stroke-frontend
     restart: unless-stopped
     ports:

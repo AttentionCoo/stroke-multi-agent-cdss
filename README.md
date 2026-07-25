@@ -390,6 +390,14 @@ docker exec -i stroke-mysql mysql -uroot -proot medai < backend/stroke-server/sq
 
 > ⚠️ **注意**：每次重启 Docker Desktop 后，MySQL 和 Redis 容器会自动恢复运行。如遇连接问题，请确认 Docker Desktop 已完全启动。
 
+如需构建并启动完整项目，可在项目根目录运行：
+
+```bash
+docker compose up --build -d
+```
+
+Compose 默认从 AWS 公共仓库拉取 Docker 官方基础镜像，并为模型镜像使用清华 Debian/PyPI 软件源，避免部分网络环境无法访问 Docker Hub 鉴权服务或官方软件源。可通过 `DOCKER_BASE_IMAGE_REGISTRY`、`DEBIAN_MIRROR` 和 `PIP_INDEX_URL` 覆盖这些地址；若当前网络可直接访问官方服务，可分别设置为 `docker.io/library`、`http://deb.debian.org` 和 `https://pypi.org/simple`。
+
 #### 🐍 模型层环境配置
 
 ```bash
@@ -446,7 +454,7 @@ cd model
 # Windows
 start.bat
 # 或直接运行
-python app/main.py
+python -m app.main
 
 # Linux/Mac
 bash start.sh
