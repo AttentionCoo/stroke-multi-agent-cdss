@@ -25,8 +25,48 @@
 
 ---
 
+## ⚡ 快速启动
+
+推荐使用 Docker Compose 一次性启动前端、后端、模型服务、MySQL 与 Redis。启动前请先确认 Docker Desktop 已运行，并准备模型服务环境变量：
+
+```bash
+cp model/.env.example model/.env
+```
+
+Windows PowerShell 可使用：
+
+```powershell
+Copy-Item model/.env.example model/.env
+```
+
+然后在 `model/.env` 中配置 `DASHSCOPE_API_KEY` 和 `SECRET_KEY`，回到项目根目录执行：
+
+```bash
+docker compose up --build -d
+docker compose ps
+```
+
+启动完成后优先访问前端页面：
+
+| 服务 | 访问地址 | 用途 |
+|------|----------|------|
+| 前端 | `http://localhost/` | 登录与临床辅助分析工作台 |
+| 后端 | `http://localhost:8080` | Spring Boot API 服务 |
+| 模型服务 | `http://localhost:8000/docs` | FastAPI 接口文档 |
+
+后续代码没有变化时，日常启动只需要执行：
+
+```bash
+docker compose up -d
+```
+
+如果服务没有全部启动成功，先执行 `docker compose ps` 查看状态，再用 `docker compose logs -f <服务名>` 查看日志。更多环境变量、手动启动和排错命令见 [快速接入与本地部署](#-快速接入与本地部署)。
+
+---
+
 ## 📑 目录导航
 
+- [⚡ 快速启动](#-快速启动)
 - [🌟 项目核心亮点与创新](#-项目核心亮点与创新)
 - [🏗️ 全栈系统架构与技术矩阵](#️-全栈系统架构与技术矩阵)
 - [🧠 医学多智能体矩阵协同推理机制](#-医学多智能体矩阵协同推理机制)
@@ -353,6 +393,15 @@ stroke-multi-agent-system/
 
 ## 🚀 快速接入与本地部署
 
+本节按“先跑起来，再做细分配置”的顺序组织。完整 Docker Compose 是推荐路径；只有需要本地调试单个服务时，才建议切换到手动启动。
+
+| 场景 | 推荐方式 | 入口 |
+|------|----------|------|
+| 第一次体验完整系统 | Docker Compose | `docker compose up --build -d` |
+| 日常继续使用 | Docker Compose | `docker compose up -d` |
+| 修改前端、后端或模型代码后验证 | Docker Compose 重新构建 | `docker compose up --build -d` |
+| 只调试某一个服务 | 手动启动 | 按 Model → Backend → Frontend 顺序启动 |
+
 ### 1. 环境依赖要求
 
 | 层级 | 依赖项 | 最低版本 | 说明 |
@@ -369,6 +418,14 @@ stroke-multi-agent-system/
 ### 2. 基础环境配置
 
 #### 🐳 Docker Compose 完整项目启动（推荐）
+
+这是最省心的启动方式，会同时拉起 `frontend`、`backend`、`model`、`mysql` 和 `redis` 五个服务。
+
+启动前建议先确认三件事：
+
+- Docker Desktop 已经启动。
+- `model/.env` 已经从 `model/.env.example` 复制，并配置了 `DASHSCOPE_API_KEY` 与 `SECRET_KEY`。
+- 本机 `80`、`8080`、`8000`、`3306`、`6379` 端口没有被其他程序占用。
 
 首次启动前，请复制 `model/.env.example` 为 `model/.env`，并至少配置 `DASHSCOPE_API_KEY` 和 `SECRET_KEY`：
 
@@ -387,7 +444,7 @@ docker compose up --build -d
 docker compose ps
 ```
 
-首次构建需要下载基础镜像和安装依赖，耗时通常会长于后续启动。所有容器启动后可访问：
+首次构建需要下载基础镜像和安装依赖，耗时通常会长于后续启动。`docker compose ps` 中建议确认 `frontend`、`backend`、`model` 为 `Up`，`mysql` 与 `redis` 为 `healthy`。所有容器启动后可访问：
 
 | 服务 | 地址 | 说明 |
 |------|------|------|
@@ -416,7 +473,17 @@ Compose 默认从 AWS 公共仓库拉取 Docker 官方基础镜像，并为模�
 
 `docker compose down` 会保留 MySQL、模型缓存和向量库等命名卷，下次启动可继续使用原有数据。除非确定要完全重置项目数据，否则不要执行 `docker compose down -v`。
 
+##### 快速排错
+
 如果启动失败，先运行 `docker compose ps` 确认服务状态，再通过 `docker compose logs -f <服务名>` 查看对应日志。常用服务名为 `frontend`、`backend`、`model`、`mysql` 和 `redis`。
+
+| 现象 | 优先检查 |
+|------|----------|
+| 前端打不开 | `frontend` 是否为 `Up`，本机 80 端口是否被占用 |
+| 登录或请求失败 | `backend` 是否为 `Up`，后端日志是否有鉴权或数据库连接错误 |
+| AI 分析无响应 | `model` 是否为 `Up`，`model/.env` 是否配置了有效密钥 |
+| 数据库连接失败 | `mysql` 是否为 `healthy`，是否误删了命名卷 |
+| 缓存或限流异常 | `redis` 是否为 `healthy` |
 
 #### 🐳 仅启动 MySQL + Redis（可选）
 
@@ -490,7 +557,9 @@ aiserver:
 
 前端通过 Vite 代理转发请求至后端，默认配置已在 `vite.config.js` 中完成，通常无需额外修改。
 
-### 3. 初始化启动
+### 3. 手动启动完整链路
+
+> 以下步骤用于本地开发或单服务调试。若已经使用 Docker Compose 完整启动项目，不需要再执行这一组命令。
 
 #### 第一步：启动模型服务（Model）
 
