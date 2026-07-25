@@ -357,7 +357,7 @@ stroke-multi-agent-system/
 
 | 层级 | 依赖项 | 最低版本 | 说明 |
 |------|--------|:--------:|------|
-| 全局 | Docker Desktop | 最新 | MySQL + Redis 一键容器化部署（推荐） |
+| 全局 | Docker Desktop | 最新 | 完整项目容器化部署（推荐） |
 | 后端服务 | JDK | 21+ | Java 运行环境 |
 | 后端服务 | Maven | 3.8+ | 项目构建 |
 | 前端服务 | Node.js | ≥ 20.19.0（推荐 ^22.12.0） | 前端开发与构建 |
@@ -368,7 +368,40 @@ stroke-multi-agent-system/
 
 ### 2. 基础环境配置
 
-#### 🐳 Docker 一键部署 MySQL + Redis（推荐）
+#### 🐳 Docker Compose 完整项目启动（推荐）
+
+首次启动前，请复制 `model/.env.example` 为 `model/.env`，并至少配置 `DASHSCOPE_API_KEY` 和 `SECRET_KEY`：
+
+```bash
+# Linux / macOS
+cp model/.env.example model/.env
+
+# Windows PowerShell
+Copy-Item model/.env.example model/.env
+```
+
+确认 Docker Desktop 已启动后，在项目根目录执行：
+
+```bash
+docker compose up --build -d
+docker compose ps
+```
+
+首次构建需要下载基础镜像和安装依赖，耗时通常会长于后续启动。所有容器启动后可访问：
+
+| 服务 | 地址 | 说明 |
+|------|------|------|
+| 前端 | http://localhost/ | 系统登录与工作台 |
+| 后端 | http://localhost:8080 | Spring Boot API（未登录访问受鉴权保护） |
+| 模型服务 | http://localhost:8000/docs | FastAPI 接口文档 |
+| MySQL | `localhost:3306` | 数据库服务 |
+| Redis | `localhost:6379` | 缓存服务 |
+
+Compose 默认从 AWS 公共仓库拉取 Docker 官方基础镜像，并为模型镜像使用清华 Debian/PyPI 软件源，避免部分网络环境无法访问 Docker Hub 鉴权服务或官方软件源。可通过 `DOCKER_BASE_IMAGE_REGISTRY`、`DEBIAN_MIRROR` 和 `PIP_INDEX_URL` 覆盖这些地址；若当前网络可直接访问官方服务，可分别设置为 `docker.io/library`、`http://deb.debian.org` 和 `https://pypi.org/simple`。
+
+#### 🐳 仅启动 MySQL + Redis（可选）
+
+> ⚠️ **注意**：以下命令仅用于不使用完整 Compose 部署、准备手动启动模型层、后端和前端的场景。请勿与上面的完整项目启动命令同时使用，否则会发生容器名和端口冲突。
 
 确保 Docker Desktop 已启动，然后运行以下命令：
 
@@ -393,14 +426,6 @@ docker exec -i stroke-mysql mysql -uroot -proot medai < backend/stroke-server/sq
 ```
 
 > ⚠️ **注意**：每次重启 Docker Desktop 后，MySQL 和 Redis 容器会自动恢复运行。如遇连接问题，请确认 Docker Desktop 已完全启动。
-
-如需构建并启动完整项目，可在项目根目录运行：
-
-```bash
-docker compose up --build -d
-```
-
-Compose 默认从 AWS 公共仓库拉取 Docker 官方基础镜像，并为模型镜像使用清华 Debian/PyPI 软件源，避免部分网络环境无法访问 Docker Hub 鉴权服务或官方软件源。可通过 `DOCKER_BASE_IMAGE_REGISTRY`、`DEBIAN_MIRROR` 和 `PIP_INDEX_URL` 覆盖这些地址；若当前网络可直接访问官方服务，可分别设置为 `docker.io/library`、`http://deb.debian.org` 和 `https://pypi.org/simple`。
 
 #### 🐍 模型层环境配置
 
