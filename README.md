@@ -58,8 +58,9 @@
 ### 🔎 2. 证据前置的深度定制 Hybrid RAG
 
 - **双路混合检索**：基于 ChromaDB（语义向量）+ BM25（医学术语精准匹配）的双路并发检索引擎，优先召回权威卒中指南与最新文献。
+- **RRF 融合排序**：使用倒数排序融合（Reciprocal Rank Fusion）合并双路检索结果，按 `RRF(d) = Σ 1 / (60 + rank(d))` 累加文档在各检索通道中的排名得分，在无需校准异构相关性分数的情况下兼顾语义召回与关键词命中。
 - **高级 QA 自建引擎**：系统精读医疗 PDF 并自动批量衍生提炼高质量 `Q:A` 对（附带原文页码标签），大幅提升急诊场景下的检索召回率。
-- **深度重排与溯源**：整合 `gte-rerank` 进行深度语境打分与证据压缩，在最终报告中强制进行**文献名称与精准页码**的明确溯源。
+- **深度重排与溯源**：RRF 融合后的候选文档再由 `gte-rerank` 进行深度语境打分与证据压缩，在最终报告中强制进行**文献名称与精准页码**的明确溯源。
 
 ### ⚡ 3. 全栈响应式流式数据管道（Reactive Stream Pipeline）
 
@@ -81,7 +82,7 @@
 |:---:|---|------|
 | 🎨 **前端交互层** | Vue 3 (Composition API) · Vite 7 · Pinia · SCSS · Fetch / ReadableStream | 以用户体验为核心，持续接收后端流式推送并实时打字机渲染。支持医学文档（PDF）在线预览、图片上传（多模态扩展）以及多 Agent 思考步骤折叠展示 |
 | ☕ **后端服务层** | Java 21 · Spring Boot 3.3 · Spring WebFlux · Redis 6.0 · Redisson · MySQL 8.0 · MyBatis-Plus | 采用响应式编程模型支持高并发吞吐。通过 JWT 实现身份认证与安全控制，利用 Redisson 分布式锁控制并发，通过 WebClient 对底层 Python 模型服务进行流式非阻塞调用与转发 |
-| 🐍 **模型推理层** | Python 3.11+ · FastAPI · LangGraph · LangChain · Qwen-Max/Plus/Turbo · gte-rerank · ChromaDB | 统一入口加载大语言模型、混合检索引擎与多智能体推理模块。通过异步生成器持续输出标准事件格式（`thinking`, `chunk`, `done`），实现高效流式通信 |
+| 🐍 **模型推理层** | Python 3.11+ · FastAPI · LangGraph · LangChain · Qwen-Max/Plus/Turbo · ChromaDB · BM25 · RRF · gte-rerank | 统一入口加载大语言模型、混合检索与融合排序引擎、多智能体推理模块。通过异步生成器持续输出标准事件格式（`thinking`, `chunk`, `done`），实现高效流式通信 |
 
 ### 🔄 全链路流式数据管道（SSE Pipeline）
 
@@ -212,7 +213,10 @@ Java ←→ Redis:       Lettuce (响应式 Redis 客户端)
 【外层·流程控制】病例结构化分析 (提取主诉、既往史、时间窗、NIHSS评分等关键要素)
     │
     ▼
-【外层·流程控制】大混合双重检索 (ChromaDB 向量语义 + BM25 精确匹配联动检索权威指南)
+【外层·流程控制】双路混合检索 (ChromaDB 向量语义 + BM25 精确匹配)
+    │
+    ▼
+【外层·流程控制】RRF 融合排序 (k=60) → gte-rerank 语义重排与证据筛选
     │
     ▼
 【中层·专家协作】多专家协同推理 ◄──────────────────────────┐
@@ -298,7 +302,7 @@ stroke-multi-agent-system/
 │   │   │   ├── limits_config.yaml         # 参数限制与关键词配置
 │   │   │   ├── prompts.yaml               # 提示词模板 (~380 行)
 │   │   │   └── report_templates.yaml      # 报告模板 (5 种模式)
-│   │   ├── rag/                           # RAG 模块 (QA 自动生成、混合检索器实现)
+│   │   ├── rag/                           # RAG 模块 (QA 自动生成、混合检索、RRF 融合与语义重排)
 │   │   ├── services/                      # 外部服务 (PubMed 文献抓取、Vision 多模态识别)
 │   │   ├── evaluation/                    # 评估模块 (RAGAS 自动化评测)
 │   │   ├── utils/                         # 通用工具 (上下文摘要, 错误码, 命名模型)
@@ -343,7 +347,7 @@ stroke-multi-agent-system/
 | 评估指标 | 得分 | 说明 |
 |:---|:---:|------|
 | **忠实度 (Faithfulness)** | `0.94` | 方案严格依据检索证据生成，有效杜绝医疗幻觉风险 |
-| **上下文精准度 (Context Precision)** | `0.91` | 语义重排效果显著，剔除无关文献干扰 |
+| **上下文精准度 (Context Precision)** | `0.91` | RRF 融合排序与语义重排协同剔除无关文献干扰 |
 
 ---
 
