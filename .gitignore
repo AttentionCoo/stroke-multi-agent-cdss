@@ -7,11 +7,17 @@ target/
 
 # Logs
 *.log
+logs/
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 .env
 
 # macOS
@@ -25,8 +31,7 @@ dist/
 *.class
 
 # Redis dump
-dump.rdb
-temp-*.rdb
+*.rdb
 
 # Claude
 .claude/

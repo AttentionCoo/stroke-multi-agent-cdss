@@ -2,6 +2,11 @@
 __pycache__/
 *.py[cod]
 *.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # --- 虚拟环境 ---
 venv/
@@ -32,9 +37,11 @@ data/documents/
 
 # --- 日志文件 ---
 *.log
+logs/
 
 # --- 模型权重文件 ---
 *.bin
 *.pth
 *.pt
 *.safetensors
+model_cache/
