@@ -399,6 +399,25 @@ docker compose ps
 
 Compose 默认从 AWS 公共仓库拉取 Docker 官方基础镜像，并为模型镜像使用清华 Debian/PyPI 软件源，避免部分网络环境无法访问 Docker Hub 鉴权服务或官方软件源。可通过 `DOCKER_BASE_IMAGE_REGISTRY`、`DEBIAN_MIRROR` 和 `PIP_INDEX_URL` 覆盖这些地址；若当前网络可直接访问官方服务，可分别设置为 `docker.io/library`、`http://deb.debian.org` 和 `https://pypi.org/simple`。
 
+##### 常用管理命令
+
+以下命令均需在项目根目录执行：
+
+| 使用场景 | 命令 |
+|---------|------|
+| 日常启动（代码未变化） | `docker compose up -d` |
+| 修改代码后重新构建并启动 | `docker compose up --build -d` |
+| 仅重新构建前端 | `docker compose up --build -d frontend` |
+| 查看全部服务状态 | `docker compose ps` |
+| 持续查看全部日志 | `docker compose logs -f` |
+| 持续查看单个服务日志 | `docker compose logs -f model` |
+| 重启单个服务 | `docker compose restart frontend` |
+| 停止并移除项目容器 | `docker compose down` |
+
+`docker compose down` 会保留 MySQL、模型缓存和向量库等命名卷，下次启动可继续使用原有数据。除非确定要完全重置项目数据，否则不要执行 `docker compose down -v`。
+
+如果启动失败，先运行 `docker compose ps` 确认服务状态，再通过 `docker compose logs -f <服务名>` 查看对应日志。常用服务名为 `frontend`、`backend`、`model`、`mysql` 和 `redis`。
+
 #### 🐳 仅启动 MySQL + Redis（可选）
 
 > ⚠️ **注意**：以下命令仅用于不使用完整 Compose 部署、准备手动启动模型层、后端和前端的场景。请勿与上面的完整项目启动命令同时使用，否则会发生容器名和端口冲突。
