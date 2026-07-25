@@ -3,6 +3,7 @@ package com.it.service.impl;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -484,13 +485,14 @@ public class AIStreamingServiceImpl implements AIStreamingService {
 
             // thinking 事件
             if ("thinking".equalsIgnoreCase(type)) {
-                Map<String, Object> thinkingData = new HashMap<>();
-                thinkingData.put("step", json.path("step").asText(""));
-                thinkingData.put("title", json.path("title").asText(""));
-                thinkingData.put("content", json.path("content").asText(""));
-                Map<String, Object> thinkingResp = baseResponse(talkId, generatedTitle[0], "thinking");
-                thinkingResp.put("thinking", thinkingData);
-                return Flux.just(objectMapper.writeValueAsString(thinkingResp));
+                return buildThinkingResponse(
+                        talkId,
+                        generatedTitle[0],
+                        new ThinkingEvent(
+                                json.path("step").asText(""),
+                                json.path("title").asText(""),
+                                json.path("content").asText(""),
+                                json.path("status").asText("")));
             }
 
             // chunk 事件：流式报告片段（打字机效果），追加全文并直接转发前端
@@ -525,20 +527,26 @@ public class AIStreamingServiceImpl implements AIStreamingService {
 
             // node_start 事件：LangGraph 节点开始执行（替代旧版 thinking），透传为 thinking 事件
             if ("node_start".equalsIgnoreCase(type)) {
-                String node = json.path("node").asText("");
-                String label = json.path("label").asText("");
-                Map<String, Object> thinkingData = new HashMap<>();
-                thinkingData.put("step", node);
-                thinkingData.put("title", label);
-                thinkingData.put("content", "");
-                Map<String, Object> nodeStartResp = baseResponse(talkId, generatedTitle[0], "thinking");
-                nodeStartResp.put("thinking", thinkingData);
-                return Flux.just(objectMapper.writeValueAsString(nodeStartResp));
+                return buildThinkingResponse(
+                        talkId,
+                        generatedTitle[0],
+                        new ThinkingEvent(
+                                json.path("node").asText(""),
+                                json.path("label").asText(""),
+                                json.path("content").asText(""),
+                                json.path("status").asText("running")));
             }
 
-            // node_done 事件：LangGraph 节点执行完毕，Java 侧静默丢弃，不透传前端
+            // node_done 事件：将节点结果摘要映射为 thinking 内容，供前端补全对应步骤
             if ("node_done".equalsIgnoreCase(type)) {
-                return Flux.empty();
+                return buildThinkingResponse(
+                        talkId,
+                        generatedTitle[0],
+                        new ThinkingEvent(
+                                json.path("node").asText(""),
+                                json.path("label").asText(""),
+                                json.path("summary").asText(""),
+                                json.path("status").asText("done")));
             }
 
             // ── 旧事件格式兼容（Python 回滚时仍能正常工作）──────────────────────────
@@ -572,6 +580,22 @@ public class AIStreamingServiceImpl implements AIStreamingService {
         payload.put("title", title);
         payload.put("name", title);
         return payload;
+    }
+
+    private Flux<String> buildThinkingResponse(Long talkId,
+                                               String conversationTitle,
+                                               ThinkingEvent event) throws JsonProcessingException {
+        Map<String, Object> thinkingData = new HashMap<>();
+        thinkingData.put("step", event.step());
+        thinkingData.put("title", event.title());
+        thinkingData.put("content", event.content());
+        thinkingData.put("status", event.status());
+        Map<String, Object> response = baseResponse(talkId, conversationTitle, "thinking");
+        response.put("thinking", thinkingData);
+        return Flux.just(objectMapper.writeValueAsString(response));
+    }
+
+    private record ThinkingEvent(String step, String title, String content, String status) {
     }
 
     private Flux<String> buildErrorAndDone(Long talkId, String message) {

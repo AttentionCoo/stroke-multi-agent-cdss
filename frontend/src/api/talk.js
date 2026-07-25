@@ -122,6 +122,7 @@ function streamRequest(params, onChunk, onThinking) {
                 step: data.step || '',
                 title: data.title || '',
                 content: data.content || '',
+                status: data.status || '',
               },
             )
           }

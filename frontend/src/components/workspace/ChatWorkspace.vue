@@ -598,8 +598,13 @@ function getThinkingData(msgIndex) {
               </template>
               <template v-else>
                 <!-- ThinkingPanel：有思考记录时显示 DeepSeek 风格思考面板 -->
-                <ThinkingPanel v-if="getThinkingData(index)" :thinking-data="getThinkingData(index)"
-                  :is-streaming="isThinking && index === currentTalkList.length - 1" />
+                <ThinkingPanel
+                  v-if="getThinkingData(index)"
+                  :thinking-data="getThinkingData(index)"
+                  :is-streaming="
+                    (isStreaming || isThinking) && index === currentTalkList.length - 1
+                  "
+                />
                 <!-- 降级 fallback：无思考记录时显示旧版弹跳点（兼容历史消息） -->
                 <div
                   v-if="!msgText(msg) && isThinking && index === currentTalkList.length - 1 && !getThinkingData(index)"

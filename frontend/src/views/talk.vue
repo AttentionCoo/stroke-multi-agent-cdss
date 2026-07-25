@@ -25,6 +25,7 @@ import {
 } from '@/api/patient'
 import { getLearningMaterialDetailAPI, getLearningMaterialsAPI } from '@/api/learning'
 import { analyzePatientAPI, syncTalkToPatientAPI } from '@/api/ai'
+import { createThinkingHistorySlots, mergeThinkingEvent } from '@/utils/thinkingEvents'
 
 defineOptions({ name: 'TalkIndex' })
 
@@ -256,6 +257,7 @@ async function fetchTalkTitle() {
     if (!talkTitleList.value.length) {
       currentTalkId.value = NEW_TALK_ID
       currentTalkList.value = []
+      thinkingHistoryList.value = []
       return
     }
 
@@ -281,8 +283,8 @@ async function fetchTalkHistory(talkId = currentTalkId.value) {
   try {
     const res = await getChatHistoryAPI(talkId)
     currentTalkList.value = normalizeTalkHistory(res.data)
-    // 加载历史对话时重置思考记录（历史消息不显示思考面板）
-    thinkingHistoryList.value = []
+    // 历史回答没有思考详情，但需要保留空槽位以对齐后续新回答。
+    thinkingHistoryList.value = createThinkingHistorySlots(currentTalkList.value)
   } catch (error) {
     console.error('获取历史对话失败', error)
     currentTalkList.value = []
@@ -381,14 +383,10 @@ async function handleSendMessage({ text, images } = {}) {
   const thinkingEntry = reactive({ events: [], elapsedSeconds: null, startTime: Date.now() })
   thinkingHistoryList.value.push(thinkingEntry)
 
-  // thinking 事件回调：更新推理步骤提示，同时追加事件到思考记录
+  // thinking 事件回调：开始事件新增步骤，完成事件补全该步骤的结果摘要
   const onThinking = (thinking) => {
     thinkingHint.value = thinking.title || thinking.step || 'AI 思考中...'
-    thinkingEntry.events.push({
-      step: thinking.step || '',
-      title: thinking.title || '',
-      content: thinking.content || '',
-    })
+    mergeThinkingEvent(thinkingEntry.events, thinking)
   }
 
   // ── 双缓冲区（仅作用于本次对话的生命周期）────────────────────────
@@ -510,6 +508,7 @@ async function handleSendMessage({ text, images } = {}) {
     console.error('发送消息失败', error)
     currentTalkList.value.splice(aiIndex, 1)
     currentTalkList.value.pop()
+    thinkingHistoryList.value.pop()
     // 利用结构化错误码：retryable=true 提示用户可以重试
     const retryTip = error.retryable ? '\n请稍后重试。' : ''
     alert(error?.msg || error?.message || `发送失败，请稍后再试${retryTip}`)

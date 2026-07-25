@@ -130,7 +130,11 @@ class VisionAnalysisService:
                 break
             if isinstance(item, Exception):
                 logger.error(f"VL 模型调用失败: {item}", exc_info=False)
-                yield {"type": "chunk", "content": f"图片分析失败，请稍后重试。（{type(item).__name__}: {item}）"}
+                yield {
+                    "type": "chunk",
+                    "content": f"图片分析失败，请稍后重试。（{type(item).__name__}: {item}）",
+                    "failed": True,
+                }
                 break
             yield {"type": "chunk", "content": item}
 

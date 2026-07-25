@@ -297,13 +297,15 @@ async def get_model_result(request: QueryRequest):
             if request.images:
                 logger.info(f"🖼️  [节点 {node_count + 1}] 影像分析开始")
                 node_start_time["vision"] = time.time()
-                
+                vision_chunk_count = 0
+                vision_status = "服务未就绪"
+
                 vision_svc = resources.get("vision_service")
                 if not vision_svc:
                     logger.warning("⚠️  影像识别服务未就绪")
                     yield json.dumps({"type": "token", "content": "影像识别服务未就绪，请稍后重试。"}, ensure_ascii=False)
                 else:
-                    vision_chunk_count = 0
+                    vision_status = "已完成"
                     async for event in vision_svc.analyze_stream(
                         images=request.images,
                         question=request.question,
@@ -315,9 +317,13 @@ async def get_model_result(request: QueryRequest):
                                 "type": "node_start",
                                 "node": "vision",
                                 "label": event.get("title", "正在分析影像..."),
+                                "content": event.get("content", ""),
+                                "status": "running",
                             }, ensure_ascii=False)
                         elif event.get("type") == "chunk":
                             content_str = str(event.get("content", ""))
+                            if event.get("failed"):
+                                vision_status = "分析失败"
                             if content_str:
                                 final_answer_parts.append(content_str)
                                 vision_chunk_count += 1
@@ -328,6 +334,18 @@ async def get_model_result(request: QueryRequest):
                 
                 answer_text = "".join(final_answer_parts).strip()
                 total_time = time.time() - start_time
+
+                yield json.dumps({
+                    "type": "node_done",
+                    "node": "vision",
+                    "label": "影像分析",
+                    "summary": json.dumps({
+                        "分析状态": vision_status,
+                        "输出片段数": vision_chunk_count,
+                        "结果长度": f"{len(answer_text)} 字符",
+                    }, ensure_ascii=False, separators=(",", ":")),
+                    "status": "done",
+                }, ensure_ascii=False)
                 
                 yield json.dumps({
                     "type": "done",

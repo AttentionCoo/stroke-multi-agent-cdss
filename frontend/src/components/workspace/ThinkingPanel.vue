@@ -4,7 +4,7 @@ import { ref, computed, watch } from 'vue'
 defineOptions({ name: 'ThinkingPanel' })
 
 const props = defineProps({
-  // { events: [{step, title, content}, ...], elapsedSeconds: null|number, startTime: number }
+  // 思考记录包含事件列表、耗时和开始时间。
   thinkingData: {
     type: Object,
     required: true,
@@ -98,10 +98,13 @@ function formatContent(content) {
         v-for="(event, idx) in thinkingData.events"
         :key="idx"
         class="thinking-step"
+        :class="{ completed: event.status === 'done' }"
       >
         <div class="step-title">
           <span class="step-index">{{ idx + 1 }}</span>
-          {{ event.title || event.step }}
+          <span class="step-name">{{ event.title || event.step }}</span>
+          <span v-if="event.status === 'done'" class="step-status" title="已完成">✓</span>
+          <span v-else class="step-status running" title="处理中"></span>
         </div>
         <template v-if="formatContent(event.content)">
           <!-- JSON 格式：key-value 列表 -->
@@ -237,6 +240,38 @@ function formatContent(content) {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.step-name {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.step-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: auto;
+  color: var(--color-primary-dark, #0d7a68);
+  font-size: 12px;
+  flex-shrink: 0;
+
+  &.running {
+    width: 12px;
+    height: 12px;
+    margin-right: 3px;
+    border: 2px solid rgba(17, 150, 127, 0.25);
+    border-top-color: var(--color-primary, #11967f);
+    border-radius: 50%;
+    animation: thinking-spin 0.8s linear infinite;
+  }
+}
+
+@keyframes thinking-spin {
+  to { transform: rotate(360deg); }
 }
 
 .step-index {

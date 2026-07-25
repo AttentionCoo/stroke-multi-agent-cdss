@@ -15,15 +15,21 @@ from app.utils.error_codes import build_error_event, format_error_log
 
 logger = logging.getLogger(__name__)
 
-_NODE_LABELS: Dict[str, str] = {
-    "intent": "正在判断问题类型...",
-    "reject": "正在处理回复...",
-    "analysis": "正在分析病例结构...",
-    "retrieve": "正在检索循证医学证据...",
-    "reason": "正在进行临床推理...",
-    "validate": "正在进行校验反思...",
-    "generate_report": "正在生成临床报告...",
-    "knowledge_answer": "正在回答知识问题...",
+_NODE_DISPLAY: Dict[str, Dict[str, str]] = {
+    "intent": {"running": "正在判断问题类型...", "done": "问题类型判断"},
+    "reject": {"running": "正在处理回复...", "done": "请求处理"},
+    "analysis": {"running": "正在分析病例结构...", "done": "病例结构化分析"},
+    "retrieve": {"running": "正在检索循证医学证据...", "done": "循证医学证据检索"},
+    "reason": {"running": "正在进行临床推理...", "done": "多专家临床推理"},
+    "validate": {"running": "正在进行校验反思...", "done": "安全校验与反思"},
+    "generate_report": {"running": "正在生成临床报告...", "done": "临床报告生成"},
+    "knowledge_answer": {"running": "正在回答知识问题...", "done": "医学知识回答"},
+}
+
+_INTENT_LABELS: Dict[str, str] = {
+    "consultation": "临床问诊",
+    "knowledge": "医学知识问答",
+    "irrelevant": "非脑卒中医疗问题",
 }
 
 
@@ -109,15 +115,11 @@ class QwenAgent:
             }
             
             async for event in self.graph.astream_events(initial_state, config=config, version="v2"):
-                if (event.get("event") == "on_chat_model_stream"
-                        and event.get("metadata", {}).get("langgraph_node", "")
-                        in self._STREAMING_NODES):
-                    streamed_nodes.add(
-                        event["metadata"]["langgraph_node"]
-                    )
-
                 translated = self._translate_event(event, show_thinking, streamed_nodes)
-                if translated:
+                if isinstance(translated, list):
+                    for item in translated:
+                        yield item
+                elif translated:
                     yield translated
 
         except Exception as e:
@@ -129,7 +131,7 @@ class QwenAgent:
         event: dict,
         show_thinking: bool,
         streamed_nodes: set,
-    ) -> Dict:
+    ) -> Dict | list[Dict] | None:
         """翻译 LangGraph 事件"""
         evt = event.get("event", "")
         name = event.get("name", "")
@@ -138,10 +140,15 @@ class QwenAgent:
 
         logger.info(f"[event] 事件类型: {evt}, 节点名称: {name}, langgraph_node: {langgraph_node}")
 
-        if evt == "on_chain_start" and name in _NODE_LABELS and show_thinking:
-            return {"type": "node_start", "node": name, "label": _NODE_LABELS[name]}
+        if evt == "on_chain_start" and name in _NODE_DISPLAY and show_thinking:
+            return {
+                "type": "node_start",
+                "node": name,
+                "label": _NODE_DISPLAY[name]["running"],
+                "status": "running",
+            }
 
-        if evt == "on_chain_end" and name in _NODE_LABELS:
+        if evt == "on_chain_end" and name in _NODE_DISPLAY:
             output = event.get("data", {}).get("output", {})
             report_text = output.get("report", "") if isinstance(output, dict) else ""
             
@@ -151,46 +158,110 @@ class QwenAgent:
                 if "report" in output:
                     logger.info(f"[event] 节点 {name} 报告长度: {len(output['report'])}")
 
-            if name == "reject":
-                return {"type": "token", "content": report_text} if report_text else None
-
-            if name in self._STREAMING_NODES and name not in streamed_nodes:
-                if report_text:
-                    logger.info(f"[event] 节点 {name} 输出报告内容，长度: {len(report_text)}")
-                    streamed_nodes.add(name)
-                    return {"type": "token", "content": report_text}
-
+            translated_events = []
             if show_thinking:
-                summary = self._node_summary(name, output)
-                return {"type": "node_done", "node": name, "summary": summary}
+                translated_events.append(self._node_done_event(name, output))
+
+            needs_fallback_token = name == "reject" or (
+                name in self._STREAMING_NODES and name not in streamed_nodes
+            )
+            if needs_fallback_token and report_text:
+                logger.info(f"[event] 节点 {name} 输出报告内容，长度: {len(report_text)}")
+                streamed_nodes.add(name)
+                translated_events.append({"type": "token", "content": report_text})
+
+            if len(translated_events) == 1:
+                return translated_events[0]
+            if translated_events:
+                return translated_events
 
         if evt == "on_chat_model_stream" and langgraph_node in self._STREAMING_NODES:
             chunk = event.get("data", {}).get("chunk")
             content = getattr(chunk, "content", "") if chunk else ""
             if content:
+                streamed_nodes.add(langgraph_node)
                 return {"type": "token", "content": content}
 
         return None
 
+    def _node_done_event(self, node: str, output: dict) -> Dict:
+        """构造节点完成事件。"""
+        return {
+            "type": "node_done",
+            "node": node,
+            "label": _NODE_DISPLAY[node]["done"],
+            "summary": self._node_summary(node, output),
+            "status": "done",
+        }
+
     def _node_summary(self, node: str, output: dict) -> str:
-        """生成节点摘要"""
+        """生成适合通过 SSE 展示的节点结果摘要。"""
         if not isinstance(output, dict):
-            return ""
-        if node == "analysis":
-            q = output.get("clinical_questions", [])
-            return f"提取到 {len(q)} 个临床子问题"
-        if node == "retrieve":
+            output = {}
+
+        summary = {}
+        if node == "intent":
+            intent_type = str(output.get("intent_type", ""))
+            summary = {"判断结果": _INTENT_LABELS.get(intent_type, intent_type or "未知类型")}
+        elif node == "analysis":
+            summary = {
+                "病例复杂度": output.get("complexity", "未知"),
+                "关键风险": self._short_list(output.get("key_risks", []), 4, 100),
+                "检索子问题": self._short_list(output.get("clinical_questions", []), 5, 120),
+            }
+        elif node == "retrieve":
             ev = output.get("evidence", "")
-            count = ev.count("---") + 1 if ev.strip() else 0
-            return f"检索到 {count} 个证据片段"
-        if node == "reason":
-            return "Proposer + Critic 推理完成"
-        if node == "validate":
-            return "校验反思完成"
-        if node == "generate_report":
+            count = ev.count("\n---\n") + 1 if str(ev).strip() else 0
+            summary = {
+                "证据片段数": count,
+                "证据摘要": self._short_text(ev, 420) or "未检索到相关证据",
+            }
+        elif node == "reason":
+            expert_summaries = {}
+            for key, value in output.items():
+                if key.endswith("_advice") and value and len(expert_summaries) < 4:
+                    role = key.removesuffix("_advice")
+                    expert_summaries[role] = self._short_text(value, 160)
+            summary = {
+                "综合方案摘要": self._short_text(output.get("proposal", ""), 360) or "未生成方案",
+                "风险审查摘要": self._short_text(output.get("critique", ""), 260) or "未发现明确风险",
+                "专家意见摘要": expert_summaries,
+            }
+        elif node == "validate":
+            passed = bool(output.get("validation_passed", False))
+            summary = {
+                "校验结果": "通过" if passed else "需要反思修正",
+                "反思次数": output.get("reflection_count", 0),
+                "校验反馈": self._short_text(output.get("validation_feedback", ""), 360)
+                or "规则引擎与医学逻辑审查均未发现严重冲突",
+            }
+        elif node == "generate_report":
             report = output.get("report", "")
-            return f"生成报告，长度: {len(report)} 字符"
-        return ""
+            summary = {"报告状态": "已生成", "报告长度": f"{len(str(report))} 字符"}
+        elif node == "knowledge_answer":
+            report = output.get("report", "")
+            summary = {"回答状态": "已生成", "回答长度": f"{len(str(report))} 字符"}
+        elif node == "reject":
+            summary = {"处理结果": self._short_text(output.get("report", ""), 240)}
+
+        if not summary:
+            summary = {"执行结果": "步骤已完成"}
+        return json.dumps(summary, ensure_ascii=False, separators=(",", ":"))
+
+    @staticmethod
+    def _short_text(value, limit: int) -> str:
+        """压缩空白并限制单项摘要长度。"""
+        text = " ".join(str(value or "").split())
+        if len(text) <= limit:
+            return text
+        return text[:limit - 3].rstrip() + "..."
+
+    @classmethod
+    def _short_list(cls, values, max_items: int, item_limit: int) -> list:
+        """限制列表项数量和每项长度，防止思考事件过大。"""
+        if not isinstance(values, list):
+            return []
+        return [cls._short_text(value, item_limit) for value in values[:max_items] if value]
 
     # 保留原有的方法以兼容现有代码
     async def _parallel_propose_and_critique(
