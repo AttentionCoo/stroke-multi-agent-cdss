@@ -4,9 +4,11 @@ function stripMarkdownText(content) {
     .replace(/```[^\n]*\n?([\s\S]*?)```/g, '$1')
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-    .replace(/<(https?:\/\/[^>]+)>/g, '$1')
+    .replace(/<https?:\/\/[^>]+>/g, '')
     .replace(/<br\s*\/?\s*>/gi, '\n')
     .replace(/<[^>]+>/g, '')
+    .replace(/[ \t]+#{1,6}[ \t]+/g, '\n')
+    .replace(/([：:。；;])\s*[-+]\s+/g, '$1')
     .replace(/^\s{0,3}#{1,6}\s+/gm, '')
     .replace(/\s+#+\s*$/gm, '')
     .replace(/^\s{0,3}>\s?/gm, '')
@@ -19,6 +21,7 @@ function stripMarkdownText(content) {
     .replace(/(^|[^\w])\*([^*\n]+)\*(?=$|[^\w])/g, '$1$2')
     .replace(/(^|[^\w])_([^_\n]+)_(?=$|[^\w])/g, '$1$2')
     .replace(/\\([\\`*{}[\]()#+\-.!_>])/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
     .split('\n')
     .map((line) => line.trim())
     .join('\n')
@@ -26,31 +29,59 @@ function stripMarkdownText(content) {
     .trim()
 }
 
-function stripMarkdownValue(value) {
+function formatStructuredValue(value) {
   if (typeof value === 'string') return stripMarkdownText(value)
-  if (Array.isArray(value)) return value.map(stripMarkdownValue)
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, nestedValue]) => [key, stripMarkdownValue(nestedValue)]),
-    )
+  if (Array.isArray(value)) {
+    return value.map(formatStructuredValue).filter(Boolean).join('\n')
   }
-  return value
+  if (value && typeof value === 'object') {
+    return Object.entries(value)
+      .map(([key, nestedValue]) => {
+        const label = stripMarkdownText(key)
+        const nestedText = formatStructuredValue(nestedValue)
+        if (!nestedText) return label
+        const [firstLine, ...remainingLines] = nestedText.split('\n')
+        return [`${label}：${firstLine}`, ...remainingLines].join('\n')
+      })
+      .filter(Boolean)
+      .join('\n')
+  }
+  return value == null ? '' : String(value)
+}
+
+function stripMixedStructuredText(content) {
+  return content
+    .replace(/^```[^\n]*$/gm, '')
+    .split(/\r?\n/)
+    .map((line) => {
+      const trimmed = line.trim()
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          return formatStructuredValue(JSON.parse(trimmed))
+        } catch {
+          // 当前行不是完整 JSON，继续按普通 Markdown 文本处理。
+        }
+      }
+      return stripMarkdownText(line)
+    })
+    .filter(Boolean)
+    .join('\n')
 }
 
 /** 将思考内容中的 Markdown 标记转换为适合面板展示的纯文本。 */
 export function stripThinkingMarkdown(content) {
   if (content == null) return ''
-  if (typeof content !== 'string') return JSON.stringify(stripMarkdownValue(content))
+  if (typeof content !== 'string') return formatStructuredValue(content)
 
   const trimmed = content.trim()
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
     try {
-      return JSON.stringify(stripMarkdownValue(JSON.parse(trimmed)))
+      return formatStructuredValue(JSON.parse(trimmed))
     } catch {
       // 非法 JSON 继续按普通 Markdown 文本处理。
     }
   }
-  return stripMarkdownText(content)
+  return stripMixedStructuredText(content)
 }
 
 function normalizeThinkingEvent(thinking = {}) {

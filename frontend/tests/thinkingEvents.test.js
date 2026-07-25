@@ -24,10 +24,11 @@ test('思考内容移除 Markdown 标记并保留纯文本结构', () => {
 test('JSON 思考内容递归移除字符串值中的 Markdown 标记', () => {
   const content = '{"判断结果":"**高风险**","依据":["- 肢体无力","[指南](https://example.com)"]}'
 
-  assert.deepEqual(JSON.parse(stripThinkingMarkdown(content)), {
-    判断结果: '高风险',
-    依据: ['肢体无力', '指南'],
-  })
+  assert.equal(stripThinkingMarkdown(content), '判断结果：高风险\n依据：肢体无力\n指南')
+})
+
+test('无标签的 Markdown 自动链接不显示裸地址', () => {
+  assert.equal(stripThinkingMarkdown('参考 <https://example.com/guide> 进行判断'), '参考 进行判断')
 })
 
 test('思考事件进入记录时保存为纯文本', () => {
@@ -41,6 +42,33 @@ test('思考事件进入记录时保存为纯文本', () => {
   })
 
   assert.equal(events[0].content, '校验通过，参考卒中指南')
+})
+
+test('分段思考摘要将内嵌 JSON 转换为可读纯文本', () => {
+  const content = [
+    '**关键风险**',
+    '["风险一","风险二"]',
+    '**检索子问题**',
+    '["问题一？","问题二？"]',
+    '**专家意见摘要**',
+    '{"全科医生":"初步诊断： - **急性卒中** ### 主要鉴别诊断 1. 脑出血","神经专科医生":"参考[卒中指南](https://example.com/guide)"}',
+  ].join('\n')
+
+  assert.equal(
+    stripThinkingMarkdown(content),
+    [
+      '关键风险',
+      '风险一',
+      '风险二',
+      '检索子问题',
+      '问题一？',
+      '问题二？',
+      '专家意见摘要',
+      '全科医生：初步诊断：急性卒中',
+      '主要鉴别诊断 1. 脑出血',
+      '神经专科医生：参考卒中指南',
+    ].join('\n'),
+  )
 })
 
 test('完成事件更新已有步骤，不重复添加', () => {
@@ -63,7 +91,7 @@ test('完成事件更新已有步骤，不重复添加', () => {
     {
       step: 'analysis',
       title: '病例结构化分析',
-      content: '{"复杂度":"critical"}',
+      content: '复杂度：critical',
       status: 'done',
     },
   ])
