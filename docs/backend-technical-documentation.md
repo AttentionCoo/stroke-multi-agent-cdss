@@ -145,7 +145,7 @@ Java ←→ Redis:       Lettuce (响应式 Redis 客户端)
 | MyBatis-Plus 代替 JPA | 复杂查询灵活；团队更熟悉 SQL |
 | Redisson 实现分布式限流 | 基于 Redis 的原子操作，支持多实例部署 |
 | 共享 JWT Secret 做服务间认证 | 轻量级；无需独立认证中心 |
-| ChromaDB 本地部署 | 数据量可控（12 篇指南文档）；降低运维复杂度 |
+| ChromaDB 本地部署 | 数据量可控（11 篇指南文档）；降低运维复杂度 |
 | LangGraph 编排多智能体 | 有向图天然映射临床推理流程；支持条件路由、循环、状态持久化 |
 
 ---
@@ -348,12 +348,7 @@ model/
 │   │   ├── assistant.py                     # MedicalAssistant 门面
 │   │   ├── constants.py                     # 常量定义
 │   │   ├── core/
-│   │   │   ├── schema.py                    # ClinicalState, ClinicalContext (TypedDict/Pydantic)
-│   │   │   ├── exceptions.py                # 自定义异常
-│   │   │   ├── results.py                   # 结果封装
-│   │   │   └── decorators.py                # 工具装饰器
-│   │   ├── infra/
-│   │   │   └── reranker.py                  # BGE 重排序器
+│   │   │   └── schema.py                    # ClinicalState, ClinicalContext (TypedDict/Pydantic)
 │   │   ├── orchestrators/
 │   │   │   ├── clinical_graph.py            # ★ LangGraph 临床推理图构建器
 │   │   │   ├── qwen_agent.py                # Qwen Agent 编排器（节点运行器）
@@ -367,18 +362,12 @@ model/
 │   │   │       └── report_node.py           # 报告生成节点
 │   │   ├── pipelines/
 │   │   │   └── rag_pipeline.py              # RAG 管道封装
-│   │   ├── schemas/
-│   │   │   └── retrieval.py                 # 检索相关数据模型
 │   │   ├── services/
-│   │   │   ├── query_generation.py          # 检索查询生成
-│   │   │   ├── retrieval.py                 # 检索执行
-│   │   │   └── synthesis.py                 # 证据综合
+│   │   │   ├── query_service.py             # 检索查询生成
+│   │   │   ├── retrieval_service.py         # 检索执行
+│   │   │   └── synthesis_service.py         # 证据综合
 │   │   ├── utils/
-│   │   │   ├── json_parser.py               # JSON 解析器
-│   │   │   ├── llm_helper.py                # LLM 调用辅助
-│   │   │   ├── retry.py                     # 重试装饰器
 │   │   │   └── text_utils.py                # 文本处理
-│   │   └── bailian/                         # 百炼 Agent（健康风险分析）
 │   ├── config/
 │   │   ├── config_loader.py                 # YAML 配置加载器（支持热更新）
 │   │   ├── prompts.yaml                     # ★ 所有 LLM Prompt 模板（~380行）
@@ -398,9 +387,8 @@ model/
 │       ├── context_summary.py               # 上下文摘要服务
 │       ├── download_models.py               # 模型下载工具
 │       ├── error_codes.py                   # 错误码定义
-│       ├── naming_model.py                  # 对话命名模型
-│       └── token_aggregator.py              # Token 聚合器
-└── data/documents/                          # 12 篇脑卒中指南 PDF
+│       └── naming_model.py                   # 对话命名模型
+└── data/documents/                          # 11 篇脑卒中指南 PDF
 ```
 
 ### 5.2 资源初始化流程 (Lifespan)
@@ -552,7 +540,7 @@ PDF 文档预处理 (离线):
 
 #### 5.4.2 知识库内容
 
-系统内置 **12 篇**中国脑卒中相关指南/共识：
+系统内置 **11 篇**中国脑卒中相关指南/共识：
 
 - 中国急性缺血性卒中诊治指南 2023
 - 中国急性缺血性卒中早期血管内介入诊疗
