@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { stripThinkingMarkdown } from '@/utils/thinkingEvents'
 
 defineOptions({ name: 'ThinkingPanel' })
 
@@ -59,8 +60,8 @@ function toggleExpand() {
 // 尝试将 content 解析为 JSON，格式化展示
 function formatContent(content) {
   if (!content) return null
-  if (typeof content !== 'string') return String(content)
-  const trimmed = content.trim()
+  const trimmed = stripThinkingMarkdown(content)
+  if (!trimmed) return null
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
     try {
       const parsed = JSON.parse(trimmed)

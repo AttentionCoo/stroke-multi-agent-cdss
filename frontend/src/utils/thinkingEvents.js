@@ -1,5 +1,60 @@
+function stripMarkdownText(content) {
+  return content
+    .replace(/\r\n?/g, '\n')
+    .replace(/```[^\n]*\n?([\s\S]*?)```/g, '$1')
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/<(https?:\/\/[^>]+)>/g, '$1')
+    .replace(/<br\s*\/?\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/\s+#+\s*$/gm, '')
+    .replace(/^\s{0,3}>\s?/gm, '')
+    .replace(/^\s*(?:[-+*]|\d+[.)])\s+/gm, '')
+    .replace(/^\s*\[[ xX]\]\s+/gm, '')
+    .replace(/^\s{0,3}(?:[-*_]\s*){3,}$/gm, '')
+    .replace(/(\*\*|__)(.*?)\1/g, '$2')
+    .replace(/~~(.*?)~~/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/(^|[^\w])\*([^*\n]+)\*(?=$|[^\w])/g, '$1$2')
+    .replace(/(^|[^\w])_([^_\n]+)_(?=$|[^\w])/g, '$1$2')
+    .replace(/\\([\\`*{}[\]()#+\-.!_>])/g, '$1')
+    .split('\n')
+    .map((line) => line.trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function stripMarkdownValue(value) {
+  if (typeof value === 'string') return stripMarkdownText(value)
+  if (Array.isArray(value)) return value.map(stripMarkdownValue)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [key, stripMarkdownValue(nestedValue)]),
+    )
+  }
+  return value
+}
+
+/** 将思考内容中的 Markdown 标记转换为适合面板展示的纯文本。 */
+export function stripThinkingMarkdown(content) {
+  if (content == null) return ''
+  if (typeof content !== 'string') return JSON.stringify(stripMarkdownValue(content))
+
+  const trimmed = content.trim()
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      return JSON.stringify(stripMarkdownValue(JSON.parse(trimmed)))
+    } catch {
+      // 非法 JSON 继续按普通 Markdown 文本处理。
+    }
+  }
+  return stripMarkdownText(content)
+}
+
 function normalizeThinkingEvent(thinking = {}) {
-  const content = thinking.content || ''
+  const content = stripThinkingMarkdown(thinking.content)
   return {
     step: thinking.step || '',
     title: thinking.title || thinking.step || 'AI 思考中...',

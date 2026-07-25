@@ -1,7 +1,47 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { createThinkingHistorySlots, mergeThinkingEvent } from '../src/utils/thinkingEvents.js'
+import {
+  createThinkingHistorySlots,
+  mergeThinkingEvent,
+  stripThinkingMarkdown,
+} from '../src/utils/thinkingEvents.js'
+
+test('思考内容移除 Markdown 标记并保留纯文本结构', () => {
+  const content = [
+    '## **风险判断**',
+    '- 参考[卒中指南](https://example.com/guide)',
+    '> 使用 `FAST` 评估',
+    '1. *立即*就医',
+  ].join('\n')
+
+  assert.equal(
+    stripThinkingMarkdown(content),
+    ['风险判断', '参考卒中指南', '使用 FAST 评估', '立即就医'].join('\n'),
+  )
+})
+
+test('JSON 思考内容递归移除字符串值中的 Markdown 标记', () => {
+  const content = '{"判断结果":"**高风险**","依据":["- 肢体无力","[指南](https://example.com)"]}'
+
+  assert.deepEqual(JSON.parse(stripThinkingMarkdown(content)), {
+    判断结果: '高风险',
+    依据: ['肢体无力', '指南'],
+  })
+})
+
+test('思考事件进入记录时保存为纯文本', () => {
+  const events = []
+
+  mergeThinkingEvent(events, {
+    step: 'validate',
+    title: '医学安全校验',
+    content: '**校验通过**，参考[卒中指南](https://example.com/guide)',
+    status: 'done',
+  })
+
+  assert.equal(events[0].content, '校验通过，参考卒中指南')
+})
 
 test('完成事件更新已有步骤，不重复添加', () => {
   const events = []
