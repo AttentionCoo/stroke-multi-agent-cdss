@@ -123,7 +123,7 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
             return Result.error("AI 服务当前不可用，请稍后重试");
         }
 
-        // 调用 Python /ai/analyze（独立 HealthRiskAnalyzer，不依赖主推理链）
+        // 调用 Python /ai/analyze（独立分析接口，不依赖主推理链）
         Map<String, Object> body = new HashMap<>();
         body.put("patientId", param.getPatientId());
         body.put("data", param.getData());
