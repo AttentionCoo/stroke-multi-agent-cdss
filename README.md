@@ -13,7 +13,8 @@
   <a href="https://jdk.java.net/21/"><img src="https://img.shields.io/badge/Java-21-ED8B00?style=flat-square&logo=openjdk&logoColor=white" alt="Java"></a>
   <a href="https://vuejs.org/"><img src="https://img.shields.io/badge/Vue-3-4FC08D?style=flat-square&logo=vue.js&logoColor=white" alt="Vue3"></a>
   <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.128-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI"></a>
-  <a href="https://spring.io/projects/spring-boot"><img src="https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?style=flat-square&logo=springboot&logoColor=white" alt="Spring Boot"></a>
+  <a href="https://spring.io/projects/spring-boot"><img src="https://img.shields.io/badge/Spring_Boot-3.3.13-6DB33F?style=flat-square&logo=springboot&logoColor=white" alt="Spring Boot"></a>
+  <a href="https://redis.io/"><img src="https://img.shields.io/badge/Redis-7-FF4438?style=flat-square&logo=redis&logoColor=white" alt="Redis"></a>
   <a href="https://www.langchain.com/langgraph"><img src="https://img.shields.io/badge/LangGraph-0.2-1C3C3C?style=flat-square&logo=langchain&logoColor=white" alt="LangGraph"></a>
   <a href="https://github.com/AttentionCasria/stroke-multi-agent-system/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/badge/Status-Active-brightgreen?style=flat-square" alt="Status">
@@ -27,19 +28,32 @@
 
 ## ⚡ 快速启动
 
-推荐使用 Docker Compose 一次性启动前端、后端、模型服务、MySQL 与 Redis。启动前请先确认 Docker Desktop 已运行，并准备模型服务环境变量：
+推荐使用 Docker Compose 一次性启动前端、后端、模型服务、MySQL 与 Redis。启动前请先确认 Docker Desktop 已运行，并按以下步骤配置模型服务环境变量：
+
+**第一步：创建环境变量文件**
 
 ```bash
+# Linux / macOS
 cp model/.env.example model/.env
-```
 
-Windows PowerShell 可使用：
-
-```powershell
+# Windows PowerShell
 Copy-Item model/.env.example model/.env
 ```
 
-然后在 `model/.env` 中配置 `DASHSCOPE_API_KEY` 和 `SECRET_KEY`，回到项目根目录执行：
+**第二步：配置密钥**
+
+编辑 `model/.env`，至少填入以下两项：
+
+```env
+DASHSCOPE_API_KEY=sk-您的阿里云百炼平台密钥
+SECRET_KEY=自定义防越权JWT随机字符串（至少32位）
+```
+
+> 💡 **提示**：`DASHSCOPE_API_KEY` 从 [阿里云百炼平台](https://bailian.console.aliyun.com/) 获取；`SECRET_KEY` 可任意生成一段随机字符串。
+
+**第三步：启动全部服务**
+
+回到项目根目录执行：
 
 ```bash
 docker compose up --build -d
@@ -121,7 +135,7 @@ docker compose up -d
 | 架构层级 | 核心技术栈 | 核心设计职责 |
 |:---:|---|------|
 | 🎨 **前端交互层** | Vue 3 (Composition API) · Vite 7 · Pinia · SCSS · Fetch / ReadableStream | 以用户体验为核心，持续接收后端流式推送并实时打字机渲染。支持医学文档（PDF）在线预览、图片上传（多模态扩展）以及多 Agent 思考步骤折叠展示 |
-| ☕ **后端服务层** | Java 21 · Spring Boot 3.3 · Spring WebFlux · Redis 6.0 · Redisson · MySQL 8.0 · MyBatis-Plus | 采用响应式编程模型支持高并发吞吐。通过 JWT 实现身份认证与安全控制，利用 Redisson 分布式锁控制并发，通过 WebClient 对底层 Python 模型服务进行流式非阻塞调用与转发 |
+| ☕ **后端服务层** | Java 21 · Spring Boot 3.3.13 · Spring WebFlux · Redis 7 · Redisson · MySQL 8.0 · MyBatis-Plus | 采用响应式编程模型支持高并发吞吐。通过 JWT 实现身份认证与安全控制，利用 Redisson 分布式锁控制并发，通过 WebClient 对底层 Python 模型服务进行流式非阻塞调用与转发 |
 | 🐍 **模型推理层** | Python 3.11+ · FastAPI · LangGraph · LangChain · Qwen-Max/Plus/Turbo · ChromaDB · BM25 · RRF · gte-rerank | 统一入口加载大语言模型、混合检索与融合排序引擎、多智能体推理模块。通过异步生成器持续输出标准事件格式（`thinking`, `chunk`, `done`），实现高效流式通信 |
 
 ### 🔄 全链路流式数据管道（SSE Pipeline）
@@ -140,7 +154,7 @@ Java 后端 ←→ Python:  HTTP/1.1 (JWT 鉴权, WebClient 非阻塞调用)
 Python ←→ LLM:       HTTPS (DashScope API, OpenAI 兼容协议)
 Python ←→ ChromaDB:  本地文件系统 (持久化向量索引)
 Java ←→ MySQL:       JDBC (HikariCP 连接池)
-Java ←→ Redis:       Lettuce (响应式 Redis 客户端)
+Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
 ```
 
 ---
@@ -225,7 +239,7 @@ Java ←→ Redis:       Lettuce (响应式 Redis 客户端)
 
 ### 3. 📚 医学知识学习与文献检索模块
 
-- **本地指南增强**：内置 **11 篇**中国脑卒中相关权威指南与共识，提供在线阅读与结构化浏览，同时作为 RAG 底座为推理提供强力的证据支撑。
+- **本地指南增强**：内置 **12 篇**中国脑卒中相关权威指南与共识，提供在线阅读与结构化浏览，同时作为 RAG 底座为推理提供强力的证据支撑。
 - **在线文献拓扑**：提供外部 PubMed 接口连接支持，可根据临床症状一键抓取最新外文高水平文献列表。
 
 ### 4. 🧪 自动化测试与评估模块
@@ -348,7 +362,7 @@ stroke-multi-agent-system/
 │   │   ├── utils/                         # 通用工具 (上下文摘要, 错误码, 命名模型)
 │   │   └── main.py                        # FastAPI 异步服务入口 (lifespan 资源管理)
 │   ├── data/
-│   │   └── documents/                     # 脑卒中临床指南 PDF 文档 (11 篇)
+│   │   └── documents/                     # 脑卒中临床指南 PDF 文档 (12 篇)
 │   ├── tests/                             # 自动化测试套件
 │   │   ├── test_rag.py                    # RAG 召回率验证
 │   │   ├── test_api_client.py             # API 客户端测试
@@ -413,7 +427,7 @@ stroke-multi-agent-system/
 | 模型服务 | Python | 3.11+ | AI 推理引擎 |
 | 模型服务 | Anaconda / Miniconda | 推荐 | Python 环境管理 |
 
-> 💡 **提示**：如不使用 Docker，需自行安装 MySQL 8.0+ 与 Redis 6.0+。
+> 💡 **提示**：如不使用 Docker，需自行安装 MySQL 8.0+ 与 Redis 7.0+。
 
 ### 2. 基础环境配置
 
@@ -484,6 +498,9 @@ Compose 默认从 AWS 公共仓库拉取 Docker 官方基础镜像，并为模�
 | AI 分析无响应 | `model` 是否为 `Up`，`model/.env` 是否配置了有效密钥 |
 | 数据库连接失败 | `mysql` 是否为 `healthy`，是否误删了命名卷 |
 | 缓存或限流异常 | `redis` 是否为 `healthy` |
+| AI 分析质量不佳 | 检查 `model/.env` 密钥是否有效，指南 PDF 是否完整放置于 `model/data/documents/` |
+
+> 💡 **提示**：如需将本项目迁移至百度千帆大模型平台（ERNIE 系列模型），请参阅 [百度千帆.md](百度千帆.md) 中的三阶段渐进式集成方案。
 
 #### 🐳 仅启动 MySQL + Redis（可选）
 
@@ -495,20 +512,20 @@ Compose 默认从 AWS 公共仓库拉取 Docker 官方基础镜像，并为模�
 # 拉取并启动 MySQL 8.0
 docker run -d --name stroke-mysql \
   -p 3306:3306 \
-  -e MYSQL_ROOT_PASSWORD=root \
+  -e MYSQL_ALLOW_EMPTY_PASSWORD=yes \
   -e MYSQL_DATABASE=medai \
   mysql:8.0
 
-# 拉取并启动 Redis 6.0
+# 拉取并启动 Redis 7
 docker run -d --name stroke-redis \
   -p 6379:6379 \
-  redis:6.0
+  redis:7-alpine
 ```
 
 启动后导入数据库 Schema：
 
 ```bash
-docker exec -i stroke-mysql mysql -uroot -proot medai < backend/stroke-server/sql/medai_schema.sql
+docker exec -i stroke-mysql mysql -uroot medai < backend/stroke-server/sql/medai_schema.sql
 ```
 
 > ⚠️ **注意**：每次重启 Docker Desktop 后，MySQL 和 Redis 容器会自动恢复运行。如遇连接问题，请确认 Docker Desktop 已完全启动。
@@ -543,7 +560,7 @@ aiserver:
     port: 3306
     database: medai
     username: root
-    password: ${MYSQL_PASSWORD:root}     # Docker 默认密码为 root
+    password: ${MYSQL_PASSWORD:}           # Docker Compose 默认空密码
   redis:
     host: 127.0.0.1
     port: 6379
@@ -637,14 +654,14 @@ npm run dev
 
 **SSE 事件类型**：
 
-| 事件 | 方向 | 说明 |
-|------|------|------|
-| `node_start` | Python → Java | 推理节点开始执行 |
-| `token` | Python → Java | LLM 生成的单个 token |
-| `thinking` | Python → Java | 思考过程（步骤/标题/内容） |
-| `done` | Python → Java | 推理完成（含 name, request_id, all_info） |
-| `error` | Python → Java | 推理异常（含 error_code, message, retryable） |
-| `heartbeat` | Python → Java | 心跳（15 秒间隔，保持连接） |
+| 事件 | 方向 | data 结构 | 说明 |
+|------|------|------|------|
+| `node_start` | Python → Java | `{"node_name": "intent"}` | 推理节点开始执行 |
+| `token` | Python → Java | `{"text": "根据..."}` | LLM 生成的单个 token 增量文本 |
+| `thinking` | Python → Java | `{"step": 1, "title": "意图识别", "content": "..."}` | 思考步骤/标题/内容 |
+| `done` | Python → Java | `{"name": "...", "request_id": "...", "all_info": "..."}` | 推理完成，含会话名称与上下文摘要 |
+| `error` | Python → Java | `{"error_code": "...", "message": "...", "retryable": true}` | 推理异常，retryable 标识是否可重试 |
+| `heartbeat` | Python → Java | `{"timestamp": "..."}` | 心跳保活（15 秒间隔） |
 
 ### 2. 报告模式一览
 
@@ -685,14 +702,24 @@ npm run dev
 |------|------|
 | [docs/backend-technical-documentation.md](docs/backend-technical-documentation.md) | ★ **后端技术文档（完整版）** — 涵盖架构设计、数据库设计、SSE 通信、安全体系、限流熔断、部署架构等 15 个章节 |
 | [docs/模型层重构完成报告.md](docs/模型层重构完成报告.md) | Python 模型层架构重构总结 |
+| [docs/模型层改动汇报.md](docs/模型层改动汇报.md) | 模型层改动详情汇报 |
 | [docs/全链路流式重构策略.md](docs/全链路流式重构策略.md) | 全链路流式数据管道设计策略 |
 | [docs/LangChain版本升级风险分析报告.md](docs/LangChain版本升级风险分析报告.md) | LangChain 版本升级风险评估 |
 | [docs/LangChain迁移可行性分析报告.md](docs/LangChain迁移可行性分析报告.md) | LangChain 迁移方案与可行性分析 |
 | [backend/stroke-server/BAOTA_DEPLOY.md](backend/stroke-server/BAOTA_DEPLOY.md) | 宝塔面板生产环境部署指南 |
+| [百度千帆.md](百度千帆.md) | 百度千帆大模型平台能力集成方案（模型底座、RAG 组件、安全网关） |
+| [计设大赛本项目简介.md](计设大赛本项目简介.md) | 计算机设计大赛项目完整简介（功能、架构、创新点详解） |
 
 ---
 
 ## 🔄 版本更新日志
+
+### v2.1.2 (2026-07-26)
+
+- ✅ **文档**：README 全面修订 — 修正版本号（Redis 7、Spring Boot 3.3.13）、统一指南数量（12 篇）、修正 MySQL 密码示例
+- ✅ **文档**：补充千帆集成方案与大赛简介文档链接
+- ✅ **文档**：优化快速启动指引（分步说明、密钥获取提示）
+- ✅ **文档**：完善 SSE 事件协议表格（补充 data 结构）
 
 ### v2.1.1 (2026-07-09)
 
