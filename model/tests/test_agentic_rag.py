@@ -258,6 +258,7 @@ async def test_debate_agents_can_see_peer_opinions_and_evidence():
     node = DebateNode(llm, FakeExpertManager())
     state = clinical_state(
         evidence="【证据 R1-Q1-E1】指南指出应核对凝血指标",
+        user_questions=["该患者是否符合静脉溶栓指征？"],
         expert_opinions={
             "神经专科医生": "建议评估溶栓",
             "临床药师": "需先核对INR",
@@ -270,6 +271,7 @@ async def test_debate_agents_can_see_peer_opinions_and_evidence():
     first_prompt = llm.ainvoke.await_args_list[0].args[0][-1].content
     assert "临床药师" in first_prompt
     assert "【证据 R1-Q1-E1】" in first_prompt
+    assert "该患者是否符合静脉溶栓指征？" in first_prompt
 
 
 @pytest.mark.asyncio
@@ -291,6 +293,32 @@ async def test_consensus_node_parses_moderator_decision():
     assert result["consensus"] == "先完成影像与凝血评估。"
     assert "【证据 R1-Q1-E1】" in result["proposal"]
     assert "INR结果缺失" in result["critique"]
+
+
+@pytest.mark.asyncio
+async def test_consensus_prompt_keeps_every_original_user_question():
+    llm = Mock()
+    llm.ainvoke = AsyncMock(
+        return_value=Mock(
+            content=(
+                "### CONSENSUS ###\n需结合禁忌证评估。\n"
+                "### PROPOSAL ###\n逐项回答原问题。\n"
+                "### CRITIQUE ###\n需人工复核。"
+            )
+        )
+    )
+    questions = [
+        "该患者目前的诊断是什么？",
+        "如果静脉溶栓后症状改善不明显，下一步如何治疗？",
+    ]
+
+    await ConsensusNode(llm, FakeExpertManager()).run(
+        clinical_state(user_questions=questions, debate_transcript="已完成质询")
+    )
+
+    prompt = llm.ainvoke.await_args.args[0][1].content
+    assert all(question in prompt for question in questions)
+    assert "逐项回答" in prompt
 
 
 class FakeValidationManager:
@@ -362,3 +390,52 @@ async def test_report_always_prepends_warning_after_validation_exhaustion():
 
     assert result["report"].startswith("## 安全警告")
     assert "多轮会诊后仍存在禁忌证冲突" in result["report"]
+
+
+@pytest.mark.asyncio
+async def test_report_answers_explicit_questions_before_validation_warning():
+    captured_messages = []
+    llm = Mock()
+
+    async def stream(messages):
+        captured_messages.extend(messages)
+        yield Mock(
+            content=(
+                "### 问题1\n考虑急性缺血性脑卒中。\n\n"
+                "### 问题2\n符合时间窗，但须先排除禁忌证。\n\n"
+                "### 问题3\n溶栓前须先控制血压。\n\n"
+                "### 问题4\n应立即衔接血管内治疗评估。"
+            )
+        )
+
+    llm.astream = stream
+    report_manager = Mock()
+    report_manager.system_role = "临床报告生成器"
+    report_manager.get_template.return_value = (
+        "患者：{context}\n历史：{all_info}\n证据：{evidence}\n"
+        "方案：{proposal}\n风险：{critique}"
+    )
+    questions = [
+        "该患者目前的诊断是什么？",
+        "根据现行指南，该患者是否符合静脉溶栓指征？请说明理由。",
+        "针对该患者的血压情况，在启动溶栓前应如何处理？",
+        "如果静脉溶栓开始后患者症状改善不明显，下一步的最佳治疗方案是什么？",
+    ]
+    node = ReportNode(llm, report_manager)
+    state = clinical_state(
+        report_mode="emergency",
+        user_questions=questions,
+        proposal="建议评估急性缺血性脑卒中及静脉溶栓适应证",
+        critique="需要核对血压与手术史",
+        validation_passed=False,
+        validation_feedback="REJECT: 血压未达标前不得启动静脉溶栓",
+    )
+
+    result = await node.run(state)
+
+    assert captured_messages, "存在明确问题时仍应进入最终答案生成"
+    prompt = captured_messages[-1].content
+    assert all(question in prompt for question in questions)
+    assert "逐项回答" in prompt
+    assert result["report"].startswith("### 问题1")
+    assert result["report"].index("## 安全警告") > result["report"].index("### 问题4")

@@ -23,6 +23,7 @@ from app.agents.core.schema import ClinicalState
 from app.agents.orchestrators.nodes.base import BaseNode
 from langchain_core.messages import HumanMessage, SystemMessage
 from app.config.config_loader import get_expert_manager
+from app.agents.utils.text_utils import format_numbered_questions
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,14 @@ class ReasonNode(BaseNode):
             f"证据质量：{state.get('evidence_quality', 0.0):.2f}\n"
             f"证据评估：{state.get('evidence_assessment', '')}"
         )
+
+        questions_text = format_numbered_questions(state.get("user_questions", []))
+        if questions_text:
+            case_info += (
+                "\n\n【用户原始问题】\n"
+                f"{questions_text}\n"
+                "独立意见必须逐项覆盖这些问题；即使反对某项处置，也要给出直接结论和理由。"
+            )
         
         # 如果存在之前的校验反馈，添加到上下文中用于反思
         if state['validation_feedback']:

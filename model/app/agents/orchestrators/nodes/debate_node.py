@@ -8,6 +8,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.agents.core.schema import ClinicalState
 from app.agents.orchestrators.nodes.base import BaseNode
+from app.agents.utils.text_utils import format_numbered_questions
 from app.config.config_loader import get_expert_manager
 
 
@@ -43,6 +44,7 @@ class DebateNode(BaseNode):
 
     async def _challenge(self, expert: Dict, state: ClinicalState, opinions: Dict[str, str]) -> str:
         role = expert.get("role", "临床专家")
+        questions_text = format_numbered_questions(state.get("user_questions", [])) or "无明确问题清单"
         peer_text = "\n\n".join(
             f"【{peer_role}初始意见】\n{opinion}"
             for peer_role, opinion in opinions.items()
@@ -51,6 +53,9 @@ class DebateNode(BaseNode):
 
 【病例】
 {state.get('case_text', '')}
+
+【用户原始问题】
+{questions_text}
 
 【检索证据】
 {state.get('evidence', '')}
@@ -64,6 +69,7 @@ class DebateNode(BaseNode):
 3. 你根据其他专家意见修正后的结论
 4. 仍需人工确认的不确定性
 
+必须检查意见是否逐项回答了用户原始问题；即使某项处置应被拒绝，也不能用拒绝结论代替对问题本身的回答。
 每项医学判断必须尽量引用证据编号，例如【证据 R1-Q1-E1】；不得虚构证据。"""
         response = await self.llm.ainvoke([
             SystemMessage(content=f"你是严谨的{role}，正在参与真实多学科会诊。"),
@@ -81,10 +87,14 @@ class ConsensusNode(BaseNode):
         self.synthesis_config = manager.get_synthesis_config()
 
     async def run(self, state: ClinicalState) -> Dict:
+        questions_text = format_numbered_questions(state.get("user_questions", [])) or "无明确问题清单"
         prompt = f"""你是卒中多学科会诊主持人。请基于独立意见和交叉质询形成可审计共识。
 
 【病例】
 {state.get('case_text', '')}
+
+【用户原始问题】
+{questions_text}
 
 【患者记忆】
 {state.get('active_memory', '')}
@@ -105,7 +115,7 @@ class ConsensusNode(BaseNode):
 ### CONSENSUS ###
 说明已达成的共识、被否决的分歧及原因。
 ### PROPOSAL ###
-给出分优先级的临床建议，关键判断引用真实证据编号。
+按用户原始问题的顺序逐项回答；每项先给直接结论，再说明理由、风险和信息缺口。即使结论是拒绝某项处置，也不得漏答或改答其他问题。关键判断引用真实证据编号。
 ### CRITIQUE ###
 列出证据不足、信息缺口、禁忌证和需要人工裁决的风险。
 
