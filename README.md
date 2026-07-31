@@ -108,7 +108,7 @@ docker compose up -d
 | 层级 | 名称 | 核心技术 | 职责 |
 |:---:|------|----------|------|
 | **外层** | 结构化流程层 | 绿道评估模块 + LangGraph 状态图 | 在原有模型流程外增加字段完整性、时间窗、关键阈值预检查，以及医生复核和审计记录 |
-| **中层** | 多专家协同层 | Multi-Agent 并行推理 | 模拟真实临床会诊，由**全科医生**、**神经专科医生**、**临床药师**并行推理，交叉把关减少盲点，支持 Tree-of-Thoughts 分支搜索 |
+| **中层** | 多专家协同层 | 独立意见 + 交叉质询 + 主持人共识 | 由**全科医生**、**神经专科医生**、**临床药师**先独立判断，再阅读同伴意见并质询冲突，最后由中立主持人形成可审计共识 |
 | **后层** | 模型校验层 | 规则配置 + LLM 反思 | 保留原有模型推理与校验算法，对模型结果进行规则提示和反思循环 |
 
 ### 🔎 2. 证据前置的深度定制 Hybrid RAG
@@ -117,12 +117,18 @@ docker compose up -d
 - **RRF 融合排序**：使用倒数排序融合（Reciprocal Rank Fusion）合并双路检索结果，按 `RRF(d) = Σ 1 / (60 + rank(d))` 累加文档在各检索通道中的排名得分，在无需校准异构相关性分数的情况下兼顾语义召回与关键词命中。
 - **高级 QA 自建引擎**：系统精读医疗 PDF 并自动批量衍生提炼高质量 `Q:A` 对（附带原文页码标签），大幅提升急诊场景下的检索召回率。
 - **深度重排与溯源**：RRF 融合后的候选文档再由 `gte-rerank` 进行深度语境打分与证据压缩，在最终报告中强制进行**文献名称与精准页码**的明确溯源。
+- **Agentic RAG 检索循环**：临床检索规划器主动拆分任务，结合医学同义词扩展与 HyDE 描述生成查询；证据审查器按相关性、可信度、时效性和覆盖度评分，证据不足时自动改写查询并再次检索，默认最多两轮。
+- **证据进入推理**：每条证据使用 `R{轮次}-Q{查询}-E{结果}` 编号，专家初始意见、交叉质询和最终共识均被要求引用真实证据编号，未覆盖的信息进入风险审查而不是被当作事实补全。
 
 ### ⚡ 3. 全栈响应式流式数据管道（Reactive Stream Pipeline）
 
 后端通过 `WebClient`/Reactor 转发 SSE 流，模型服务使用 Python Asyncio，前端通过 Vue 3 `ReadableStream` 增量渲染。界面展示的是可观察的分析阶段、证据引用和校验状态，不展示或宣称暴露模型内部思维链。
 
-### 🆕 4. 分层测试与可复现评测
+### 🧠 4. 面向连续诊疗的三级患者记忆
+
+选择关联患者后，Java 服务端在医生权限范围内组装**短期记忆**（当前会话）、**情景记忆**（历史健康数据与评估事件）和**语义记忆**（稳定病史与医生备注）。患者关联持久化在 `talk.patient_id`：空对话可首次绑定一位患者，之后如需切换患者必须新建对话，从源头避免跨患者历史混入。模型侧 `MemoryNode` 仅激活本轮所需的受限上下文；未选择患者时不加载长期记忆，显式选择无权访问的患者时后端会拒绝请求。
+
+### 🆕 5. 分层测试与可复现评测
 
 系统配备前端、后端与模型层自动化测试；新增离线评测运行器，对必需信息、禁用表述、引用白名单和结果哈希进行可复现检查。临床结论仍需使用冻结病例集和专家盲评另行验证。
 
@@ -138,7 +144,7 @@ docker compose up -d
 |:---:|---|------|
 | 🎨 **前端交互层** | Vue 3 (Composition API) · Vite 7 · Pinia · SCSS · Fetch / ReadableStream | 以用户体验为核心，持续接收后端流式推送并实时打字机渲染。支持医学文档（PDF）在线预览、图片上传（多模态扩展）以及多 Agent 思考步骤折叠展示 |
 | ☕ **后端服务层** | Java 21 · Spring Boot 3.3.13 · Spring WebFlux · Redis 7 · Redisson · MySQL 8.0 · MyBatis-Plus | 采用响应式编程模型支持高并发吞吐。通过 JWT 实现身份认证与安全控制，利用 Redisson 分布式锁控制并发，通过 WebClient 对底层 Python 模型服务进行流式非阻塞调用与转发 |
-| 🐍 **模型推理层** | Python 3.11+ · FastAPI · LangGraph · LangChain · Qwen-Max/Plus/Turbo · ChromaDB · BM25 · RRF · gte-rerank | 统一入口加载大语言模型、混合检索与融合排序引擎、多智能体推理模块。通过异步生成器持续输出标准事件格式（`thinking`, `chunk`, `done`），实现高效流式通信 |
+| 🐍 **模型推理层** | Python 3.11+ · FastAPI · LangGraph · LangChain · Qwen-Max/Plus/Turbo · ChromaDB · BM25 · RRF · gte-rerank | 统一加载模型、Agentic RAG 检索循环、专家辩论与共识模块，通过异步生成器输出 `node_start`、`node_done`、`token`、`done` 标准事件 |
 
 ### 🔄 全链路流式数据管道（SSE Pipeline）
 
@@ -170,20 +176,14 @@ Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
 ```text
                      【 决策行为轴 (横向 LangGraph 拓扑演进) 】
 
-                      Proposer 阶段         Critic 阶段        Integrator 阶段
-                     (方案生成智能体)     (风险审查智能体)     (整合反思智能体)
+                      独立意见阶段         交叉质询阶段          主持人共识阶段
                      ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-  全科医生 (GP) ────► │ 初始病情评估 │ ───►│ 基础高危筛查 │ ───►│              │
-                     └──────────────┘     └──────────────┘     │              │
-                     ┌──────────────┐     ┌──────────────┐     │ 最终结构化决策│
-  神经专家 (NS) ────► │TOAST/时间窗  │ ───►│ 神经禁忌挖掘 │ ───►│              │
-                     └──────────────┘     └──────────────┘     │ (合规临床报告)│
-                     ┌──────────────┐     ┌──────────────┐     │              │
-  临床药师 (CP) ────► │ 药物配伍方案 │ ───►│ 溶栓出血风险 │ ───►│              │
-                     └──────────────┘     └──────────────┘     └──────────────┘
-                            │                    │                    ▲
-                            └────────────────────┴─── [校验失败拦截] ──┘
-                                                     (触发异步自愈反思流)
+  全科医生 (GP) ────►│ 整体风险立场 │ ───►│ 阅读并质询同伴│ ──┐ │              │
+  神经专家 (NS) ────►│ 定位/时间窗立场│ ───►│ 修正专业结论  │ ──┼►│ 冲突裁决与共识│
+  临床药师 (CP) ────►│ 禁忌证立场   │ ───►│ 标记用药冲突  │ ──┘ │ Proposal +   │
+                     └──────────────┘     └──────────────┘     │ Critique     │
+                            ▲                                  └──────┬───────┘
+                            └────────── [校验失败后重新会诊] ─────────┘
 ```
 
 ### 2. 双轴矩阵核心深度解析
@@ -198,22 +198,22 @@ Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
 | 🧠 **神经专科医生 (NS)** | qwen-max | 系统的"核心决策大脑"。专注于卒中特异性临床表现、责任血管解剖定位、NIHSS 评分计算、TOAST 分型，以及溶栓/取栓时间窗自适应决策 |
 | 💊 **临床药师 (CP)** | qwen-max | 侧重全链路用药安全。严密审查抗血小板、抗凝、降压、降脂等药物的绝对/相对禁忌症、药物相互作用（DDI）及配伍高危风险 |
 
-#### 📌 横向维度：Proposer-Critic-Integrator 状态机拓扑（Pipeline）
+#### 📌 横向维度：Independent-Debate-Consensus 状态机拓扑（Pipeline）
 
 通过 LangGraph 控制状态流转，横向行为轴被划分为标准的三阶段动态博弈：
 
-1. **Proposer（方案生成阶段）**：三大专家 Agent 并行启动，结合 Hybrid RAG 召回的指南证据，独立产出各自专业领域的初步诊疗子方案。
-2. **Critic（独立风险审查阶段）**：各专家角色切换至"审慎黑盒模型"，执行交叉盲审。重点识别时间窗陷阱、症状隐匿性变化、禁忌症硬碰撞等 **6 大类高风险点**，对 Proposer 方案进行推翻、补充或质询。
-3. **Integrator（方案整合与反思拦截阶段）**：
-   - **动态反思循环机制**：Integrator 负责主导融合专家方案与审查意见。
-   - **安全熔断器**：若检测到 Critic 提出的硬性规则（如"患者突发肢体无力已达 6 小时，但 Proposer 仍建议静脉溶栓"或"近期有活动性内出血"）未得到妥善解决，Integrator 将**强行触发拦截机制**，锁定当前状态流，自动拉回上一层专家节点进行重试（最多 3 次），直至通过双重校验，实现**异步自愈反思流**。
+1. **Independent（独立意见阶段）**：三大专家 Agent 并行启动，基于同一病例、患者记忆和带编号证据形成可供质询的专业立场。
+2. **Debate（交叉质询阶段）**：每位专家阅读全部同伴意见，明确同意点、冲突点、修正结论及仍需人工确认的不确定性。
+3. **Consensus（主持人共识与反思拦截阶段）**：
+   - **动态共识机制**：中立主持人说明已达成共识、被否决分歧及原因，再输出 `PROPOSAL` 与 `CRITIQUE`。
+   - **安全熔断器**：若规则引擎或独立质控发现硬性禁忌证、证据冲突或把信息缺口当成既定事实，系统将拦截当前共识并携带反馈重新发起专家会诊（最多 3 次）。
 
 ### 3. LLM 分层调度策略
 
 | 模型 | 负责节点 | 选择理由 |
 |------|----------|----------|
-| **qwen-max** | Proposer（推理）、Report（报告）、3 专家并行推理 | 需要深度推理，容错率低 |
-| **qwen-plus** | Critic（审查）、Analysis（分析）、Retrieval（检索）、Evidence Synthesis（证据综合） | 中等复杂度，需要较快速度 |
+| **qwen-max** | 专家独立意见、交叉质询、Report（报告） | 需要深度推理，容错率低 |
+| **qwen-plus** | Analysis、ResearchPlan、EvidenceJudge、QueryRewrite、Consensus、Validate | 负责结构化、证据控制、共识与安全审查 |
 | **qwen-turbo** | Intent（意图识别）、QuickAnalyze（快速分析）、HealthRisk（风险评估）、Summary（摘要）、Naming（命名） | 简单任务，追求低延迟低成本 |
 
 ---
@@ -276,16 +276,16 @@ Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
 【外层·流程控制】病例结构化分析 (提取主诉、既往史、时间窗、NIHSS评分等关键要素)
     │
     ▼
-【外层·流程控制】双路混合检索 (ChromaDB 向量语义 + BM25 精确匹配)
+【外层·流程控制】检索规划与医学查询扩展 (任务拆分 + 同义词扩展 + HyDE)
     │
     ▼
-【外层·流程控制】RRF 融合排序 (k=60) → gte-rerank 语义重排与证据筛选
+【外层·流程控制】双路混合检索 → RRF 融合 → gte-rerank 重排
     │
     ▼
-【中层·专家协作】多专家协同推理 ◄──────────────────────────┐
-    ├─ 全科医生：整体病情与多维度风险分析                  │
-    ├─ 神经专科医生：TOAST分型、溶栓/取栓指征决策          │
-    └─ 临床药师：用药安全与配伍禁忌审查                    │
+【外层·流程控制】证据质量评估 ── 不足 → 查询重写 → 再次检索（最多两轮）
+    │                                                     │
+    ▼                                                     │
+【中层·专家协作】独立意见 → 交叉质询 → 主持人共识 ◄────────┐
     │                                                     │
     ▼                                                     │
 【后层·反思拦截】双重校验与反思                            │
@@ -352,9 +352,9 @@ stroke-multi-agent-system/
 │   │   ├── agents/                        # 智能体核心模块
 │   │   │   ├── core/                      # 状态机模式与 ClinicalState 状态定义
 │   │   │   ├── orchestrators/             # LangGraph 推理图构建
-│   │   │   │   ├── clinical_graph.py      # 临床推理图 (6 节点状态机)
+│   │   │   │   ├── clinical_graph.py      # Agentic RAG 与会诊双循环状态图
 │   │   │   │   ├── qwen_agent.py          # Qwen Agent 编排器
-│   │   │   │   └── nodes/                 # 核心节点 (Intent, Analysis, Retrieve, Reason, Validate, Report)
+│   │   │   │   └── nodes/                 # 记忆、规划、检索、证据评估、辩论、共识与校验节点
 │   │   │   ├── pipelines/                 # RAG 检索处理管道
 │   │   │   ├── services/                  # 业务服务 (查询、检索、综合)
 │   │   │   ├── bailian/                   # 百炼模型集成 (健康风险分析)
@@ -464,7 +464,7 @@ docker compose up --build -d
 docker compose ps
 ```
 
-首次构建需要下载基础镜像和安装依赖，耗时通常会长于后续启动。`docker compose ps` 中建议确认 `frontend`、`backend`、`model` 为 `Up`，`mysql` 与 `redis` 为 `healthy`。所有容器启动后可访问：
+首次构建需要下载基础镜像和安装依赖，耗时通常会长于后续启动。Compose 会把三个业务镜像打成 `stroke-multi-agent-frontend`、`stroke-multi-agent-backend` 和 `stroke-multi-agent-model`，标签由 `APP_IMAGE_TAG` 控制，默认是 `local`。`docker compose ps` 中建议确认 `frontend`、`backend`、`model`、`mysql` 与 `redis` 均为 `healthy`。所有容器启动后可访问：
 
 | 服务 | 地址 | 说明 |
 |------|------|------|
@@ -474,7 +474,7 @@ docker compose ps
 | MySQL | `localhost:3306` | 数据库服务 |
 | Redis | `localhost:6379` | 缓存服务 |
 
-Compose 默认从 AWS 公共仓库拉取 Docker 官方基础镜像，并为模型镜像使用清华 Debian/PyPI 软件源，避免部分网络环境无法访问 Docker Hub 鉴权服务或官方软件源。可通过 `DOCKER_BASE_IMAGE_REGISTRY`、`DEBIAN_MIRROR` 和 `PIP_INDEX_URL` 覆盖这些地址；若当前网络可直接访问官方服务，可分别设置为 `docker.io/library`、`http://deb.debian.org` 和 `https://pypi.org/simple`。
+Compose 默认从 AWS 公共仓库拉取 Docker 官方基础镜像，并为模型镜像使用清华 Debian/PyPI 软件源，避免部分网络环境无法访问 Docker Hub 鉴权服务或官方软件源。可通过 `APP_IMAGE_TAG`、`DOCKER_BASE_IMAGE_REGISTRY`、`DEBIAN_MIRROR` 和 `PIP_INDEX_URL` 覆盖镜像标签、基础镜像仓库和软件源；若当前网络可直接访问官方服务，可分别设置为 `docker.io/library`、`http://deb.debian.org` 和 `https://pypi.org/simple`。
 
 ##### 常用管理命令
 
@@ -483,6 +483,7 @@ Compose 默认从 AWS 公共仓库拉取 Docker 官方基础镜像，并为模�
 | 使用场景 | 命令 |
 |---------|------|
 | 日常启动（代码未变化） | `docker compose up -d` |
+| 只打包镜像不启动 | `docker compose build` |
 | 修改代码后重新构建并启动 | `docker compose up --build -d` |
 | 仅重新构建前端 | `docker compose up --build -d frontend` |
 | 查看全部服务状态 | `docker compose ps` |
@@ -655,22 +656,31 @@ npm run dev
 {
   "question": "患者男，65岁，突发左侧肢体无力3小时，NIHSS评分12分，CT排除脑出血。如何处理？",
   "all_info": "既往史：高血压10年，糖尿病5年",
+  "patient_id": 42,
+  "patient_memory": {
+    "short_term": "当前会话摘要",
+    "episodic": "历史健康数据与评估事件",
+    "semantic": "稳定病史与医生备注"
+  },
   "token": "your-jwt-token",
   "report_mode": "emergency",
   "show_thinking": true
 }
 ```
 
+Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2__add_patient_id_to_talk.sql` 为对话增加持久化患者关联；同一对话请求不同患者时，后端会在模型调用和消息写入前返回错误。
+
 **SSE 事件类型**：
 
 | 事件 | 方向 | data 结构 | 说明 |
 |------|------|------|------|
-| `node_start` | Python → Java | `{"node_name": "intent"}` | 推理节点开始执行 |
-| `token` | Python → Java | `{"text": "根据..."}` | LLM 生成的单个 token 增量文本 |
-| `thinking` | Python → Java | `{"step": 1, "title": "意图识别", "content": "..."}` | 可观察的分析阶段、标题与状态摘要 |
+| `node_start` | Python → Java | `{"node": "intent", "label": "正在判断问题类型...", "status": "running"}` | 推理节点开始执行 |
+| `node_done` | Python → Java | `{"node": "evidence_judge", "summary": "...", "status": "done"}` | 节点完成及可展示摘要 |
+| `token` | Python → Java | `{"content": "根据..."}` | LLM 生成的增量文本 |
+| `thinking` | Java → Vue | `{"thinking": {"step": "analysis", "title": "病例结构化分析", "content": "..."}}` | Java 将节点事件统一映射为前端思考事件 |
 | `done` | Python → Java | `{"name": "...", "request_id": "...", "all_info": "..."}` | 推理完成，含会话名称与上下文摘要 |
 | `error` | Python → Java | `{"error_code": "...", "message": "...", "retryable": true}` | 推理异常，retryable 标识是否可重试 |
-| `heartbeat` | Python → Java | `{"timestamp": "..."}` | 心跳保活（15 秒间隔） |
+| SSE comment | 服务间 | `: ping` / `: heartbeat` | 协议层心跳，前端忽略，不作为业务 JSON |
 
 ### 2. 报告模式一览
 
@@ -725,6 +735,7 @@ npm run dev
 |------|------|
 | [docs/backend-technical-documentation.md](docs/backend-technical-documentation.md) | ★ **后端技术文档（完整版）** — 涵盖架构设计、数据库设计、SSE 通信、安全体系、限流熔断、部署架构等 15 个章节 |
 | [docs/模型层重构完成报告.md](docs/模型层重构完成报告.md) | Python 模型层架构重构总结 |
+| [docs/Agentic-RAG与协作式多智能体架构.md](docs/Agentic-RAG与协作式多智能体架构.md) | Agentic RAG 检索循环、专家辩论共识与三级患者记忆设计 |
 | [docs/模型层改动汇报.md](docs/模型层改动汇报.md) | 模型层改动详情汇报 |
 | [docs/全链路流式重构策略.md](docs/全链路流式重构策略.md) | 全链路流式数据管道设计策略 |
 | [docs/LangChain版本升级风险分析报告.md](docs/LangChain版本升级风险分析报告.md) | LangChain 版本升级风险评估 |
@@ -736,6 +747,14 @@ npm run dev
 ---
 
 ## 🔄 版本更新日志
+
+### v2.3.0 (2026-07-31)
+
+- ✅ **Agentic RAG**：新增检索任务规划、医学查询扩展、HyDE、证据质量评估与最多两轮查询重写循环
+- ✅ **多智能体协作**：升级为独立意见、交叉质询、主持人共识三阶段会诊，关键判断引用真实证据编号
+- ✅ **患者记忆**：打通前端患者关联、Java 权限校验与三级记忆、Python `MemoryNode` 激活链路
+- ✅ **安全修复**：禁忌证规则只匹配患者事实，不再把指南中的通用禁忌证清单误判为患者阳性病情
+- ✅ **可观察性**：新增记忆、检索规划、证据评估、查询重写、辩论和共识阶段事件
 
 ### v2.2.0 (2026-07-31)
 

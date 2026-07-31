@@ -618,6 +618,7 @@ PDF 文档预处理 (离线):
 |------|------|------|
 | id | BIGINT PK | 主键（IdWorker 雪花 ID 赋值） |
 | user_id | BIGINT | FK → med_user.id |
+| patient_id | BIGINT NULL | 对话固定绑定的患者 ID；由 V2 Flyway 迁移新增 |
 | title | VARCHAR(128) | 对话标题（首条消息摘要） |
 | content | TEXT | 会话完整内容 |
 | create_time | DATETIME | 创建时间 |
