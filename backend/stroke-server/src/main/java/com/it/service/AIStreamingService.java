@@ -14,7 +14,14 @@ public interface AIStreamingService {
     String getResumeContent(Long userId, Long talkId);
 
     // 核心流式对话（images 为影像识别图片列表，无图片时传 null 或空列表）
-    Flux<String> streamChat(Long userId, Long talkId, String question, String token, List<String> images);
+    Flux<String> streamChat(
+            Long userId,
+            Long talkId,
+            String question,
+            String token,
+            List<String> images,
+            Long patientId
+    );
 
     // 获取历史对话内容，返回含 role/content/images 的 DTO 列表
     List<ContDTO> getPreContent(Long userId, Long talkId);

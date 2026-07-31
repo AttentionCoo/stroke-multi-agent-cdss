@@ -7,6 +7,8 @@ import java.util.List;
 public class QuesParam {
     private String talkId;
     private String question;
+    /** 可选：将本次问诊关联到患者并激活长期记忆 */
+    private Long patientId;
     /** 影像识别：Base64 图片列表，最多 3 张，每张不超过 10MB（新增字段） */
     private List<String> images;
 }

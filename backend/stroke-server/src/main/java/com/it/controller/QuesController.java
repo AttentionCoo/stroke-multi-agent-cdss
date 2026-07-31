@@ -151,7 +151,14 @@ public class QuesController {
         eventCache.registerStream(finalTalkIdStr);
 
         Flux<String> chatFlux = streamingService
-                .streamChat(userId, finalTalkId, question, upstreamToken, images)
+                .streamChat(
+                        userId,
+                        finalTalkId,
+                        question,
+                        upstreamToken,
+                        images,
+                        quesParam.getPatientId()
+                )
                 .map(this::wrapChunkIfNeeded);
 
         // 心跳终止信号：业务流（正常或异常）结束时 emit，通知心跳流停止

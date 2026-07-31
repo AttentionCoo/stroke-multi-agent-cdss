@@ -15,6 +15,7 @@ public class Talk {
     private Long id;
 
     private Long userId;
+    private Long patientId;
     private String title;
     private String content;
 

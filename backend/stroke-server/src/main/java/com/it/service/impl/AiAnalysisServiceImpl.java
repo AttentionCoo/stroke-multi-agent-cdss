@@ -1,6 +1,5 @@
 package com.it.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.it.mapper.AiOpinionMapper;
@@ -140,14 +139,7 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
         String suggestion   = data.path("suggestion").asText("");
         String analysisDetails = data.path("analysisDetails").asText("");
 
-        // 覆盖式更新：先删除该患者所有已有的 AI 意见记录，再写入新的
-        LambdaQueryWrapper<AiOpinion> deleteWrapper = new LambdaQueryWrapper<>();
-        deleteWrapper.eq(AiOpinion::getPatientId, param.getPatientId());
-        int deletedCount = aiOpinionMapper.delete(deleteWrapper);
-        if (deletedCount > 0) {
-            log.info("覆盖式更新：已删除患者 {} 的 {} 条旧 AI 意见记录", param.getPatientId(), deletedCount);
-        }
-
+        // 评估按时间追加，患者详情查询最新记录，历史记录供情景记忆与审计使用。
         AiOpinion opinion = new AiOpinion();
         opinion.setPatientId(param.getPatientId());
         opinion.setRiskLevel(riskLevel);
@@ -239,14 +231,7 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
                 ? analysisBuilder.toString()
                 : suggestion;
 
-        // 覆盖式更新：先删除该患者所有已有的 AI 意见记录，再写入新的
-        LambdaQueryWrapper<AiOpinion> deleteWrapper = new LambdaQueryWrapper<>();
-        deleteWrapper.eq(AiOpinion::getPatientId, param.getPatientId());
-        int deletedCount = aiOpinionMapper.delete(deleteWrapper);
-        if (deletedCount > 0) {
-            log.info("覆盖式更新（syncTalk）：已删除患者 {} 的 {} 条旧 AI 意见记录", param.getPatientId(), deletedCount);
-        }
-
+        // 同步结果按事件追加，避免丢失长期患者的历史会诊轨迹。
         AiOpinion opinion = new AiOpinion();
         opinion.setPatientId(param.getPatientId());
         opinion.setRiskLevel(riskLevel);
@@ -369,7 +354,7 @@ public class AiAnalysisServiceImpl implements IAiAnalysisService {
 
     /**
      * 清除指定患者的 Redis 缓存（详情缓存 + 分页缓存模糊匹配），
-     * 确保覆盖式更新 AI 意见后前端能立即拉取到最新数据。
+     * 确保追加 AI 意见后前端能立即拉取到最新数据。
      */
     private void evictPatientCaches(Long patientId) {
         try {

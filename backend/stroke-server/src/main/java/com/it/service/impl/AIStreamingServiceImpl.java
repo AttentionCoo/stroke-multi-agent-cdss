@@ -57,6 +57,7 @@ public class AIStreamingServiceImpl implements AIStreamingService {
     private final ITalkService talkService;
     private final IContService contService;
     private final ConversationPersistenceService conversationPersistenceService;
+    private final PatientMemoryService patientMemoryService;
 
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())
@@ -211,7 +212,8 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                                    Long talkId,
                                    String question,
                                    String token,
-                                   List<String> images) {
+                                   List<String> images,
+                                   Long patientId) {
 
         if (userId == null) {
             return Flux.just(buildError("未登录"));
@@ -238,6 +240,19 @@ public class AIStreamingServiceImpl implements AIStreamingService {
         final Long finalTalkId = talkId;
 
         String historyText = buildHistoryContext(userId, finalTalkId);
+        Map<String, String> patientMemory;
+        try {
+            patientMemory = patientMemoryService.build(
+                    userId,
+                    patientId,
+                    finalTalkId,
+                    historyText
+            );
+        } catch (PatientMemoryService.PatientContextException e) {
+            log.warn("拒绝加载患者上下文: talkId={}, patientId={}, err={}",
+                    finalTalkId, patientId, e.getMessage());
+            return buildErrorAndDone(finalTalkId, e.getMessage());
+        }
         final String requestToken = token.trim();
         final String reportMode = DEFAULT_REPORT_MODE;
         final boolean showThinking = DEFAULT_SHOW_THINKING;
@@ -264,6 +279,8 @@ public class AIStreamingServiceImpl implements AIStreamingService {
         request.put("question", question);
         request.put("round", 2);
         request.put("all_info", historyText);
+        request.put("patient_id", patientId);
+        request.put("patient_memory", patientMemory);
         request.put("token", requestToken);
         request.put("report_mode", reportMode);
         request.put("show_thinking", showThinking);
