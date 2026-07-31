@@ -134,6 +134,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         "",
         f"- 生成时间：{report['generated_at']}",
         f"- 数据集 SHA-256：`{report['dataset_sha256']}`",
+        f"- 预测文件 SHA-256：`{report['predictions_sha256']}`",
         f"- 病例数：{report['case_count']}",
         f"- 预测覆盖率：{report['coverage']:.2%}",
         f"- 规则通过率：{report['pass_rate']:.2%}",
@@ -163,6 +164,7 @@ def main() -> None:
     report = run_benchmark(cases, load_predictions(args.predictions))
     report["generated_at"] = datetime.now(timezone.utc).isoformat()
     report["dataset_sha256"] = dataset_sha256(args.cases)
+    report["predictions_sha256"] = dataset_sha256(args.predictions)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")

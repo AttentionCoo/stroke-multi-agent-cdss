@@ -2,6 +2,7 @@ package com.it.adapter.stroke;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.it.domain.stroke.*;
@@ -37,7 +38,10 @@ public class MyBatisStrokeAssessmentStore implements StrokeAssessmentStore {
 
     @Override
     public StrokeAssessmentRecord create(Long doctorId, StrokeAssessmentData data, LocalDateTime now) {
-        StrokeAssessmentEntity entity = toEntity(null, doctorId, data, 1, AssessmentRecordStatus.DRAFT, now, now);
+        StrokeAssessmentEntity entity = toEntity(
+                null, doctorId, data, 1, AssessmentRecordStatus.DRAFT,
+                List.of("创建评估记录"), now, now
+        );
         assessmentMapper.insert(entity);
         return toRecord(entity);
     }
@@ -68,11 +72,13 @@ public class MyBatisStrokeAssessmentStore implements StrokeAssessmentStore {
             StrokeAssessmentRecord existing,
             StrokeAssessmentData data,
             AssessmentRecordStatus status,
+            List<String> changes,
             LocalDateTime now
     ) {
         int nextVersion = existing.version() + 1;
         StrokeAssessmentEntity next = toEntity(
-                existing.id(), existing.doctorId(), data, nextVersion, status, existing.createdAt(), now
+                existing.id(), existing.doctorId(), data, nextVersion, status,
+                changes, existing.createdAt(), now
         );
         int affected = assessmentMapper.update(next, new LambdaUpdateWrapper<StrokeAssessmentEntity>()
                 .eq(StrokeAssessmentEntity::getId, existing.id())
@@ -88,17 +94,20 @@ public class MyBatisStrokeAssessmentStore implements StrokeAssessmentStore {
             StrokeAssessmentRecord assessment,
             Long doctorId,
             AssessmentReviewData review,
+            AssessmentAuditSnapshot snapshot,
             AssessmentRecordStatus status,
+            List<String> changes,
             LocalDateTime now
     ) {
-        insertReview(assessment, doctorId, review, now);
-        return update(assessment, assessment.data(), status, now);
+        insertReview(assessment, doctorId, review, snapshot, now);
+        return update(assessment, assessment.data(), status, changes, now);
     }
 
     private AssessmentReviewRecord insertReview(
             StrokeAssessmentRecord assessment,
             Long doctorId,
             AssessmentReviewData review,
+            AssessmentAuditSnapshot snapshot,
             LocalDateTime now
     ) {
         AssessmentReviewEntity entity = new AssessmentReviewEntity();
@@ -107,7 +116,7 @@ public class MyBatisStrokeAssessmentStore implements StrokeAssessmentStore {
         entity.setAction(review.action().name());
         entity.setReason(review.reason());
         entity.setAssessmentVersion(assessment.version());
-        entity.setAssessmentSnapshot(writeSnapshot(assessment.data()));
+        entity.setAssessmentSnapshot(writeSnapshot(snapshot));
         entity.setCreateTime(now);
         reviewMapper.insert(entity);
         return toReviewRecord(entity);
@@ -130,6 +139,7 @@ public class MyBatisStrokeAssessmentStore implements StrokeAssessmentStore {
             StrokeAssessmentData data,
             int version,
             AssessmentRecordStatus status,
+            List<String> changes,
             LocalDateTime createdAt,
             LocalDateTime updatedAt
     ) {
@@ -152,6 +162,7 @@ public class MyBatisStrokeAssessmentStore implements StrokeAssessmentStore {
         entity.setNotes(data.notes());
         entity.setVersion(version);
         entity.setStatus(status.name());
+        entity.setChangeSummary(writeChanges(changes));
         entity.setCreateTime(createdAt);
         entity.setUpdateTime(updatedAt);
         return entity;
@@ -167,7 +178,8 @@ public class MyBatisStrokeAssessmentStore implements StrokeAssessmentStore {
         );
         return new StrokeAssessmentRecord(
                 entity.getId(), entity.getDoctorId(), data, entity.getVersion(),
-                AssessmentRecordStatus.valueOf(entity.getStatus()), entity.getCreateTime(), entity.getUpdateTime()
+                AssessmentRecordStatus.valueOf(entity.getStatus()),
+                readChanges(entity.getChangeSummary()), entity.getCreateTime(), entity.getUpdateTime()
         );
     }
 
@@ -179,19 +191,36 @@ public class MyBatisStrokeAssessmentStore implements StrokeAssessmentStore {
         );
     }
 
-    private String writeSnapshot(StrokeAssessmentData data) {
+    private String writeSnapshot(AssessmentAuditSnapshot snapshot) {
         try {
-            return objectMapper.writeValueAsString(data);
+            return objectMapper.writeValueAsString(snapshot);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("无法保存评估审核快照", e);
         }
     }
 
-    private StrokeAssessmentData readSnapshot(String value) {
+    private AssessmentAuditSnapshot readSnapshot(String value) {
         try {
-            return objectMapper.readValue(value, StrokeAssessmentData.class);
+            return objectMapper.readValue(value, AssessmentAuditSnapshot.class);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("无法读取评估审核快照", e);
+        }
+    }
+
+    private String writeChanges(List<String> changes) {
+        try {
+            return objectMapper.writeValueAsString(changes == null ? List.of() : changes);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("无法保存评估版本差异", e);
+        }
+    }
+
+    private List<String> readChanges(String value) {
+        if (value == null || value.isBlank()) return List.of();
+        try {
+            return objectMapper.readValue(value, new TypeReference<>() {});
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("无法读取评估版本差异", e);
         }
     }
 

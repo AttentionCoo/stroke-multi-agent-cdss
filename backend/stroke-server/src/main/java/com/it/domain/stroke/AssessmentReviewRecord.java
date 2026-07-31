@@ -9,7 +9,7 @@ public record AssessmentReviewRecord(
         AssessmentReviewAction action,
         String reason,
         int assessmentVersion,
-        StrokeAssessmentData assessmentSnapshot,
+        AssessmentAuditSnapshot assessmentSnapshot,
         LocalDateTime createdAt
 ) {
 }

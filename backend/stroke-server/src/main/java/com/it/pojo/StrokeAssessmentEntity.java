@@ -31,6 +31,7 @@ public class StrokeAssessmentEntity {
     private String notes;
     private Integer version;
     private String status;
+    private String changeSummary;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

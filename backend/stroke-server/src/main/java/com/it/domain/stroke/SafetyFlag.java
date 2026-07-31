@@ -2,7 +2,7 @@ package com.it.domain.stroke;
 
 public record SafetyFlag(
         String code,
-        String severity,
+        SafetyFlagSeverity severity,
         String title,
         String detail,
         String requiredAction,

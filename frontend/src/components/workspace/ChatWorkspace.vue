@@ -632,9 +632,16 @@ function evidenceCardsFor(msg, index) {
                 <div class="markdown-body"
                   :class="{ 'streaming-active': isStreaming && index === currentTalkList.length - 1 }"
                   v-html="renderedHtmlList[index] || ''"></div>
-                <section v-if="evidenceCardsFor(msg, index).length" class="evidence-map" aria-label="建议与证据">
+                <section
+                  v-if="evidenceCardsFor(msg, index).length"
+                  class="evidence-map"
+                  aria-label="建议与证据"
+                >
                   <h4>建议与证据</h4>
-                  <article v-for="(card, cardIndex) in evidenceCardsFor(msg, index)" :key="`${index}-${cardIndex}`">
+                  <article
+                    v-for="(card, cardIndex) in evidenceCardsFor(msg, index)"
+                    :key="`${index}-${cardIndex}`"
+                  >
                     <p>{{ card.statement }}</p>
                     <div>
                       <button v-for="source in card.sources" :key="source" type="button"

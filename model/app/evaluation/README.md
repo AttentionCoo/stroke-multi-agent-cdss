@@ -6,7 +6,7 @@
 
 - `benchmark_cases.jsonl`：脱敏合成病例与预期规则，目前均标记为 `synthetic_unreviewed`。
 - 预测文件：每行包含 `id` 与模型原始 `output`。
-- 输出：JSON 机器报告与同名 Markdown 摘要，并记录病例集 SHA-256。
+- 输出：JSON 机器报告与同名 Markdown 摘要，并记录病例集和预测文件 SHA-256。
 
 ## 运行
 

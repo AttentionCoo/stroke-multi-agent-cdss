@@ -70,6 +70,8 @@ class StrokeAssessmentModuleTest {
         assertEquals(2, updated.version());
         assertEquals(AssessmentDecisionStatus.BLOCKED, updated.evaluation().decisionStatus());
         assertTrue(updated.evaluation().changes().contains("新增风险：影像提示颅内出血"));
+        assertTrue(module.get(7L, created.id()).evaluation().changes()
+                .contains("新增风险：影像提示颅内出血"));
     }
 
     @Test
@@ -107,6 +109,11 @@ class StrokeAssessmentModuleTest {
         var reviews = module.reviews(7L, created.id());
         assertEquals(1, reviews.size());
         assertEquals(1, reviews.getFirst().assessmentVersion());
+        assertEquals(AssessmentRecordStatus.DRAFT, reviews.getFirst().assessmentSnapshot().status());
+        assertEquals(AssessmentDecisionStatus.BLOCKED,
+                reviews.getFirst().assessmentSnapshot().evaluation().decisionStatus());
+        assertEquals(StrokeAssessmentEvaluator.RULE_VERSION,
+                reviews.getFirst().assessmentSnapshot().ruleVersion());
     }
 
     @Test

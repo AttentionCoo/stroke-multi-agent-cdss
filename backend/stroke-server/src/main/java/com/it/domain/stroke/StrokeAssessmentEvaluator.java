@@ -11,6 +11,7 @@ import java.util.Map;
 
 public class StrokeAssessmentEvaluator {
 
+    public static final String RULE_VERSION = "stroke-structured-precheck-v1";
     private static final int REQUIRED_FIELD_COUNT = 9;
     private final Clock clock;
 
@@ -34,7 +35,8 @@ public class StrokeAssessmentEvaluator {
         );
 
         List<SafetyFlag> riskFlags = evaluateSafetyFlags(data, timeline);
-        boolean hasCriticalRisk = riskFlags.stream().anyMatch(flag -> "CRITICAL".equals(flag.severity()));
+        boolean hasCriticalRisk = riskFlags.stream()
+                .anyMatch(flag -> flag.severity() == SafetyFlagSeverity.CRITICAL);
 
         AssessmentDecisionStatus decisionStatus = hasCriticalRisk
                 ? AssessmentDecisionStatus.BLOCKED
@@ -100,35 +102,35 @@ public class StrokeAssessmentEvaluator {
                     && data.arrivalAt().isBefore(data.lastKnownWellAt()));
         if (invalidTimeline) {
             flags.add(flag(
-                    "INVALID_TIMELINE", "CRITICAL", "时间线存在矛盾",
+                    "INVALID_TIMELINE", SafetyFlagSeverity.CRITICAL, "时间线存在矛盾",
                     "最后正常时间、到院时间或当前时间的先后关系不成立。",
                     "核对原始时间记录后重新评估。"
             ));
         }
         if (hasInvalidClinicalValue(data)) {
             flags.add(flag(
-                    "INVALID_CLINICAL_VALUE", "CRITICAL", "临床数值超出录入范围",
+                    "INVALID_CLINICAL_VALUE", SafetyFlagSeverity.CRITICAL, "临床数值超出录入范围",
                     "至少一个生命体征、量表或实验室数值超出系统允许范围。",
                     "核对单位与原始报告，修正后重新评估。"
             ));
         }
         if (data.ctHemorrhage() == ClinicalState.YES) {
             flags.add(flag(
-                    "CT_HEMORRHAGE", "CRITICAL", "影像提示颅内出血",
+                    "CT_HEMORRHAGE", SafetyFlagSeverity.CRITICAL, "影像提示颅内出血",
                     "结构化影像结论标记为存在颅内出血。",
                     "停止自动决策并立即由卒中团队复核影像与处置路径。"
             ));
         }
         if (data.plateletCount() != null && data.plateletCount() < 100) {
             flags.add(flag(
-                    "PLATELET_LOW", "CRITICAL", "血小板低于复核阈值",
+                    "PLATELET_LOW", SafetyFlagSeverity.CRITICAL, "血小板低于复核阈值",
                     "血小板计数低于 100×10^9/L。",
                     "复核检验结果并进行静脉溶栓禁忌症人工审查。"
             ));
         }
         if (data.inr() != null && data.inr().compareTo(new BigDecimal("1.7")) > 0) {
             flags.add(flag(
-                    "INR_ELEVATED", "CRITICAL", "INR 高于复核阈值",
+                    "INR_ELEVATED", SafetyFlagSeverity.CRITICAL, "INR 高于复核阈值",
                     "INR 高于 1.7。",
                     "结合抗凝药类型、末次用药时间和实验室结果进行人工审查。"
             ));
@@ -136,14 +138,14 @@ public class StrokeAssessmentEvaluator {
         if ((data.systolicBloodPressure() != null && data.systolicBloodPressure() > 185)
                 || (data.diastolicBloodPressure() != null && data.diastolicBloodPressure() > 110)) {
             flags.add(flag(
-                    "BP_REVIEW_REQUIRED", "CRITICAL", "血压超过再灌注治疗复核阈值",
+                    "BP_REVIEW_REQUIRED", SafetyFlagSeverity.CRITICAL, "血压超过再灌注治疗复核阈值",
                     "当前血压高于 185/110 mmHg 中的任一阈值。",
                     "立即复测并由临床医生评估血压管理与治疗路径。"
             ));
         }
         if (timeline.dntOverTarget()) {
             flags.add(flag(
-                    "DNT_OVER_TARGET", "WARNING", "到院时间已超过 60 分钟",
+                    "DNT_OVER_TARGET", SafetyFlagSeverity.WARNING, "到院时间已超过 60 分钟",
                     "系统计时显示到院至当前时间超过 60 分钟。",
                     "核对时间记录并按院内卒中绿色通道升级协调。"
             ));
@@ -168,7 +170,13 @@ public class StrokeAssessmentEvaluator {
         return value != null && (value.compareTo(minimum) < 0 || value.compareTo(maximum) > 0);
     }
 
-    private SafetyFlag flag(String code, String severity, String title, String detail, String action) {
+    private SafetyFlag flag(
+            String code,
+            SafetyFlagSeverity severity,
+            String title,
+            String detail,
+            String action
+    ) {
         return new SafetyFlag(
                 code,
                 severity,

@@ -66,15 +66,14 @@ export function normalizeAssessmentPayload(form = {}) {
 export function buildClinicalSummary(data, evaluation = {}, patientName = '') {
   const value = (field, suffix = '') => {
     const current = data?.[field]
-    if (current === null || current === undefined || current === '' || current === 'UNKNOWN') return '未知'
+    if (current === null || current === undefined || current === '' || current === 'UNKNOWN')
+      return '未知'
     if (current === 'YES') return '是'
     if (current === 'NO') return '否'
     return `${current}${suffix}`
   }
 
-  const missing = evaluation.missingFields?.length
-    ? evaluation.missingFields.join('、')
-    : '无'
+  const missing = evaluation.missingFields?.length ? evaluation.missingFields.join('、') : '无'
   const flags = evaluation.riskFlags?.length
     ? evaluation.riskFlags.map((flag) => flag.title).join('；')
     : '未触发确定性风险规则'
@@ -123,12 +122,20 @@ export function buildPrintableAssessment(view = {}) {
   const data = view.data || {}
   const evaluation = view.evaluation || {}
   const rows = Object.entries(FIELD_LABELS)
-    .map(([field, label]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(displayValue(data[field]))}</td></tr>`)
+    .map(
+      ([field, label]) =>
+        `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(displayValue(data[field]))}</td></tr>`,
+    )
     .join('')
   const missing = (evaluation.missingFields || []).map(escapeHtml).join('、') || '无'
-  const risks = (evaluation.riskFlags || [])
-    .map((flag) => `<li><strong>${escapeHtml(flag.title)}</strong>：${escapeHtml(flag.requiredAction || flag.detail || '')}</li>`)
-    .join('') || '<li>未触发确定性风险规则</li>'
+  const risks =
+    (evaluation.riskFlags || [])
+      .map(
+        (flag) =>
+          `<li><strong>${escapeHtml(flag.title)}</strong>：` +
+          `${escapeHtml(flag.requiredAction || flag.detail || '')}</li>`,
+      )
+      .join('') || '<li>未触发确定性风险规则</li>'
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -136,16 +143,27 @@ export function buildPrintableAssessment(view = {}) {
   <meta charset="utf-8">
   <title>脑卒中急诊评估 #${escapeHtml(view.id ?? '-')}</title>
   <style>
-    body{font-family:Arial,"Microsoft YaHei",sans-serif;color:#172b33;margin:32px;line-height:1.55}
+    body{
+      font-family:Arial,"Microsoft YaHei",sans-serif;
+      color:#172b33;
+      margin:32px;
+      line-height:1.55
+    }
     h1{font-size:22px;margin:0 0 6px} .meta{color:#5e7379;margin-bottom:20px}
-    table{width:100%;border-collapse:collapse;margin:16px 0} th,td{border:1px solid #d1e4df;padding:8px;text-align:left}
-    th{width:220px;background:#f4f8f7} h2{font-size:16px;margin-top:24px} .notice{border-left:4px solid #b45309;padding:10px 14px;background:#fff7ed}
+    table{width:100%;border-collapse:collapse;margin:16px 0}
+    th,td{border:1px solid #d1e4df;padding:8px;text-align:left}
+    th{width:220px;background:#f4f8f7}
+    h2{font-size:16px;margin-top:24px}
+    .notice{border-left:4px solid #b45309;padding:10px 14px;background:#fff7ed}
     @media print{body{margin:12mm}.no-print{display:none}}
   </style>
 </head>
 <body>
   <h1>脑卒中急诊结构化评估</h1>
-  <div class="meta">评估 #${escapeHtml(view.id ?? '-')} · 版本 ${escapeHtml(view.version ?? '-')} · 审核状态 ${escapeHtml(view.status || 'DRAFT')}</div>
+  <div class="meta">
+    评估 #${escapeHtml(view.id ?? '-')} · 版本 ${escapeHtml(view.version ?? '-')} ·
+    审核状态 ${escapeHtml(view.status || 'DRAFT')}
+  </div>
   <div class="notice">本报告为临床辅助决策原型输出，必须由具备资质的临床医生复核。</div>
   <h2>结构化信息</h2><table>${rows}</table>
   <h2>完整度</h2><p>${escapeHtml(evaluation.completenessPercent ?? 0)}%；缺失信息：${missing}</p>

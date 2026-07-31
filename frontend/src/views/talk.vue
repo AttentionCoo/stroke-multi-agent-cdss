@@ -28,8 +28,12 @@ import { createThinkingHistorySlots, mergeThinkingEvent } from '@/utils/thinking
 
 defineOptions({ name: 'TalkIndex' })
 
-const GreenwayWorkspace = defineAsyncComponent(() => import('@/components/workspace/GreenwayWorkspace.vue'))
-const LearningWorkspace = defineAsyncComponent(() => import('@/components/workspace/LearningWorkspace.vue'))
+const GreenwayWorkspace = defineAsyncComponent(
+  () => import('@/components/workspace/GreenwayWorkspace.vue'),
+)
+const LearningWorkspace = defineAsyncComponent(
+  () => import('@/components/workspace/LearningWorkspace.vue'),
+)
 
 const tabs = [
   { key: 'chat', label: '智能诊疗', hint: '对话与同步分析' },

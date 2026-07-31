@@ -18,6 +18,7 @@ public interface StrokeAssessmentStore {
             StrokeAssessmentRecord existing,
             StrokeAssessmentData data,
             AssessmentRecordStatus status,
+            List<String> changes,
             LocalDateTime now
     );
 
@@ -25,7 +26,9 @@ public interface StrokeAssessmentStore {
             StrokeAssessmentRecord assessment,
             Long doctorId,
             AssessmentReviewData review,
+            AssessmentAuditSnapshot snapshot,
             AssessmentRecordStatus status,
+            List<String> changes,
             LocalDateTime now
     );
 

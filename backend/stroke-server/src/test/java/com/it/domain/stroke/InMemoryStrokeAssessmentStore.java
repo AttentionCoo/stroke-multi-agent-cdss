@@ -24,7 +24,8 @@ class InMemoryStrokeAssessmentStore implements StrokeAssessmentStore {
     public StrokeAssessmentRecord create(Long doctorId, StrokeAssessmentData data, LocalDateTime now) {
         long id = assessmentIds.incrementAndGet();
         StrokeAssessmentRecord record = new StrokeAssessmentRecord(
-                id, doctorId, data, 1, AssessmentRecordStatus.DRAFT, now, now
+                id, doctorId, data, 1, AssessmentRecordStatus.DRAFT,
+                List.of("创建评估记录"), now, now
         );
         assessments.put(id, record);
         return record;
@@ -49,11 +50,12 @@ class InMemoryStrokeAssessmentStore implements StrokeAssessmentStore {
             StrokeAssessmentRecord existing,
             StrokeAssessmentData data,
             AssessmentRecordStatus status,
+            List<String> changes,
             LocalDateTime now
     ) {
         StrokeAssessmentRecord updated = new StrokeAssessmentRecord(
                 existing.id(), existing.doctorId(), data, existing.version() + 1,
-                status, existing.createdAt(), now
+                status, changes, existing.createdAt(), now
         );
         assessments.put(updated.id(), updated);
         return updated;
@@ -64,15 +66,17 @@ class InMemoryStrokeAssessmentStore implements StrokeAssessmentStore {
             StrokeAssessmentRecord assessment,
             Long doctorId,
             AssessmentReviewData review,
+            AssessmentAuditSnapshot snapshot,
             AssessmentRecordStatus status,
+            List<String> changes,
             LocalDateTime now
     ) {
         AssessmentReviewRecord record = new AssessmentReviewRecord(
                 reviewIds.incrementAndGet(), assessment.id(), doctorId, review.action(),
-                review.reason(), assessment.version(), assessment.data(), now
+                review.reason(), assessment.version(), snapshot, now
         );
         reviewRecords.add(record);
-        return update(assessment, assessment.data(), status, now);
+        return update(assessment, assessment.data(), status, changes, now);
     }
 
     @Override

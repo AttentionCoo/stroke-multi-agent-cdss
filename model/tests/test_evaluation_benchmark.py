@@ -1,4 +1,7 @@
-from app.evaluation.benchmark import run_benchmark, score_case
+import json
+import sys
+
+from app.evaluation.benchmark import dataset_sha256, main, run_benchmark, score_case
 
 
 def test_score_case_checks_required_forbidden_and_citation_rules():
@@ -70,3 +73,23 @@ def test_run_benchmark_reports_coverage_and_pass_rate():
     assert report["coverage"] == 0.5
     assert report["pass_rate"] == 0.5
     assert report["results"][1]["status"] == "missing_prediction"
+
+
+def test_cli_records_case_and_prediction_hashes(tmp_path, monkeypatch):
+    cases_path = tmp_path / "cases.jsonl"
+    predictions_path = tmp_path / "predictions.jsonl"
+    output_path = tmp_path / "report.json"
+    cases_path.write_text('{"id":"a","expected":{}}\n', encoding="utf-8")
+    predictions_path.write_text('{"id":"a","output":"ok"}\n', encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", [
+        "benchmark",
+        "--cases", str(cases_path),
+        "--predictions", str(predictions_path),
+        "--output", str(output_path),
+    ])
+
+    main()
+
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    assert report["dataset_sha256"] == dataset_sha256(cases_path)
+    assert report["predictions_sha256"] == dataset_sha256(predictions_path)

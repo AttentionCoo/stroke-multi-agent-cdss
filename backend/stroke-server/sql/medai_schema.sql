@@ -138,6 +138,7 @@ CREATE TABLE `stroke_assessment` (
   `notes` text COMMENT '补充信息',
   `version` int NOT NULL DEFAULT 1 COMMENT '乐观版本号',
   `status` varchar(24) NOT NULL DEFAULT 'DRAFT' COMMENT '审核状态',
+  `change_summary` text COMMENT '当前版本相对上一版本的差异 JSON',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),

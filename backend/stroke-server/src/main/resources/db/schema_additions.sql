@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS stroke_assessment (
     notes                       TEXT NULL,
     version                     INT NOT NULL DEFAULT 1,
     status                      VARCHAR(24) NOT NULL DEFAULT 'DRAFT',
+    change_summary              TEXT NULL,
     create_time                 DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time                 DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_stroke_assessment_doctor_time(doctor_id, update_time),

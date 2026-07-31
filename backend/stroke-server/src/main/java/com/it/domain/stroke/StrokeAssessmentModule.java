@@ -48,9 +48,10 @@ public class StrokeAssessmentModule {
         AssessmentEvaluation before = evaluator.evaluate(existing.data());
         AssessmentEvaluation after = evaluator.evaluate(data);
         List<String> changes = evaluator.compare(before, after);
-        AssessmentEvaluation withChanges = withChanges(after, changes);
-        StrokeAssessmentRecord updated = store.update(existing, data, AssessmentRecordStatus.DRAFT, now());
-        return toView(updated, withChanges);
+        StrokeAssessmentRecord updated = store.update(
+                existing, data, AssessmentRecordStatus.DRAFT, changes, now()
+        );
+        return toView(updated, after);
     }
 
     public StrokeAssessmentView review(Long doctorId, Long assessmentId, AssessmentReviewData review) {
@@ -62,7 +63,16 @@ public class StrokeAssessmentModule {
             case REQUEST_EDIT -> AssessmentRecordStatus.EDIT_REQUIRED;
             case REJECT -> AssessmentRecordStatus.REJECTED;
         };
-        StrokeAssessmentRecord updated = store.review(existing, doctorId, review, status, now());
+        AssessmentAuditSnapshot snapshot = new AssessmentAuditSnapshot(
+                existing.data(), evaluation, existing.status(), existing.version(),
+                StrokeAssessmentEvaluator.RULE_VERSION
+        );
+        List<String> changes = List.of(
+                "审核状态：" + existing.status() + " → " + status
+        );
+        StrokeAssessmentRecord updated = store.review(
+                existing, doctorId, review, snapshot, status, changes, now()
+        );
         return toView(updated, evaluation);
     }
 
@@ -132,9 +142,10 @@ public class StrokeAssessmentModule {
     }
 
     private StrokeAssessmentView toView(StrokeAssessmentRecord record, AssessmentEvaluation evaluation) {
+        AssessmentEvaluation persistedChanges = withChanges(evaluation, record.changes());
         return new StrokeAssessmentView(
                 record.id(), record.doctorId(), record.data(), record.version(), record.status(),
-                evaluation, record.createdAt(), record.updatedAt()
+                persistedChanges, record.createdAt(), record.updatedAt()
         );
     }
 
