@@ -35,6 +35,8 @@ import java.util.concurrent.TimeUnit;
 @Transactional
 public class RegiServiceImpl extends ServiceImpl<RegiMapper, User> implements com.it.service.IRegiService {
 
+    private static final int MAX_USERNAME_LENGTH = 15;
+
     private final StringRedisTemplate stringRedisTemplate;
     private final BCryptPasswordEncoder passwordEncoder;
     private final RedissonClient redissonClient;
@@ -79,6 +81,9 @@ public class RegiServiceImpl extends ServiceImpl<RegiMapper, User> implements co
 
         if (StrUtil.isBlank(username) || StrUtil.isBlank(u.getPassword())) {
             return Result.error("用户名或密码不能为空");
+        }
+        if (username.length() > MAX_USERNAME_LENGTH) {
+            return Result.error("用户名最多15个字符");
         }
 
         try {

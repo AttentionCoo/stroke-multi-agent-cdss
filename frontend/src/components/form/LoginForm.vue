@@ -13,6 +13,7 @@ const loginFormData = ref({
 })
 
 const errorMessage = ref('')
+const MAX_USERNAME_LENGTH = 15
 
 async function handleLogin() {
   errorMessage.value = ''
@@ -23,6 +24,10 @@ async function handleLogin() {
   }
   if (loginFormData.value.name.length < 3) {
     errorMessage.value = '用户名至少为3个字符'
+    return
+  }
+  if (loginFormData.value.name.length > MAX_USERNAME_LENGTH) {
+    errorMessage.value = `用户名最多${MAX_USERNAME_LENGTH}个字符`
     return
   }
   if (!loginFormData.value.password) {
@@ -64,6 +69,7 @@ async function handleLogin() {
           <UserSVG size="20" color="var(--color-text-medium)"></UserSVG>
         </span>
         <input v-model="loginFormData.name" class="auth-input" type="text" placeholder="请输入用户名"
+          :maxlength="MAX_USERNAME_LENGTH"
           @keyup.enter="handleLogin" />
         <span class="auth-input-highlight"></span>
       </div>

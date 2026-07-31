@@ -2,6 +2,7 @@ package com.it.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.it.cache.SSEEventCache;
+import com.it.domain.consultation.QuestionScopeGuard;
 import com.it.po.uo.QuesParam;
 import com.it.pojo.Result;
 import com.it.pojo.Talk;
@@ -31,6 +32,7 @@ public class QuesController {
     private final AIStreamingService streamingService;
     private final ObjectMapper objectMapper;
     private final SSEEventCache eventCache;
+    private final QuestionScopeGuard questionScopeGuard;
 
     @GetMapping("/getQues/{talk_id}")
     public Result getPreContent(@PathVariable("talk_id") String talkIdStr) {
@@ -59,6 +61,17 @@ public class QuesController {
         response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         if (ThreadLocalUtil.getCurrentUser() == null) {
             return Flux.just(sse("error", json("error", mapOf("message", "未登录"))));
+        }
+
+        String question = quesParam == null ? null : quesParam.getQuestion();
+        List<String> images = quesParam == null ? List.of() : quesParam.getImages();
+        QuestionScopeGuard.Decision scopeDecision = questionScopeGuard.inspect(question, images);
+        if (!scopeDecision.allowed()) {
+            log.info("问诊范围拦截: reason={}", scopeDecision.reasonCode());
+            return Flux.just(
+                    sse("result", json("result", mapOf("content", scopeDecision.message()))),
+                    sse("done", json("done", mapOf("title", "问题范围提示")))
+            );
         }
 
         String upstreamToken = resolveToken(token, authorization);
@@ -138,7 +151,7 @@ public class QuesController {
         eventCache.registerStream(finalTalkIdStr);
 
         Flux<String> chatFlux = streamingService
-                .streamChat(userId, finalTalkId, quesParam.getQuestion(), upstreamToken, quesParam.getImages())
+                .streamChat(userId, finalTalkId, question, upstreamToken, images)
                 .map(this::wrapChunkIfNeeded);
 
         // 心跳终止信号：业务流（正常或异常）结束时 emit，通知心跳流停止

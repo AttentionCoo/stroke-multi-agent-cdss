@@ -14,6 +14,7 @@ const registerFormData = ref({
 })
 
 const errorMessage = ref('')
+const MAX_USERNAME_LENGTH = 15
 
 async function handleRegister() {
   errorMessage.value = ''
@@ -24,6 +25,10 @@ async function handleRegister() {
   }
   if (registerFormData.value.name.length < 3) {
     errorMessage.value = '用户名至少为3个字符'
+    return
+  }
+  if (registerFormData.value.name.length > MAX_USERNAME_LENGTH) {
+    errorMessage.value = `用户名最多${MAX_USERNAME_LENGTH}个字符`
     return
   }
   if (!registerFormData.value.password) {
@@ -88,6 +93,7 @@ async function handleRegister() {
           <UserSVG size="20" color="var(--color-text-medium)"></UserSVG>
         </span>
         <input v-model="registerFormData.name" class="auth-input" type="text" placeholder="请输入用户名"
+          :maxlength="MAX_USERNAME_LENGTH"
           @keyup.enter="handleRegister" />
         <span class="auth-input-highlight"></span>
       </div>
