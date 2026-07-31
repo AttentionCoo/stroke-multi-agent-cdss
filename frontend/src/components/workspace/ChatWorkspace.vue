@@ -532,7 +532,9 @@ function getThinkingData(msgIndex) {
 
 function evidenceCardsFor(msg, index) {
   if (isUserMessage(msg, index)) return []
-  if ((props.isStreaming || props.isThinking) && index === props.currentTalkList.length - 1) return []
+  const isLatestStreamingMessage =
+    (props.isStreaming || props.isThinking) && index === props.currentTalkList.length - 1
+  if (isLatestStreamingMessage) return []
   return buildEvidenceCards(msgText(msg))
 }
 </script>
