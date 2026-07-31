@@ -17,7 +17,6 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@CrossOrigin("*")
 @RequestMapping("/api/documents")
 @RequiredArgsConstructor
 public class DocumentController {

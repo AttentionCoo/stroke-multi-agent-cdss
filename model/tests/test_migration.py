@@ -59,29 +59,18 @@ class TestArchitectureMigration:
         except Exception as e:
             pytest.fail(f"❌ main.py 导入检查失败: {e}")
 
-    def test_evaluation_files_imports(self):
-        """测试评估文件中的导入是否正确"""
+    def test_evaluation_runner_is_offline(self):
+        """测试离线评测器不依赖推理智能体"""
         try:
-            with open("evaluation/getTestData.py", "r", encoding="utf-8") as f:
+            with open("app/evaluation/benchmark.py", "r", encoding="utf-8") as f:
                 content = f.read()
-            
-            assert "from app.agents.orchestrators.qwen_agent import QwenAgent" in content
-            assert "from app.agents.qwen.qwenAgent import qwenAgent" not in content
-            
-            print("✅ getTestData.py 导入路径已正确更新")
-        except Exception as e:
-            pytest.fail(f"❌ getTestData.py 导入检查失败: {e}")
 
-        try:
-            with open("evaluation/getTestData_analysis.py", "r", encoding="utf-8") as f:
-                content = f.read()
-            
-            assert "from app.agents.orchestrators.qwen_agent import QwenAgent" in content
-            assert "from app.agents.qwen.qwenAgent import qwenAgent" not in content
-            
-            print("✅ getTestData_analysis.py 导入路径已正确更新")
+            assert "def run_benchmark" in content
+            assert "from app.agents" not in content
+
+            print("✅ 离线评测器与推理智能体保持隔离")
         except Exception as e:
-            pytest.fail(f"❌ getTestData_analysis.py 导入检查失败: {e}")
+            pytest.fail(f"❌ 离线评测器检查失败: {e}")
 
     def test_new_architecture_structure(self):
         """测试新架构的目录结构"""
@@ -128,8 +117,7 @@ class TestMedicalAssistantInterface:
             from app.agents.assistant import MedicalAssistant
             
             required_methods = [
-                'fast_parallel_retrieve',
-                'parallel_retrieve_and_synthesize',
+                'afast_parallel_retrieve',
                 'stream_fast_response',
                 'stream_final_report'
             ]

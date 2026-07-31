@@ -4,12 +4,12 @@ aiserver:
     host: ${DB_HOST:127.0.0.1}
     port: ${DB_PORT:3306}
     database: ${DB_NAME:medai}
-    username: root
+    username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD}
   redis:
-    host: 127.0.0.1
-    port: 6379
-    password: ""
+    host: ${REDIS_HOST:127.0.0.1}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD}
   ai-api:
     url: ${AI_API_URL:http://127.0.0.1:8000}
     shared-jwt-secret: ${AI_API_SHARED_JWT_SECRET}
@@ -21,6 +21,11 @@ aiserver:
     access-key-secret: ${OSS_ACCESS_KEY_SECRET:}
     document-prefix: ${OSS_DOC_PREFIX:documents/}
     sign-url-expiration: 1800
+
+app:
+  clinical-zone: ${CLINICAL_ZONE:Asia/Shanghai}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
 
 mybatis-plus:
   global-config:

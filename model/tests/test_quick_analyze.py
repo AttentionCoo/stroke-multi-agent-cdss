@@ -5,12 +5,19 @@
 import os
 import json
 import asyncio
+import pytest
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 
 load_dotenv()
 
+pytestmark = pytest.mark.skipif(
+    os.getenv("RUN_LIVE_MODEL_TESTS") != "1",
+    reason="在线模型冒烟测试需显式设置 RUN_LIVE_MODEL_TESTS=1",
+)
+
+@pytest.mark.asyncio
 async def test_quick_analyze():
     """测试快速AI意见功能"""
     print("=" * 80)

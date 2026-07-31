@@ -19,7 +19,6 @@ import java.util.Map;
  * 与 AI 问答 SSE 管线完全解耦，返回普通 JSON。
  */
 @RestController
-@CrossOrigin("*")
 @RequestMapping("/api/pubmed")
 @Slf4j
 @RequiredArgsConstructor

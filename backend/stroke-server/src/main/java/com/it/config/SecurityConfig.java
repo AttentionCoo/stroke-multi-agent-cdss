@@ -1,5 +1,6 @@
 package com.it.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -11,11 +12,15 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    @Value("${app.cors.allowed-origins:http://localhost,http://localhost:5173,http://127.0.0.1:5173}")
+    private String allowedOrigins;
 
     @Bean
     public BCryptPasswordEncoder passwordEncoder() {
@@ -55,11 +60,12 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // 允许所有来源（生产环境建议改为具体域名）
-        config.setAllowedOriginPatterns(List.of("*"));
+        config.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isEmpty())
+                .toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
-        // 允许携带 Cookie / Authorization header（与 allowedOriginPatterns("*") 配合使用）
         config.setAllowCredentials(true);
         // 预检结果缓存 1 小时，减少 OPTIONS 请求
         config.setMaxAge(3600L);

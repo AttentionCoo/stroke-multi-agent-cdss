@@ -1,8 +1,7 @@
 import os
 import sys
 import pytest
-from unittest.mock import Mock, MagicMock, AsyncMock
-from typing import AsyncGenerator
+from unittest.mock import Mock, AsyncMock
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -16,7 +15,11 @@ from app.config.config_loader import PromptManager, ReportTemplateManager
 def mock_llm():
     """创建模拟的 LLM"""
     llm = Mock()
-    llm.astream = AsyncMock()
+    async def empty_stream(_messages):
+        if False:
+            yield None
+
+    llm.astream = empty_stream
     llm.ainvoke = AsyncMock()
     llm.invoke = Mock()
     return llm
@@ -66,7 +69,8 @@ class TestMedicalAssistant:
         assert assistant.prompts == mock_prompt_manager
         assert assistant.reports == mock_report_manager
 
-    def test_fast_parallel_retrieve_empty_questions(self, mock_llm, mock_retriever, mock_prompt_manager, mock_report_manager):
+    @pytest.mark.asyncio
+    async def test_fast_parallel_retrieve_empty_questions(self, mock_llm, mock_retriever, mock_prompt_manager, mock_report_manager):
         """测试空问题列表的并行检索"""
         assistant = MedicalAssistant(
             llm_main=mock_llm,
@@ -75,19 +79,7 @@ class TestMedicalAssistant:
             prompt_manager=mock_prompt_manager,
             report_manager=mock_report_manager
         )
-        result = assistant.fast_parallel_retrieve([])
-        assert result == ""
-
-    def test_parallel_retrieve_and_synthesize_empty_questions(self, mock_llm, mock_retriever, mock_prompt_manager, mock_report_manager):
-        """测试空问题列表的并行检索和合成"""
-        assistant = MedicalAssistant(
-            llm_main=mock_llm,
-            llm_fast=mock_llm,
-            retriever=mock_retriever,
-            prompt_manager=mock_prompt_manager,
-            report_manager=mock_report_manager
-        )
-        result = assistant.parallel_retrieve_and_synthesize([])
+        result = await assistant.afast_parallel_retrieve([])
         assert result == ""
 
     @pytest.mark.asyncio
@@ -103,7 +95,10 @@ class TestMedicalAssistant:
         
         mock_chunk = Mock()
         mock_chunk.content = "测试响应"
-        mock_llm.astream.return_value = [mock_chunk]
+        async def response_stream(_messages):
+            yield mock_chunk
+
+        mock_llm.astream = response_stream
         
         result = []
         async for chunk in assistant.stream_fast_response("测试病例"):

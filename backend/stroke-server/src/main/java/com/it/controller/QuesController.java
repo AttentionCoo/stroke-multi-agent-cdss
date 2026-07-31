@@ -24,7 +24,6 @@ import java.util.Map;
 
 @Slf4j
 @RestController
-@CrossOrigin("*")
 @RequestMapping("/api/user/ques")
 @RequiredArgsConstructor
 public class QuesController {

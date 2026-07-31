@@ -1,18 +1,20 @@
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import DeleteSVG from '@/components/svg/DeleteSVG.vue'
 import DeleteAllSVG from '@/components/svg/DeleteAllSVG.vue'
 import SendSVG from '@/components/svg/SendSVG.vue'
 import ThinkingPanel from './ThinkingPanel.vue'
-import PdfPreviewModal from '@/components/PdfPreviewModal.vue'
 import { injectRefLinks } from '@/utils/referenceParser'
+import { buildEvidenceCards } from '@/utils/strokeAssessment'
 import { matchDocumentAPI } from '@/api/documents'
 import { compressImage } from '@/utils/imageCompress'
 import AttachFileSVG from '../svg/AttachFileSVG.vue'
 
 defineOptions({ name: 'ChatWorkspace' })
+
+const PdfPreviewModal = defineAsyncComponent(() => import('@/components/PdfPreviewModal.vue'))
 
 marked.setOptions({ gfm: true, breaks: true })
 
@@ -527,6 +529,12 @@ function getThinkingData(msgIndex) {
   const entry = props.thinkingHistoryList[aiMsgIndex]
   return entry?.events?.length ? entry : null
 }
+
+function evidenceCardsFor(msg, index) {
+  if (isUserMessage(msg, index)) return []
+  if ((props.isStreaming || props.isThinking) && index === props.currentTalkList.length - 1) return []
+  return buildEvidenceCards(msgText(msg))
+}
 </script>
 
 <template>
@@ -570,7 +578,7 @@ function getThinkingData(msgIndex) {
         <div style="display: flex; align-items: center; gap: 12px;">
           <h3>实时问诊</h3>
           <span class="state-pill" :class="{ live: isStreaming || isThinking, thinking: isThinking }">
-            {{ isThinking ? '思考中' : isStreaming ? '生成中' : '待输入' }}
+            {{ isThinking ? '分析中' : isStreaming ? '生成中' : '待输入' }}
           </span>
         </div>
       </div>
@@ -612,7 +620,7 @@ function getThinkingData(msgIndex) {
                   <span class="thinking-dots">
                     <span></span><span></span><span></span>
                   </span>
-                  <span class="thinking-text">{{ thinkingHint || 'AI 思考中...' }}</span>
+                  <span class="thinking-text">{{ thinkingHint || 'AI 分析中...' }}</span>
                 </div>
                 <!--
                   【核心优化】使用 renderedHtmlList[index] 替代直接调用 renderMarkdown(msg)。
@@ -624,6 +632,16 @@ function getThinkingData(msgIndex) {
                 <div class="markdown-body"
                   :class="{ 'streaming-active': isStreaming && index === currentTalkList.length - 1 }"
                   v-html="renderedHtmlList[index] || ''"></div>
+                <section v-if="evidenceCardsFor(msg, index).length" class="evidence-map" aria-label="建议与证据">
+                  <h4>建议与证据</h4>
+                  <article v-for="(card, cardIndex) in evidenceCardsFor(msg, index)" :key="`${index}-${cardIndex}`">
+                    <p>{{ card.statement }}</p>
+                    <div>
+                      <button v-for="source in card.sources" :key="source" type="button"
+                        @click="openRefPopup(source)">《{{ source }}》</button>
+                    </div>
+                  </article>
+                </section>
               </template>
             </div>
           </article>
@@ -1474,6 +1492,50 @@ function getThinkingData(msgIndex) {
   border-radius: var(--radius-md);
   padding: 10px 12px;
   background: var(--color-code-bg);
+}
+
+.evidence-map {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.evidence-map h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--color-text-strong);
+}
+
+.evidence-map article {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border-item);
+}
+
+.evidence-map article:last-child {
+  border-bottom: 0;
+}
+
+.evidence-map p {
+  margin: 0 0 6px;
+  color: var(--color-text-medium);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.evidence-map article div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.evidence-map button {
+  border: 0;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-secondary-bg);
+  color: var(--color-primary-dark);
+  font-size: 11px;
+  cursor: pointer;
 }
 
 /* ─────────────────── Responsive ─────────────────── */

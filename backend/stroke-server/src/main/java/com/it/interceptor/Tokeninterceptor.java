@@ -22,13 +22,6 @@ public class Tokeninterceptor implements HandlerInterceptor {
         }
         ThreadLocalUtil.setCurrentIp(ip);
 
-        // 打印请求中的 token（如果有）或 Authorization，便于排查前端 header 名称不一致问题
-        String tokenHeader = request.getHeader("token");
-        String authHeader = request.getHeader("Authorization");
-
-        if (tokenHeader != null) log.debug("请求 token header: {}", tokenHeader);
-        if (authHeader != null) log.debug("请求 Authorization header: {}", authHeader);
-
         // 放行匿名接口（注册、登录、退出），避免拦截器阻断这些请求
         // 注意：根据你项目的路由，这里列出常见需要放行的 URL
         if (uri.startsWith("/api/user/register") || uri.startsWith("/api/user/login") || uri.startsWith("/api/user/logOut")) {

@@ -12,7 +12,7 @@ aiserver:
     password: ${REDIS_PASSWORD:}
   ai-api:
     url: ${AI_API_URL:http://localhost:8000}
-    shared-jwt-secret: dev-local-secret
+    shared-jwt-secret: ${AI_API_SHARED_JWT_SECRET:dev-local-secret-change-me-at-least-32-characters}
   alioss:
     endpoint: https://oss-cn-beijing.aliyuncs.com
     bucketName: darkside
@@ -22,3 +22,8 @@ aiserver:
 logging:
   level:
     root: INFO
+
+app:
+  clinical-zone: ${CLINICAL_ZONE:Asia/Shanghai}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost,http://localhost:5173,http://127.0.0.1:5173}

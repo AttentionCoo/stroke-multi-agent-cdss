@@ -22,31 +22,33 @@
 
 ---
 
-> 本项目是一套专为脑卒中（Stroke）临床场景打造的智能医疗辅助决策系统。系统以权威医学文献与临床指南为知识底座，融合 **Hybrid RAG（混合检索增强生成）**、**LangGraph 多智能体协同推理**与**全栈响应式高并发全链路流式架构**，实现了从患者病例输入到"证据先行、过程透明、结果合规"的完整决策闭环。
+> 本项目是一套面向脑卒中（Stroke）临床场景的智能医疗辅助决策原型。系统以本地医学文献与临床指南为知识底座，融合 **Hybrid RAG（混合检索增强生成）**、**LangGraph 多智能体协同推理**、结构化绿道预评估与医生复核审计，支持从病例输入、证据检索到辅助分析和人工复核的完整演示流程。
 
 ---
 
 ## ⚡ 快速启动
 
-推荐使用 Docker Compose 一次性启动前端、后端、模型服务、MySQL 与 Redis。启动前请先确认 Docker Desktop 已运行，并按以下步骤配置模型服务环境变量：
+推荐使用 Docker Compose 一次性启动前端、后端、模型服务、MySQL 与 Redis。启动前请先确认 Docker Desktop 已运行，并按以下步骤创建根目录与模型服务的环境变量：
 
 **第一步：创建环境变量文件**
 
 ```bash
 # Linux / macOS
+cp .env.example .env
 cp model/.env.example model/.env
 
 # Windows PowerShell
+Copy-Item .env.example .env
 Copy-Item model/.env.example model/.env
 ```
 
 **第二步：配置密钥**
 
-编辑 `model/.env`，至少填入以下两项：
+编辑根目录 `.env`，为数据库、Redis、服务间鉴权设置独立强密码；再编辑 `model/.env`，至少填入模型密钥，并确保两处 `SECRET_KEY` 完全一致：
 
 ```env
 DASHSCOPE_API_KEY=sk-您的阿里云百炼平台密钥
-SECRET_KEY=自定义防越权JWT随机字符串（至少32位）
+SECRET_KEY=与根目录.env一致的随机字符串（至少32位）
 ```
 
 > 💡 **提示**：`DASHSCOPE_API_KEY` 从 [阿里云百炼平台](https://bailian.console.aliyun.com/) 获取；`SECRET_KEY` 可任意生成一段随机字符串。
@@ -105,9 +107,9 @@ docker compose up -d
 
 | 层级 | 名称 | 核心技术 | 职责 |
 |:---:|------|----------|------|
-| **外层** | 流程控制层 | LangGraph 状态图 | 定义医疗业务状态图，关键决策节点引入人工/规则审批，强制关键节点停等，确保全流程合规可追溯 |
+| **外层** | 结构化流程层 | 绿道评估模块 + LangGraph 状态图 | 在原有模型流程外增加字段完整性、时间窗、关键阈值预检查，以及医生复核和审计记录 |
 | **中层** | 多专家协同层 | Multi-Agent 并行推理 | 模拟真实临床会诊，由**全科医生**、**神经专科医生**、**临床药师**并行推理，交叉把关减少盲点，支持 Tree-of-Thoughts 分支搜索 |
-| **后层** | 双重校验层 | 规则引擎 + LLM 反思 | "静态禁忌症规则引擎（硬拦截）+ 动态 LLM 反思（深层医学逻辑软审查）"双重过滤，校验失败自动拉回触发反思循环 |
+| **后层** | 模型校验层 | 规则配置 + LLM 反思 | 保留原有模型推理与校验算法，对模型结果进行规则提示和反思循环 |
 
 ### 🔎 2. 证据前置的深度定制 Hybrid RAG
 
@@ -118,11 +120,11 @@ docker compose up -d
 
 ### ⚡ 3. 全栈响应式流式数据管道（Reactive Stream Pipeline）
 
-底座采用 **Java WebFlux 响应式高并发框架**与 **Python Asyncio 异步队列**深度流式融合，打通了从底层智能体组装到前端 Vue3 `ReadableStream` 实时渲染的链路，使得 AI 的 **Thinking Step（思考过程）** 完全透明可视化。
+后端通过 `WebClient`/Reactor 转发 SSE 流，模型服务使用 Python Asyncio，前端通过 Vue 3 `ReadableStream` 增量渲染。界面展示的是可观察的分析阶段、证据引用和校验状态，不展示或宣称暴露模型内部思维链。
 
-### 🆕 4. 完整测试体系
+### 🆕 4. 分层测试与可复现评测
 
-系统配备多维度自动化测试套件，覆盖 RAG 召回率验证、API 接口测试、架构迁移验证及端到端优化逻辑测试，确保系统稳定可靠。
+系统配备前端、后端与模型层自动化测试；新增离线评测运行器，对必需信息、禁用表述、引用白名单和结果哈希进行可复现检查。临床结论仍需使用冻结病例集和专家盲评另行验证。
 
 ---
 
@@ -218,7 +220,7 @@ Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
 
 ## ⚙️ 系统整体功能模块
 
-本项目围绕真实医疗及临床科研/教学场景，构建了四大核心闭环模块：
+本项目围绕医疗辅助分析场景，构建了五个可演示模块：
 
 ### 1. 🤖 智能问诊与 AI 临床辅助分析模块
 
@@ -226,10 +228,17 @@ Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
 
 - **结构化临床输出**：包括最可能诊断及依据、解剖定位分析（如责任血管评估）、病理机制解释、置信度评估及需排除的重要鉴别诊断。
 - **安全路径切换**：具备"极速与安全双路径设计"——简单知识问答快速响应，涉及高风险临床诊断自动切入多智能体深度分析。
-- **急诊绿道模式**：当识别到疑似急性缺血性脑卒中（AIS）患者时，系统界面自动启动**发病时间窗倒计时**与 **DNT（入院到溶栓时间）计时器**，实时高亮提示溶栓/取栓窗口剩余时间。
 - **多模态支持**：支持检验报告单 OCR 识别、药品包装图片识别等视觉输入。
 
-### 2. 👤 患者电子档案与个体化分析模块（EHR）
+### 2. ⏱️ 急诊绿道结构化评估模块
+
+- **结构化录入**：关联患者，记录最后正常时间、到院时间、血压、血糖、NIHSS、血小板、INR、抗凝药与影像关键结论。
+- **时效与完整性**：动态展示 4.5 小时静脉溶栓参考窗口、24 小时取栓评估参考窗口和 DNT；缺失字段单独列出。
+- **关键风险预检查**：按结构化数据提示出血、血压、血小板和 INR 等风险信号，并展示规则来源。该结果只用于信息核对，不替代医生判断。
+- **人工复核闭环**：支持保存评估、修改前后差异、接受/退回/驳回、复核理由与不可变快照审计。
+- **交付能力**：支持打印报告和 FHIR R4 风格原型 Bundle 导出；FHIR 仅用于互操作演示，尚未完成院内适配认证。
+
+### 3. 👤 患者电子档案与个体化分析模块（EHR）
 
 系统引入患者档案管理机制，支持长期随访与动态优化：
 
@@ -237,14 +246,14 @@ Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
 - **上下文联动**：单次问诊结束后，后台异步模型自动总结当前对话重点并更新至 `all_info` 上下文，后续多轮就诊自动结合历史记录进行个体化风险评估。
 - **健康数据分析**：支持健康数据与医患对话同步，自动生成 AI 风险分析意见。
 
-### 3. 📚 医学知识学习与文献检索模块
+### 4. 📚 医学知识学习与文献检索模块
 
 - **本地指南增强**：内置 **12 篇**中国脑卒中相关权威指南与共识，提供在线阅读与结构化浏览，同时作为 RAG 底座为推理提供强力的证据支撑。
 - **在线文献拓扑**：提供外部 PubMed 接口连接支持，可根据临床症状一键抓取最新外文高水平文献列表。
 
-### 4. 🧪 自动化测试与评估模块
+### 5. 🧪 自动化测试与评估模块
 
-- **RAGAS 自动化评测**：基于 RAGAS 框架对检索增强生成质量进行自动化评估。
+- **离线规则评测**：对冻结输入与预测结果执行必需信息、禁用表述、引用白名单检查，输出 JSON、Markdown 和 SHA-256 哈希。
 - **多维度 API 测试**：覆盖核心推理接口、快速分析接口、同步分析接口的端到端测试。
 - **架构迁移验证**：确保系统重构后功能完整性与行为一致性。
 
@@ -301,11 +310,11 @@ Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
 stroke-multi-agent-system/
 ├── frontend/                              # 🎨 前端工程 (Vue 3 + Vite 7)
 │   ├── src/
-│   │   ├── api/                           # 封装 Fetch 响应式流请求 (ai, user, patient, talk, learning, documents)
+│   │   ├── api/                           # API 封装（含 strokeAssessment 评估接口）
 │   │   ├── components/                    # UI 组件
 │   │   │   ├── form/                      # 表单组件 (登录、注册、编辑)
 │   │   │   ├── svg/                       # SVG 图标组件
-│   │   │   └── workspace/                 # 工作区组件 (问诊对话、患者管理、文献学习、思考面板)
+│   │   │   └── workspace/                 # 问诊、绿道、患者、文献与分析进度工作区
 │   │   ├── router/                        # Vue Router 路由配置
 │   │   ├── stores/                        # Pinia 状态管理 (用户状态、主题)
 │   │   ├── utils/                         # 工具函数 (请求封装、图片压缩、引用解析、暂停控制)
@@ -318,7 +327,9 @@ stroke-multi-agent-system/
 │       ├── src/main/java/com/it/
 │       │   ├── cache/                     # SSE 断线续传事件缓存 + 在线用户追踪
 │       │   ├── config/                    # 配置类 (Security, Redis, Redisson, WebClient, Jackson, OSS)
-│       │   ├── controller/                # 响应式 Flux 控制层 (SSE 路由, REST API, 文件上传)
+│       │   ├── controller/                # SSE 转发、REST API 与文件上传控制层
+│       │   ├── domain/stroke/             # 结构化卒中评估、复核与导出领域模块
+│       │   ├── adapter/stroke/            # 评估模块 MyBatis 持久化适配器
 │       │   ├── handler/                   # 全局异常拦截器
 │       │   ├── interceptor/               # JWT 双重拦截器 (Token 校验 + 自动续期) + Redis 限流
 │       │   ├── mapper/                    # MyBatis-Plus Mapper 接口
@@ -358,7 +369,7 @@ stroke-multi-agent-system/
 │   │   │   └── report_templates.yaml      # 报告模板 (5 种模式)
 │   │   ├── rag/                           # RAG 模块 (QA 自动生成、混合检索、RRF 融合与语义重排)
 │   │   ├── services/                      # 外部服务 (PubMed 文献抓取、Vision 多模态识别)
-│   │   ├── evaluation/                    # 评估模块 (RAGAS 自动化评测)
+│   │   ├── evaluation/                    # 可复现离线规则评测运行器
 │   │   ├── utils/                         # 通用工具 (上下文摘要, 错误码, 命名模型)
 │   │   └── main.py                        # FastAPI 异步服务入口 (lifespan 资源管理)
 │   ├── data/
@@ -384,24 +395,19 @@ stroke-multi-agent-system/
 
 ---
 
-## 📊 权威医学评测与效果验证（Evaluation）
+## 📊 可复现评测与验证状态（Evaluation）
 
-系统引入了基于 **RAGAS (RAG Assessment)** 框架的自动化评测，并邀请多位神经内科临床专家针对卒中特异性场景（如 TOAST 分型、溶栓/取栓时间窗、禁忌症筛查）进行了多维度的盲评（Blind Review）：
+仓库提供 `model/app/evaluation/benchmark.py` 离线评测运行器、6 个合成边界病例和结果归档规范。运行器不会调用大模型，因此不会改变现有推理算法；它只对待测输出检查必需信息、禁用表述与引用白名单，并记录输入/输出哈希。
 
-### 🏅 临床专业评测维度得分
+```bash
+cd model
+python -m app.evaluation.benchmark \
+  --cases app/evaluation/benchmark_cases.jsonl \
+  --predictions app/evaluation/predictions.example.jsonl \
+  --output app/evaluation/results/smoke.json
+```
 
-| 评估维度 | 传统通用大模型 | 🏆 本系统 (MedLLM) | 临床专家盲评结论 |
-|:---|:---:|:---:|------|
-| **诊断准确性**（诊断符合率） | 71.4% | **94.2%** | 结构化输出贴近真实临床思维，解剖定位准确 |
-| **风险意识**（核心禁忌症遗漏） | 14.3%（存在漏报） | **0%（100%拦截）** | 规则引擎与反思机制表现优异，无溶栓禁忌症遗漏 |
-| **方案实用性**（指南推荐契合度） | 62.5% | **89.5%** | 治疗方案紧扣时间窗决策，具备极高临床参考价值 |
-
-### 📈 RAGAS 自动化评估表现
-
-| 评估指标 | 得分 | 说明 |
-|:---|:---:|------|
-| **忠实度 (Faithfulness)** | `0.94` | 方案严格依据检索证据生成，有效杜绝医疗幻觉风险 |
-| **上下文精准度 (Context Precision)** | `0.91` | RRF 融合排序与语义重排协同剔除无关文献干扰 |
+当前仓库未包含可追溯的专家盲评原始记录、冻结预测全集或 RAGAS 结果文件，因此不声明诊断准确率、零漏报率或忠实度等精确临床指标。正式参赛数据应在病例脱敏、版本冻结和专家复核后放入 `model/app/evaluation/results/`，同时保留运行参数与哈希。
 
 ---
 
@@ -560,14 +566,17 @@ aiserver:
     port: 3306
     database: medai
     username: root
-    password: ${MYSQL_PASSWORD:}           # Docker Compose 默认空密码
+    password: ${MYSQL_PASSWORD}            # 从根目录 .env 或系统环境读取
   redis:
     host: 127.0.0.1
     port: 6379
-    password: ""
+    password: ${REDIS_PASSWORD}
   ai-api:
     url: http://localhost:8000           # Python FastAPI 模型服务地址
-    shared-jwt-secret: dev-local-secret
+    shared-jwt-secret: ${AI_API_SHARED_JWT_SECRET}
+
+app:
+  clinical-zone: ${CLINICAL_ZONE:Asia/Shanghai}
 ```
 
 #### 🎨 前端服务配置
@@ -658,7 +667,7 @@ npm run dev
 |------|------|------|------|
 | `node_start` | Python → Java | `{"node_name": "intent"}` | 推理节点开始执行 |
 | `token` | Python → Java | `{"text": "根据..."}` | LLM 生成的单个 token 增量文本 |
-| `thinking` | Python → Java | `{"step": 1, "title": "意图识别", "content": "..."}` | 思考步骤/标题/内容 |
+| `thinking` | Python → Java | `{"step": 1, "title": "意图识别", "content": "..."}` | 可观察的分析阶段、标题与状态摘要 |
 | `done` | Python → Java | `{"name": "...", "request_id": "...", "all_info": "..."}` | 推理完成，含会话名称与上下文摘要 |
 | `error` | Python → Java | `{"error_code": "...", "message": "...", "retryable": true}` | 推理异常，retryable 标识是否可重试 |
 | `heartbeat` | Python → Java | `{"timestamp": "..."}` | 心跳保活（15 秒间隔） |
@@ -692,6 +701,20 @@ npm run dev
 - **路径**：`POST /model/pubmed/search`
 - **说明**：代理 PubMed 文献检索，辅助循证决策
 
+### 5. 结构化绿道评估
+
+| 方法与路径 | 说明 |
+|---|---|
+| `POST /api/stroke-assessments/evaluate` | 执行无副作用的完整性、时间线与关键阈值预检查 |
+| `POST /api/stroke-assessments` | 保存一条评估草稿 |
+| `GET /api/stroke-assessments?limit=20` | 查询当前医生的最近评估 |
+| `PUT /api/stroke-assessments/{id}` | 更新评估并返回风险/完整度变化 |
+| `POST /api/stroke-assessments/{id}/reviews` | 采纳、要求修改或驳回；非采纳动作必须填写原因 |
+| `GET /api/stroke-assessments/{id}/reviews` | 查询版本化审核记录与快照 |
+| `GET /api/stroke-assessments/{id}/fhir` | 导出带原型标记的 FHIR R4 风格 Bundle |
+
+所有持久化接口按当前医生隔离数据；存在关键风险或信息缺失时，后端拒绝“采纳”动作。
+
 > 📖 完整 API 文档请参阅 [docs/backend-technical-documentation.md](docs/backend-technical-documentation.md) 第 7 节：API 接口规范。
 
 ---
@@ -713,6 +736,15 @@ npm run dev
 ---
 
 ## 🔄 版本更新日志
+
+### v2.2.0 (2026-07-31)
+
+- ✅ **新增**：结构化急诊绿道评估、动态时间窗、DNT、完整性与关键风险预检查
+- ✅ **新增**：医生复核、修改差异、审计快照、打印报告与 FHIR 原型导出
+- ✅ **优化**：工作区按需加载，拆分 PDF 预览依赖，降低首屏脚本体积
+- ✅ **安全**：移除令牌日志、收紧 CORS，数据库/Redis/服务密钥改为环境变量配置
+- ✅ **评测**：新增可复现离线评测运行器，清理无原始证据支撑的精确指标声明
+- ✅ **兼容**：保持现有大模型推理图、节点算法、提示词和模型路由不变
 
 ### v2.1.2 (2026-07-26)
 

@@ -1,13 +1,10 @@
-version: "3.9"
-
 services:
   mysql:
     image: ${DOCKER_BASE_IMAGE_REGISTRY:-public.ecr.aws/docker/library}/mysql:8.0
     container_name: stroke-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ""
-      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-stroke-local-only}
       MYSQL_DATABASE: medai
     ports:
       - "3306:3306"
@@ -15,7 +12,7 @@ services:
       - mysql-data:/var/lib/mysql
       - ./backend/stroke-server/sql/medai_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -p\"$${MYSQL_ROOT_PASSWORD}\""]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -24,10 +21,13 @@ services:
     image: ${DOCKER_BASE_IMAGE_REGISTRY:-public.ecr.aws/docker/library}/redis:7-alpine
     container_name: stroke-redis
     restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-stroke-local-only}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-stroke-local-only}
     ports:
       - "6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -43,16 +43,19 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SPRING_PROFILES_ACTIVE: dev
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       MYSQL_HOST: mysql
       MYSQL_PORT: "3306"
       MYSQL_DATABASE: medai
       MYSQL_USERNAME: root
-      MYSQL_PASSWORD: ""
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-stroke-local-only}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      REDIS_PASSWORD: ""
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-stroke-local-only}
       AI_API_URL: http://model:8000
+      AI_API_SHARED_JWT_SECRET: ${AI_API_SHARED_JWT_SECRET:-dev-local-secret-change-me-at-least-32-characters}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost}
+      CLINICAL_ZONE: ${CLINICAL_ZONE:-Asia/Shanghai}
     depends_on:
       mysql:
         condition: service_healthy
@@ -76,6 +79,7 @@ services:
     environment:
       PORT: "8000"
       HOST: "0.0.0.0"
+      SECRET_KEY: ${AI_API_SHARED_JWT_SECRET:-dev-local-secret-change-me-at-least-32-characters}
     volumes:
       - model-data:/app/data
       - model-cache:/app/model_cache

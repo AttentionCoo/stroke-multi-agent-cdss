@@ -3,13 +3,19 @@ import jwt
 import json
 import time
 import requests
+import pytest
 from dotenv import load_dotenv
 
 load_dotenv()
 
+pytestmark = pytest.mark.skipif(
+    os.getenv("RUN_LIVE_API_TESTS") != "1",
+    reason="在线 API 冒烟测试需先启动服务并显式设置 RUN_LIVE_API_TESTS=1",
+)
+
 # 配置访问地址和本地测试使用的秘钥
 BASE_URL = "http://127.0.0.1:8000"
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
+SECRET_KEY = os.getenv("SECRET_KEY", "local-test-secret-key-at-least-32-bytes")
 ALGORITHM = "HS256"
 
 def generate_test_token():

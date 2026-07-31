@@ -124,6 +124,7 @@ class VisionAnalysisService:
         )
         t.start()
 
+        stream_failed = False
         while True:
             item = await queue.get()
             if item is _STREAM_DONE:
@@ -135,7 +136,10 @@ class VisionAnalysisService:
                     "content": f"图片分析失败，请稍后重试。（{type(item).__name__}: {item}）",
                     "failed": True,
                 }
-                break
+                stream_failed = True
+                continue
+            if stream_failed:
+                continue
             yield {"type": "chunk", "content": item}
 
 _DEFAULT_REPORT_SYSTEM = """\

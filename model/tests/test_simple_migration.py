@@ -34,33 +34,18 @@ class TestImportPaths:
         except Exception as e:
             pytest.fail(f"❌ main.py 导入检查失败: {e}")
 
-    def test_evaluation_files_have_correct_imports(self):
-        """测试评估文件中的导入是否正确"""
+    def test_evaluation_runner_is_offline(self):
+        """测试评估运行器不依赖新旧推理入口"""
         try:
-            with open("evaluation/getTestData.py", "r", encoding="utf-8") as f:
+            with open("app/evaluation/benchmark.py", "r", encoding="utf-8") as f:
                 content = f.read()
-            
-            assert "from app.agents.orchestrators.qwen_agent import QwenAgent" in content, \
-                "getTestData.py 缺少新的 QwenAgent 导入"
-            assert "from app.agents.qwen.qwenAgent import qwenAgent" not in content, \
-                "getTestData.py 仍然存在旧的 qwenAgent 导入"
-            
-            print("✅ getTestData.py 导入路径已正确更新")
-        except Exception as e:
-            pytest.fail(f"❌ getTestData.py 导入检查失败: {e}")
 
-        try:
-            with open("evaluation/getTestData_analysis.py", "r", encoding="utf-8") as f:
-                content = f.read()
-            
-            assert "from app.agents.orchestrators.qwen_agent import QwenAgent" in content, \
-                "getTestData_analysis.py 缺少新的 QwenAgent 导入"
-            assert "from app.agents.qwen.qwenAgent import qwenAgent" not in content, \
-                "getTestData_analysis.py 仍然存在旧的 qwenAgent 导入"
-            
-            print("✅ getTestData_analysis.py 导入路径已正确更新")
+            assert "def run_benchmark" in content
+            assert "from app.agents" not in content
+
+            print("✅ 离线评测器未耦合推理入口")
         except Exception as e:
-            pytest.fail(f"❌ getTestData_analysis.py 导入检查失败: {e}")
+            pytest.fail(f"❌ 离线评测器检查失败: {e}")
 
     def test_new_architecture_files_exist(self):
         """测试新架构文件是否存在"""
@@ -125,8 +110,7 @@ class TestImportPaths:
         """检查是否还有其他文件使用了旧的导入"""
         files_to_check = [
             "app/main.py",
-            "evaluation/getTestData.py",
-            "evaluation/getTestData_analysis.py",
+            "app/evaluation/benchmark.py",
         ]
         
         old_imports = [

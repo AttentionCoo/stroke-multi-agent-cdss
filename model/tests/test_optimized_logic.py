@@ -2,11 +2,17 @@ import asyncio
 import time
 import os
 import json
+import pytest
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 
 load_dotenv()
+
+pytestmark = pytest.mark.skipif(
+    os.getenv("RUN_LIVE_MODEL_TESTS") != "1",
+    reason="在线模型冒烟测试需显式设置 RUN_LIVE_MODEL_TESTS=1",
+)
 
 def _parse_json(text):
     content = (text or "").strip()
@@ -30,7 +36,8 @@ def _parse_json(text):
                 pass
     return {}
 
-async def test():
+@pytest.mark.asyncio
+async def test_optimized_analyze_live():
     print("Testing optimized analyze logic")
     _dashscope_base = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     _dashscope_key = os.getenv("DASHSCOPE_API_KEY")
@@ -78,4 +85,5 @@ Requirements:
     else:
         print("Speed: Needs optimization")
 
-asyncio.run(test())
+if __name__ == "__main__":
+    asyncio.run(test_optimized_analyze_live())

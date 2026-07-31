@@ -1,7 +1,7 @@
 <script setup>
 defineOptions({ name: 'PatientWorkspace' })
 
-const props = defineProps({
+defineProps({
   patients: {
     type: Array,
     default: () => [],

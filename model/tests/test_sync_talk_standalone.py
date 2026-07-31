@@ -7,9 +7,15 @@ import os
 import json
 import time
 import requests
+import pytest
 from dotenv import load_dotenv
 
 load_dotenv()
+
+pytestmark = pytest.mark.skipif(
+    os.getenv("RUN_LIVE_MODEL_TESTS") != "1",
+    reason="在线模型冒烟测试需显式设置 RUN_LIVE_MODEL_TESTS=1",
+)
 
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY")
 DASHSCOPE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
@@ -46,8 +52,7 @@ def test_quick_analyze_direct():
     print("=" * 80)
 
     if not DASHSCOPE_API_KEY:
-        print("[FAIL] DASHSCOPE_API_KEY not set in .env")
-        return None
+        pytest.fail("DASHSCOPE_API_KEY 未设置")
 
     # Simulate what sync-talk does: build a prompt from doctor-patient conversation
     conversation_text = """user: 患者今天感觉头晕，血压偏高，收缩压160，舒张压95。
@@ -101,8 +106,7 @@ assistant: 根据您描述的情况，患者高血压病史5年，近期未规�
         elapsed = time.time() - start_time
 
         if resp.status_code != 200:
-            print(f"[FAIL] HTTP {resp.status_code}: {resp.text[:500]}")
-            return None
+            pytest.fail(f"HTTP {resp.status_code}: {resp.text[:500]}")
 
         body = resp.json()
         content = body["choices"][0]["message"]["content"]
@@ -133,16 +137,16 @@ assistant: 根据您描述的情况，患者高血压病史5年，近期未规�
         print("=" * 80)
         print("[PASS] AI Sync Opinion core logic test passed!")
         print("=" * 80)
-        return result
+        assert result
 
     except requests.exceptions.Timeout:
         print("[FAIL] Request timed out (>60s)")
-        return None
+        pytest.fail("请求超时（超过 60 秒）")
     except Exception as e:
         print(f"[FAIL] Error: {e}")
         import traceback
         traceback.print_exc()
-        return None
+        pytest.fail(f"在线模型调用失败: {e}")
 
 
 if __name__ == "__main__":

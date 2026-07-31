@@ -1,9 +1,8 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import AppAvatar from '@/components/AppAvatar.vue'
 import UserDialog from '@/components/UserDialog.vue'
 import ChatWorkspace from '@/components/workspace/ChatWorkspace.vue'
-import LearningWorkspace from '@/components/workspace/LearningWorkspace.vue'
 import PatientFormDialog from '@/components/workspace/PatientFormDialog.vue'
 import PatientWorkspace from '@/components/workspace/PatientWorkspace.vue'
 import WorkspaceTabs from '@/components/workspace/WorkspaceTabs.vue'
@@ -29,8 +28,12 @@ import { createThinkingHistorySlots, mergeThinkingEvent } from '@/utils/thinking
 
 defineOptions({ name: 'TalkIndex' })
 
+const GreenwayWorkspace = defineAsyncComponent(() => import('@/components/workspace/GreenwayWorkspace.vue'))
+const LearningWorkspace = defineAsyncComponent(() => import('@/components/workspace/LearningWorkspace.vue'))
+
 const tabs = [
   { key: 'chat', label: '智能诊疗', hint: '对话与同步分析' },
+  { key: 'greenway', label: '急诊绿道', hint: '结构化评估与审核' },
   { key: 'patients', label: '患者管理', hint: '病历与AI意见' },
   {
     key: 'learning',
@@ -882,6 +885,13 @@ function openPatientWorkspace(patientId) {
     handleSelectPatient(patientId)
   }
 }
+
+async function handleGreenwayAnalyze(caseText) {
+  if (!caseText?.trim()) return
+  activeTab.value = 'chat'
+  await nextTick()
+  await handleSendMessage({ text: caseText, images: [] })
+}
 </script>
 
 <template>
@@ -943,6 +953,9 @@ function openPatientWorkspace(patientId) {
         @search="handlePatientSearch" @select-patient="handleSelectPatient" @open-create="openCreatePatient"
         @open-edit="openEditPatient" @delete-patient="handleDeletePatient" @analyze-patient="handleAnalyzePatient"
         @page-change="goPatientPage" />
+
+      <GreenwayWorkspace v-else-if="activeTab === 'greenway'" :patients="patients"
+        @analyze="handleGreenwayAnalyze" @create-patient="openCreatePatient" />
 
       <LearningWorkspace v-else v-model:query="learningQuery" v-model:view="activeLearningView" :materials="materials"
         :learning-total="learningTotal" :materials-loading="materialsLoading" :selected-material-id="selectedMaterialId"

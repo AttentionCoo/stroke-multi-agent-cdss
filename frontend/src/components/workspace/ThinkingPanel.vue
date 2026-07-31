@@ -40,17 +40,17 @@ watch(
 // 最新 thinking 步骤标题（streaming 时显示）
 const latestTitle = computed(() => {
   const events = props.thinkingData?.events
-  if (!events?.length) return 'AI 思考中...'
+  if (!events?.length) return 'AI 分析中...'
   const last = events[events.length - 1]
-  return last.title || last.step || 'AI 思考中...'
+  return last.title || last.step || 'AI 分析中...'
 })
 
 // 头部文字
 const headerText = computed(() => {
   if (props.isStreaming) return latestTitle.value
   const secs = props.thinkingData?.elapsedSeconds
-  if (secs != null) return `已深度思考（用时 ${secs} 秒）`
-  return '已深度思考'
+  if (secs != null) return `临床分析已完成（用时 ${secs} 秒）`
+  return '临床分析已完成'
 })
 
 function toggleExpand() {
@@ -86,7 +86,7 @@ function formatContent(content) {
           <span></span><span></span><span></span>
         </span>
         <!-- 完成后显示脑图标 -->
-        <span v-else class="thinking-icon">🧠</span>
+        <span v-else class="thinking-icon">✓</span>
         <span class="thinking-header-text">{{ headerText }}</span>
       </div>
       <!-- 非 streaming 时显示折叠箭头 -->

@@ -113,3 +113,50 @@ CREATE TABLE `health_data` (
   PRIMARY KEY (`id`),
   KEY `idx_patient_id` (`patient_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ----------------------------
+-- Table: stroke_assessment
+-- ----------------------------
+DROP TABLE IF EXISTS `stroke_assessment_review`;
+DROP TABLE IF EXISTS `stroke_assessment`;
+CREATE TABLE `stroke_assessment` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `doctor_id` bigint unsigned NOT NULL COMMENT '负责医生ID',
+  `patient_id` bigint unsigned DEFAULT NULL COMMENT '关联患者ID',
+  `last_known_well_at` datetime DEFAULT NULL COMMENT '最后正常时间',
+  `arrival_at` datetime DEFAULT NULL COMMENT '到院时间',
+  `systolic_blood_pressure` int DEFAULT NULL COMMENT '收缩压 mmHg',
+  `diastolic_blood_pressure` int DEFAULT NULL COMMENT '舒张压 mmHg',
+  `blood_glucose_mmol_l` decimal(6,2) DEFAULT NULL COMMENT '血糖 mmol/L',
+  `nihss_score` int DEFAULT NULL COMMENT 'NIHSS总分',
+  `platelet_count` int DEFAULT NULL COMMENT '血小板计数 ×10^9/L',
+  `inr` decimal(5,2) DEFAULT NULL COMMENT '国际标准化比值',
+  `anticoagulant_use` varchar(16) NOT NULL DEFAULT 'UNKNOWN' COMMENT 'YES/NO/UNKNOWN',
+  `anticoagulant_last_dose_at` datetime DEFAULT NULL COMMENT '抗凝药末次用药时间',
+  `ct_hemorrhage` varchar(16) NOT NULL DEFAULT 'UNKNOWN' COMMENT 'YES/NO/UNKNOWN',
+  `cta_large_vessel_occlusion` varchar(16) NOT NULL DEFAULT 'UNKNOWN' COMMENT 'YES/NO/UNKNOWN',
+  `notes` text COMMENT '补充信息',
+  `version` int NOT NULL DEFAULT 1 COMMENT '乐观版本号',
+  `status` varchar(24) NOT NULL DEFAULT 'DRAFT' COMMENT '审核状态',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_stroke_assessment_doctor_time` (`doctor_id`, `update_time`),
+  KEY `idx_stroke_assessment_patient` (`patient_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='脑卒中急诊结构化评估';
+
+-- ----------------------------
+-- Table: stroke_assessment_review
+-- ----------------------------
+CREATE TABLE `stroke_assessment_review` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `assessment_id` bigint unsigned NOT NULL,
+  `doctor_id` bigint unsigned NOT NULL,
+  `action` varchar(24) NOT NULL COMMENT 'ACCEPT/REQUEST_EDIT/REJECT',
+  `reason` varchar(1000) DEFAULT NULL,
+  `assessment_version` int NOT NULL,
+  `assessment_snapshot` longtext NOT NULL COMMENT '审核时的结构化评估快照',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_stroke_review_assessment_time` (`assessment_id`, `create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='脑卒中评估审核审计记录';

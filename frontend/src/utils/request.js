@@ -41,7 +41,6 @@ request.interceptors.response.use(
     const { data } = response
 
     if (data.code === 1) {
-      console.log('请求成功！', response)
       return data
     }
 
