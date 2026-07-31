@@ -1,7 +1,7 @@
 limits:
   max_sub_questions: 3
-  max_evidence_chars: 2000
-  max_evidence_per_question: 600
+  max_evidence_chars: 8000
+  max_evidence_per_question: 800
   max_proposal_chars: 3000
   max_critique_chars: 3000
 keywords:

@@ -16,7 +16,8 @@ class AnalysisNode(BaseNode):
         self.llm = llm
 
     async def run(self, state: ClinicalState) -> Dict:
-        analysis = await self._unified_analysis(state["case_text"], state["all_info"])
+        memory_context = state.get("active_memory") or state.get("all_info", "")
+        analysis = await self._unified_analysis(state["case_text"], memory_context)
         clinical_questions = analysis.get("clinical_questions", ["该患者当前最紧急的临床问题和处置要点"])
 
         # 诊断相关关键词过滤

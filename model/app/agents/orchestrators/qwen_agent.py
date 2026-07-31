@@ -6,9 +6,13 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from app.agents.core.schema import ClinicalState
 from app.agents.orchestrators.clinical_graph import ClinicalGraphBuilder
 from app.agents.orchestrators.nodes.intent_node import IntentNode
+from app.agents.orchestrators.nodes.memory_node import MemoryNode
 from app.agents.orchestrators.nodes.analysis_node import AnalysisNode
+from app.agents.orchestrators.nodes.research_node import ResearchPlanNode
 from app.agents.orchestrators.nodes.retrieve_node import RetrieveNode
+from app.agents.orchestrators.nodes.evidence_node import EvidenceJudgeNode, QueryRewriteNode
 from app.agents.orchestrators.nodes.reason_node import ReasonNode
+from app.agents.orchestrators.nodes.debate_node import DebateNode, ConsensusNode
 from app.agents.orchestrators.nodes.validate_node import ValidateNode
 from app.agents.orchestrators.nodes.report_node import ReportNode
 from app.utils.error_codes import build_error_event, format_error_log
@@ -18,9 +22,15 @@ logger = logging.getLogger(__name__)
 _NODE_DISPLAY: Dict[str, Dict[str, str]] = {
     "intent": {"running": "正在判断问题类型...", "done": "问题类型判断"},
     "reject": {"running": "正在处理回复...", "done": "请求处理"},
+    "memory": {"running": "正在激活患者分层记忆...", "done": "患者分层记忆"},
     "analysis": {"running": "正在分析病例结构...", "done": "病例结构化分析"},
+    "research_plan": {"running": "正在规划循证检索任务...", "done": "主动检索规划"},
     "retrieve": {"running": "正在检索循证医学证据...", "done": "循证医学证据检索"},
-    "reason": {"running": "正在进行临床推理...", "done": "多专家临床推理"},
+    "evidence_judge": {"running": "正在评估证据充分性...", "done": "证据质量评估"},
+    "query_rewrite": {"running": "正在改写医学检索式...", "done": "医学查询重写"},
+    "reason": {"running": "正在生成专家独立意见...", "done": "多专家独立推理"},
+    "debate": {"running": "正在进行专家交叉质询...", "done": "多专家交叉质询"},
+    "consensus_agent": {"running": "正在形成会诊共识...", "done": "会诊主持人共识"},
     "validate": {"running": "正在进行校验反思...", "done": "安全校验与反思"},
     "generate_report": {"running": "正在生成临床报告...", "done": "临床报告生成"},
     "knowledge_answer": {"running": "正在回答知识问题...", "done": "医学知识回答"},
@@ -56,19 +66,31 @@ class QwenAgent:
 
         # 初始化所有节点
         self.intent_node = IntentNode(self.llm_turbo)
+        self.memory_node = MemoryNode()
         self.analysis_node = AnalysisNode(self.llm_critic)
+        self.research_plan_node = ResearchPlanNode(self.llm_critic)
         self.retrieve_node = RetrieveNode(medical_assistant)
-        self.reason_node = ReasonNode(self.llm_proposer)  # 修复：传递LLM对象而不是QwenAgent对象
-        self.validate_node = ValidateNode(self.llm_critic)  # 添加校验节点
+        self.evidence_judge_node = EvidenceJudgeNode(self.llm_critic)
+        self.query_rewrite_node = QueryRewriteNode(self.llm_critic)
+        self.reason_node = ReasonNode(self.llm_proposer)
+        self.debate_node = DebateNode(self.llm_proposer)
+        self.consensus_node = ConsensusNode(self.llm_critic)
+        self.validate_node = ValidateNode(self.llm_critic)
         self.report_node = ReportNode(self.llm_proposer, report_manager)
 
         # 构建图
         self.graph = ClinicalGraphBuilder(
             intent_node=self.intent_node,
+            memory_node=self.memory_node,
             analysis_node=self.analysis_node,
+            research_plan_node=self.research_plan_node,
             retrieve_node=self.retrieve_node,
+            evidence_judge_node=self.evidence_judge_node,
+            query_rewrite_node=self.query_rewrite_node,
             reason_node=self.reason_node,
-            validate_node=self.validate_node,  # 传递校验节点
+            debate_node=self.debate_node,
+            consensus_node=self.consensus_node,
+            validate_node=self.validate_node,
             report_node=self.report_node,
             llm_critic=self.llm_critic,
             report_manager=self.reports,
@@ -78,6 +100,7 @@ class QwenAgent:
         self,
         case_text: str,
         all_info: str = "",
+        patient_memory: Dict[str, str] | None = None,
         report_mode: str = "emergency",
         show_thinking: bool = True,
     ) -> AsyncGenerator[Dict, None]:
@@ -85,10 +108,21 @@ class QwenAgent:
         initial_state: ClinicalState = {
             "case_text": case_text,
             "all_info": all_info,
+            "patient_memory": patient_memory or {},
+            "active_memory": "",
             "report_mode": report_mode,
             "intent_type": "",
             "context": {},
             "clinical_questions": [],
+            "retrieval_tasks": [],
+            "retrieval_queries": [],
+            "retrieved_queries": [],
+            "hypothetical_document": "",
+            "need_retrieve": True,
+            "evidence_quality": 0.0,
+            "evidence_assessment": "",
+            "missing_information": [],
+            "retrieval_round": 0,
             "key_risks": [],
             "complexity": "high",
             "evidence": "",
@@ -99,6 +133,9 @@ class QwenAgent:
             "generalist_advice": "",
             "specialist_advice": "",
             "pharmacist_advice": "",
+            "expert_opinions": {},
+            "debate_transcript": "",
+            "consensus": "",
             "validation_passed": True,
             "validation_feedback": "",
             "reflection_count": 0
@@ -203,29 +240,77 @@ class QwenAgent:
         if node == "intent":
             intent_type = str(output.get("intent_type", ""))
             summary = {"判断结果": _INTENT_LABELS.get(intent_type, intent_type or "未知类型")}
+        elif node == "memory":
+            memory = output.get("patient_memory", {})
+            summary = {
+                "已激活记忆层": [
+                    key for key, value in memory.items() if value
+                ],
+                "有效上下文": self._short_text(output.get("active_memory", ""), 320),
+            }
         elif node == "analysis":
             summary = {
                 "病例复杂度": output.get("complexity", "未知"),
                 "关键风险": self._short_list(output.get("key_risks", []), 4, 100),
                 "检索子问题": self._short_list(output.get("clinical_questions", []), 5, 120),
             }
+        elif node == "research_plan":
+            summary = {
+                "需要检索": bool(output.get("need_retrieve", False)),
+                "检索任务": self._short_list(
+                    [task.get("question", "") for task in output.get("retrieval_tasks", []) if isinstance(task, dict)],
+                    5,
+                    100,
+                ),
+                "扩展查询": self._short_list(output.get("retrieval_queries", []), 6, 120),
+                "信息缺口": self._short_list(output.get("missing_information", []), 5, 100),
+            }
         elif node == "retrieve":
             ev = output.get("evidence", "")
-            count = ev.count("\n---\n") + 1 if str(ev).strip() else 0
+            count = ev.count("【证据 ") if str(ev).strip() else 0
             summary = {
-                "证据片段数": count,
+                "检索轮次": output.get("retrieval_round", 0),
+                "证据条数": count,
                 "证据摘要": self._short_text(ev, 420) or "未检索到相关证据",
             }
-        elif node == "reason":
-            expert_summaries = {}
-            for key, value in output.items():
-                if key.endswith("_advice") and value and len(expert_summaries) < 4:
-                    role = key.removesuffix("_advice")
-                    expert_summaries[role] = self._short_text(value, 160)
+        elif node == "evidence_judge":
             summary = {
-                "综合方案摘要": self._short_text(output.get("proposal", ""), 360) or "未生成方案",
-                "风险审查摘要": self._short_text(output.get("critique", ""), 260) or "未发现明确风险",
+                "证据质量": output.get("evidence_quality", 0.0),
+                "是否继续检索": bool(output.get("need_retrieve", False)),
+                "评估结论": self._short_text(output.get("evidence_assessment", ""), 280),
+                "剩余缺口": self._short_list(output.get("missing_information", []), 5, 100),
+            }
+        elif node == "query_rewrite":
+            summary = {
+                "重写后查询": self._short_list(output.get("retrieval_queries", []), 6, 120),
+                "继续检索": bool(output.get("need_retrieve", False)),
+            }
+        elif node == "reason":
+            expert_summaries = {
+                role: self._short_text(advice, 180)
+                for role, advice in list(output.get("expert_opinions", {}).items())[:4]
+            }
+            if not expert_summaries:
+                for key, value in output.items():
+                    if key.endswith("_advice") and value and len(expert_summaries) < 4:
+                        expert_summaries[key.removesuffix("_advice")] = self._short_text(value, 180)
+            summary = {
                 "专家意见摘要": expert_summaries,
+            }
+            if output.get("proposal") or output.get("critique"):
+                summary.update({
+                    "综合方案摘要": self._short_text(output.get("proposal", ""), 360),
+                    "风险审查摘要": self._short_text(output.get("critique", ""), 260),
+                })
+        elif node == "debate":
+            summary = {
+                "交叉质询摘要": self._short_text(output.get("debate_transcript", ""), 620),
+            }
+        elif node == "consensus_agent":
+            summary = {
+                "会诊共识": self._short_text(output.get("consensus", ""), 260),
+                "综合方案摘要": self._short_text(output.get("proposal", ""), 360),
+                "风险审查摘要": self._short_text(output.get("critique", ""), 260),
             }
         elif node == "validate":
             passed = bool(output.get("validation_passed", False))

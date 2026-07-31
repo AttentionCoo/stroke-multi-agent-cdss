@@ -63,10 +63,12 @@ class QueryRequest(BaseModel):
     question: str
     round: int = 2
     all_info: str = ""
+    patient_id: int | None = None
+    patient_memory: dict[str, str] = Field(default_factory=dict)
     token: str
     report_mode: str = "emergency"
     show_thinking: bool = True
-    images: list[str] = []
+    images: list[str] = Field(default_factory=list)
 
 
 class AnalyzeRequest(BaseModel):
@@ -150,7 +152,7 @@ def init_all_resources():
         logger.error("  ❌ 错误: DASHSCOPE_API_KEY 未设置")
         raise ValueError("DASHSCOPE_API_KEY 环境变量未设置")
     
-    logger.info(f"  ✅ API密钥: {_dashscope_key[:10]}...{_dashscope_key[-4:]}")
+    logger.info("  ✅ API密钥: 已配置（日志中隐藏）")
     
     llm_max = ChatOpenAI(model="qwen-max", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False})
     llm_plus = ChatOpenAI(model="qwen-plus", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False})
@@ -259,6 +261,15 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+@app.get("/health")
+async def health_check():
+    """容器健康检查接口"""
+    return {
+        "status": "ready" if resources.get("model") else "starting",
+        "model_loaded": resources.get("model") is not None,
+    }
+
+
 def verify_token(token: str):
     try:
         jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -309,7 +320,11 @@ async def get_model_result(request: QueryRequest):
                     async for event in vision_svc.analyze_stream(
                         images=request.images,
                         question=request.question,
-                        all_info=request.all_info,
+                        all_info=(
+                            request.patient_memory.get("short_term", "")
+                            if request.patient_memory
+                            else request.all_info
+                        ),
                     ):
                         if event.get("type") == "thinking":
                             logger.info(f"  🤔 影像分析思考: {event.get('title', '正在分析影像...')}")
@@ -377,6 +392,7 @@ async def get_model_result(request: QueryRequest):
             async for event in resources["model"].run_clinical_reasoning(
                 case_text=request.question,
                 all_info=request.all_info,
+                patient_memory=request.patient_memory,
                 report_mode=request.report_mode,
                 show_thinking=request.show_thinking,
             ):

@@ -7,17 +7,19 @@
 - 支持人工干预和反思循环，确保医疗建议的安全性
 
 架构设计：
-- 前层：意图识别 + 病例分析 + 证据检索
-- 中层：多专家协作推理（全科、专科、药师）
+- 前层：患者记忆 + 病例分析 + Agentic RAG 检索循环
+- 中层：专家独立意见 + 交叉质询 + 主持人共识
 - 后层：双层校验（规则引擎 + LLM反思）
 
 工作流程：
 1. 意图识别：判断用户输入类型
-2. 病例分析：结构化病例信息，生成子问题
-3. 证据检索：基于子问题检索医学文献
-4. 多专家推理：三位专家并行推理并综合
-5. 结果校验：规则引擎+LLM双重校验
-6. 报告生成：生成最终临床报告
+2. 患者记忆：激活短期、情景、语义记忆
+3. 病例分析：结构化病例信息，生成子问题
+4. 检索规划：拆分任务，扩展医学查询并生成 HyDE 描述
+5. 证据研究：检索、评估，必要时改写查询后再次检索
+6. 多专家会诊：独立意见、交叉质询和主持人共识
+7. 结果校验：规则引擎 + LLM 双重校验
+8. 报告生成：生成最终临床报告
 
 特色功能：
 - 反思循环：支持基于校验反馈的重新推理（最多3次）
@@ -32,8 +34,12 @@ from langgraph.checkpoint.memory import MemorySaver
 from app.agents.core.schema import ClinicalState
 from app.agents.orchestrators.nodes.intent_node import IntentNode
 from app.agents.orchestrators.nodes.analysis_node import AnalysisNode
+from app.agents.orchestrators.nodes.memory_node import MemoryNode
+from app.agents.orchestrators.nodes.research_node import ResearchPlanNode
 from app.agents.orchestrators.nodes.retrieve_node import RetrieveNode
+from app.agents.orchestrators.nodes.evidence_node import EvidenceJudgeNode, QueryRewriteNode
 from app.agents.orchestrators.nodes.reason_node import ReasonNode
+from app.agents.orchestrators.nodes.debate_node import DebateNode, ConsensusNode
 from app.agents.orchestrators.nodes.report_node import ReportNode
 from app.agents.orchestrators.nodes.validate_node import ValidateNode
 from app.config.config_loader import get_validation_manager
@@ -52,8 +58,8 @@ class ClinicalGraphBuilder:
     - 编译生成可执行的计算图
 
     架构层次：
-    - 前层：意图识别 → 病例分析 → 证据检索
-    - 中层：多专家协作推理
+    - 前层：意图识别 → 分层记忆 → 病例分析 → Agentic RAG
+    - 中层：独立意见 → 交叉质询 → 主持人共识
     - 后层：双层校验 → 报告生成
 
     特色功能：
@@ -65,9 +71,15 @@ class ClinicalGraphBuilder:
     def __init__(
         self,
         intent_node: IntentNode,
+        memory_node: MemoryNode,
         analysis_node: AnalysisNode,
+        research_plan_node: ResearchPlanNode,
         retrieve_node: RetrieveNode,
+        evidence_judge_node: EvidenceJudgeNode,
+        query_rewrite_node: QueryRewriteNode,
         reason_node: ReasonNode,
+        debate_node: DebateNode,
+        consensus_node: ConsensusNode,
         report_node: ReportNode,
         validate_node: ValidateNode = None,
         llm_critic=None,
@@ -87,9 +99,15 @@ class ClinicalGraphBuilder:
         - report_manager: 报告模板管理器（可选）
         """
         self.intent_node = intent_node
+        self.memory_node = memory_node
         self.analysis_node = analysis_node
+        self.research_plan_node = research_plan_node
         self.retrieve_node = retrieve_node
+        self.evidence_judge_node = evidence_judge_node
+        self.query_rewrite_node = query_rewrite_node
         self.reason_node = reason_node
+        self.debate_node = debate_node
+        self.consensus_node = consensus_node
         self.report_node = report_node
         self.validate_node = validate_node
         self.llm_critic = llm_critic
@@ -125,9 +143,15 @@ class ClinicalGraphBuilder:
         graph.add_node("intent", self.intent_node.run)
         graph.add_node("reject", self._reject_node)
         graph.add_node("knowledge_answer", self._knowledge_node)
+        graph.add_node("memory", self.memory_node.run)
         graph.add_node("analysis", self.analysis_node.run)
+        graph.add_node("research_plan", self.research_plan_node.run)
         graph.add_node("retrieve", self.retrieve_node.run)
+        graph.add_node("evidence_judge", self.evidence_judge_node.run)
+        graph.add_node("query_rewrite", self.query_rewrite_node.run)
         graph.add_node("reason", self.reason_node.run)
+        graph.add_node("debate", self.debate_node.run)
+        graph.add_node("consensus_agent", self.consensus_node.run)
         
         # 校验节点是可选的
         if self.validate_node:
@@ -146,26 +170,44 @@ class ClinicalGraphBuilder:
             {
                 "irrelevant": "reject",      # 无关输入 → 拒绝处理
                 "knowledge": "knowledge_answer",  # 知识问答 → 直接回答
-                "consultation": "analysis",  # 临床问诊 → 进入完整推理流程
+                "consultation": "memory",  # 临床问诊 → 激活患者分层记忆
             }
         )
 
         # 步骤5: 添加节点间的连接边
         graph.add_edge("reject", END)                    # 拒绝节点 → 结束
         graph.add_edge("knowledge_answer", END)          # 知识问答 → 结束
-        graph.add_edge("analysis", "retrieve")           # 病例分析 → 证据检索
-        graph.add_edge("retrieve", "reason")             # 证据检索 → 多专家推理
+        graph.add_edge("memory", "analysis")
+        graph.add_edge("analysis", "research_plan")
+        graph.add_conditional_edges(
+            "research_plan",
+            self._route_research,
+            {"retrieve": "retrieve", "reason": "reason"},
+        )
+        graph.add_edge("retrieve", "evidence_judge")
+        graph.add_conditional_edges(
+            "evidence_judge",
+            self._route_evidence,
+            {"rewrite": "query_rewrite", "reason": "reason"},
+        )
+        graph.add_conditional_edges(
+            "query_rewrite",
+            self._route_rewrite,
+            {"retrieve": "retrieve", "reason": "reason"},
+        )
+        graph.add_edge("reason", "debate")
+        graph.add_edge("debate", "consensus_agent")
         
         # 步骤6: 配置中层到后层的流程（支持反思循环）
         if self.validate_node:
             # 有校验节点：推理 → 校验 → (通过/重试/失败) → 报告
-            graph.add_edge("reason", "validate")
+            graph.add_edge("consensus_agent", "validate")
             graph.add_conditional_edges(
                 "validate",
                 self._route_validation,
                 {
                     "pass": "generate_report",  # 通过校验 → 生成报告
-                    "retry": "reason",          # 未通过 → 重新推理（反思循环）
+                    "retry": "reason",          # 未通过 → 重新会诊（反思循环）
                     "fail": "generate_report"   # 多次失败 → 强制输出（附带警告）
                 }
             )
@@ -173,7 +215,7 @@ class ClinicalGraphBuilder:
             logger.info("[graph] 路由映射: pass -> generate_report, retry -> reason, fail -> generate_report")
         else:
             # 无校验节点：推理 → 直接生成报告
-            graph.add_edge("reason", "generate_report")
+            graph.add_edge("consensus_agent", "generate_report")
             logger.info("[graph] 无校验节点，推理直接连接到报告生成")
             
         graph.add_edge("generate_report", END)          # 报告生成 → 结束
@@ -198,6 +240,22 @@ class ClinicalGraphBuilder:
         if t in ("consultation", "knowledge"):
             return t
         return "irrelevant"
+
+    def _route_research(self, state: ClinicalState) -> str:
+        """仅在规划器认为需要且存在检索式时进入检索。"""
+        if state.get("need_retrieve") and state.get("retrieval_queries"):
+            return "retrieve"
+        return "reason"
+
+    def _route_evidence(self, state: ClinicalState) -> str:
+        """证据不足时重写查询，否则进入多专家推理。"""
+        return "rewrite" if state.get("need_retrieve") else "reason"
+
+    def _route_rewrite(self, state: ClinicalState) -> str:
+        """查询重写未产生新检索式时停止循环，避免空转。"""
+        if state.get("need_retrieve") and state.get("retrieval_queries"):
+            return "retrieve"
+        return "reason"
 
     async def _reject_node(self, state: ClinicalState) -> dict:
         """

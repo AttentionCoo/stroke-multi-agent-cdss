@@ -26,10 +26,21 @@ class ReportNode(BaseNode):
         logger.info(f"[report] 校验状态: {state['validation_passed']}")
         logger.info(f"[report] 反思次数: {state['reflection_count']}")
         logger.info(f"[report] 校验反馈: {state['validation_feedback'][:100] if state['validation_feedback'] else '无'}")
-        
+
+        warning_block = ""
+        if not state['validation_passed'] and state['validation_feedback']:
+            warning_block = (
+                "## 安全警告\n\n"
+                f"{state['validation_feedback']}\n\n"
+                "该方案未通过全部自动质控，必须由临床医生人工复核。"
+            )
+
         if state['user_questions']:
             logger.info(f"[report] 存在用户问题，直接返回提案")
-            return {"report": state['proposal']}
+            report = state['proposal']
+            if warning_block:
+                report = f"{warning_block}\n\n{report}"
+            return {"report": report}
 
         # 如果没有提案，生成默认报告
         if not state['proposal']:
@@ -50,6 +61,8 @@ class ReportNode(BaseNode):
 ### 建议
 请提供更详细的临床信息，或咨询专业医师进行评估。
 """
+            if warning_block:
+                default_report = f"{warning_block}\n\n{default_report}"
             return {"report": default_report}
 
         context_str = (
@@ -59,24 +72,26 @@ class ReportNode(BaseNode):
         
         logger.info(f"[report] 上下文长度: {len(context_str)}")
         
-        # 如果校验未通过，在报告中添加警告
-        warning_text = ""
-        if not state['validation_passed'] and state['validation_feedback']:
-            warning_text = f"\n\n⚠️ **安全警告**: {state['validation_feedback']}\n\n"
-            logger.info(f"[report] 添加安全警告到报告")
-        
+        evidence_context = (
+            f"证据质量评分：{state.get('evidence_quality', 0.0):.2f}\n"
+            f"证据评估：{state.get('evidence_assessment', '未评估')}\n\n"
+            f"{state['evidence'] or '未检索到相关证据'}"
+        )
         report_template = self.report_manager.get_template(state['report_mode'])
         prompt_text = report_template.format(
             context=context_str,
-            all_info=state['all_info'] or "无历史记录",
-            evidence=state['evidence'] or "未检索到相关证据",
+            all_info=state.get('active_memory') or state['all_info'] or "无历史记录",
+            evidence=evidence_context,
             proposal=truncate_text(state['proposal'], MAX_PROPOSAL_CHARS) or "无",
             critique=truncate_text(state['critique'], MAX_CRITIQUE_CHARS) or "无批判意见",
         )
         
-        # 添加警告到prompt
-        if warning_text:
-            prompt_text = prompt_text.replace("### 治疗方案", f"### 安全警告{warning_text}### 治疗方案")
+        if warning_block:
+            prompt_text = (
+                "以下自动会诊未通过全部质控。最终报告必须首先完整保留安全警告，"
+                "不得弱化或省略：\n\n"
+                f"{warning_block}\n\n{prompt_text}"
+            )
         
         logger.info(f"[report] Prompt长度: {len(prompt_text)}")
         logger.info(f"[report] 开始生成报告")
@@ -95,7 +110,10 @@ class ReportNode(BaseNode):
         except Exception as e:
             logger.error(f"[report] 报告生成失败: {type(e).__name__} - {str(e)}")
             # 如果生成失败，返回提案本身
-            report = f"## 临床报告\n\n{state['proposal']}\n\n{warning_text}"
+            report = f"## 临床报告\n\n{state['proposal']}"
+
+        if warning_block and not report.lstrip().startswith("## 安全警告"):
+            report = f"{warning_block}\n\n{report}"
         
         logger.info(f"[report] 报告生成完成，长度: {len(report)}, 块数: {chunk_count}")
         return {"report": report}

@@ -19,6 +19,7 @@
 """
 
 import logging
+import re
 from typing import Dict
 from app.agents.core.schema import ClinicalState
 from app.agents.orchestrators.nodes.base import BaseNode
@@ -124,20 +125,34 @@ class ValidateNode(BaseNode):
         返回：
         - str: 触发的规则反馈信息，如果没有触发则返回空字符串
         """
-        # 快速匹配动态加载的禁忌症规则
+        # 仅在患者事实中匹配禁忌证，不能把指南中的禁忌证清单当成患者病情。
+        patient_facts = "\n".join([
+            str(state.get("case_text", "") or ""),
+            str(state.get("context", "") or ""),
+            str(state.get("active_memory", "") or ""),
+        ])
         rule_feedback = []
         for treatment, rules in self.contraindication_rules.items():
             # 检查提案中是否包含该治疗方式
             if treatment in state['proposal']:
                 # 检查是否存在禁忌症
                 for rule in rules:
-                    # 在病例文本和证据中搜索禁忌症关键词
-                    if rule in state['case_text'] or rule in state['evidence']:
+                    if self._has_positive_fact(patient_facts, rule):
                         rule_feedback.append(
                             f"触发[{treatment}]禁忌症硬规则拦截: 检测到【{rule}】的冲突证据。"
                         )
         
         return " \n".join(rule_feedback) if rule_feedback else ""
+
+    @staticmethod
+    def _has_positive_fact(patient_facts: str, rule: str) -> bool:
+        """逐个判断规则命中，避免较早的否定表述掩盖后续阳性事实。"""
+        for match in re.finditer(re.escape(rule), patient_facts):
+            prefix = patient_facts[max(0, match.start() - 16):match.start()]
+            if re.search(r"(?:未见|未发现|无|否认|排除).{0,8}$", prefix):
+                continue
+            return True
+        return False
 
     async def _llm_reflection_check(self, state: ClinicalState) -> Dict:
         """
@@ -154,12 +169,19 @@ class ValidateNode(BaseNode):
 
 【患者输入】:
 {state['case_text']}
+【患者记忆】:
+{state.get('active_memory', '')}
+【循证医学证据】:
+{state.get('evidence', '')}
+【证据质量】:
+{state.get('evidence_quality', 0.0)}；{state.get('evidence_assessment', '')}
 【当前综合方案 Proposal】: 
 {state['proposal']}
 
 判断要求：
 如果没有严重问题，请回复 "PASS"。
-如果存在致命禁忌症未能发现或违背常识的建议，请回复 "REJECT: "，并紧接详细的驳回理由。"""
+如果存在致命禁忌症遗漏、关键建议与证据冲突、或把信息缺口当成既定事实，请回复 "REJECT: "，并紧接详细的驳回理由。
+指南中列出的通用禁忌证不等于患者已存在该禁忌证，必须以患者输入和记忆中的阳性事实为准。"""
         
         try:
             # 调用LLM进行反思校验

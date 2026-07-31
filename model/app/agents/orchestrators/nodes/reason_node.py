@@ -1,20 +1,17 @@
 """
-临床推理节点 - 多专家协作推理模块
+临床推理节点 - 多专家独立立场生成模块
 
 功能说明：
-- 这是临床推理图的核心节点，负责多专家并行推理和意见综合
+- 负责多专家并行形成独立、可引用证据的初始意见
 - 采用"多Agent协作 + 意见综合"的架构模式
 - 实现了类似医疗会诊的多专家协同决策机制
 
 工作流程：
 1. 并行调用多位专家进行独立推理
-2. 收集各专家意见
-3. 通过LLM进行意见综合，生成最终提案和风险批判
-4. 返回结构化的推理结果
+2. 收集各专家意见，交由后续 DebateNode 和 ConsensusNode 处理
 
 设计模式：
 - 并行执行模式：多位专家同时推理，提高效率
-- 意见综合模式：通过LLM统筹多专家意见，避免简单拼接
 - 反思机制：支持基于校验反馈的重新推理
 - 动态配置模式：专家角色和职责可配置化
 """
@@ -32,12 +29,11 @@ logger = logging.getLogger(__name__)
 
 class ReasonNode(BaseNode):
     """
-    临床推理节点（中层：领域专家多Agent团协作）
+    临床推理节点（中层：领域专家独立立场）
 
     职责：
     - 协调多专家并行推理
-    - 综合多专家意见生成最终提案
-    - 识别潜在风险并提供批判性意见
+    - 为后续交叉质询保留独立观点和证据依据
 
     输入状态：
     - case_text: 患者病例文本
@@ -46,9 +42,8 @@ class ReasonNode(BaseNode):
     - validation_feedback: 之前的校验反馈（用于反思）
 
     输出状态：
-    - proposal: 综合治疗提案
-    - critique: 风险批判意见
-    - 以及各专家的独立建议（动态生成）
+    - expert_opinions: 按专家角色组织的独立建议
+    - 以及各专家的独立建议（兼容旧事件摘要）
 
     特色功能：
     - 动态专家配置：从配置文件加载专家角色和职责
@@ -69,7 +64,6 @@ class ReasonNode(BaseNode):
         
         # 加载专家配置
         self.experts = self.expert_manager.get_experts()
-        self.synthesis_config = self.expert_manager.get_synthesis_config()
         
         logger.info(f"[reason] 已加载 {len(self.experts)} 位专家配置")
         for expert in self.experts:
@@ -97,7 +91,14 @@ class ReasonNode(BaseNode):
         logger.info(f"[reason] 反思次数: {state['reflection_count']}")
         
         # 步骤1: 构建完整的病例上下文信息
-        case_info = f"病例：{state['case_text']}\n上下文：{state['all_info']}\n证据：{state['evidence']}"
+        memory_context = state.get("active_memory") or state.get("all_info", "")
+        case_info = (
+            f"病例：{state['case_text']}\n"
+            f"患者记忆：{memory_context}\n"
+            f"检索证据：{state['evidence']}\n"
+            f"证据质量：{state.get('evidence_quality', 0.0):.2f}\n"
+            f"证据评估：{state.get('evidence_assessment', '')}"
+        )
         
         # 如果存在之前的校验反馈，添加到上下文中用于反思
         if state['validation_feedback']:
@@ -127,9 +128,16 @@ class ReasonNode(BaseNode):
         
         # 构建专家建议字典
         expert_advices = {}
+        legacy_role_fields = {}
         successful_experts = 0
         for role, advice in zip(expert_roles, results):
-            expert_advices[f"{role}_advice"] = advice
+            expert_advices[role] = advice
+            if "全科" in role:
+                legacy_role_fields["generalist_advice"] = advice
+            elif "神经" in role:
+                legacy_role_fields["specialist_advice"] = advice
+            elif "药师" in role:
+                legacy_role_fields["pharmacist_advice"] = advice
             if advice and not advice.startswith("未能获取"):
                 successful_experts += 1
                 logger.info(f"[reason] {role} 推理成功，建议长度: {len(advice)}")
@@ -138,71 +146,14 @@ class ReasonNode(BaseNode):
         
         logger.info(f"[reason] 成功推理专家数: {successful_experts}/{len(expert_roles)}")
         
-        # 步骤3: 意见综合 - 通过LLM统筹多专家意见
-        # 采用Tree-of-Thoughts/Consensus机制，避免简单意见拼接
-        logger.info("[reason] 进行多专家意见统筹汇总 (Tree-of-Thoughts / Consensus)")
-        
-        # 构建意见综合prompt
-        expert_opinions_text = self._build_expert_opinions_text(expert_roles, results)
-        logger.info(f"[reason] 专家意见文本长度: {len(expert_opinions_text)}")
-        
-        synthesis_prompt = self.synthesis_config.get(
-            "prompt_template",
-            "作为主治医师，请统筹以下各位专家的意见，并给出最终综合提案(Proposal)和潜在风险批评(Critique)：\n{expert_opinions}\n请将输出分为两部分，用 \"### PROPOSAL ###\" 和 \"### CRITIQUE ###\" 隔开。"
-        ).format(expert_opinions=expert_opinions_text)
-        
-        logger.info(f"[reason] 开始调用LLM进行意见综合")
-        
-        try:
-            # 调用LLM进行意见综合
-            synthesis_res = await self.llm.ainvoke([HumanMessage(content=synthesis_prompt)])
-            content = getattr(synthesis_res, "content", str(synthesis_res))
-            logger.info(f"[reason] 意见综合完成，结果长度: {len(content)}")
-        except Exception as e:
-            logger.error(f"[reason] 意见综合失败: {type(e).__name__} - {str(e)}")
-            # 如果意见综合失败，使用默认结果
-            content = "### PROPOSAL ###\n基于专家意见，建议进一步检查和评估。\n\n### CRITIQUE ###\n由于意见综合失败，无法提供详细的风险批判。"
-        
-        # 步骤4: 解析综合结果，分离提案和批判
-        proposal_separator = self.synthesis_config.get("proposal_separator", "### PROPOSAL ###")
-        critique_separator = self.synthesis_config.get("critique_separator", "### CRITIQUE ###")
-        
-        parts = content.split(critique_separator)
-        proposal_text = parts[0].replace(proposal_separator, "").strip()
-        critique_text = parts[1].strip() if len(parts) > 1 else "无明显风险批判。"
-
-        logger.info(f"[reason] 提案长度: {len(proposal_text)}, 批判长度: {len(critique_text)}")
-        
-        # 返回完整的推理结果
-        result = {
-            "proposal": proposal_text,
-            "critique": critique_text
-        }
+        # 后续节点会让专家互相质询，再由主持人形成共识。
+        result = {"expert_opinions": expert_advices}
         
         # 添加各专家的独立建议
-        result.update(expert_advices)
+        result.update(legacy_role_fields)
         
-        logger.info(f"[reason] 推理节点执行完成，返回结果")
+        logger.info("[reason] 独立专家意见生成完成，进入交叉质询")
         return result
-
-    def _build_expert_opinions_text(self, roles: list, results: list) -> str:
-        """
-        构建专家意见文本
-
-        参数：
-        - roles: 专家角色列表
-        - results: 专家建议结果列表
-
-        返回：
-        - str: 格式化的专家意见文本
-        """
-        separator = self.synthesis_config.get("opinion_separator", "【{role}建议】{opinion}\n")
-        
-        opinions = []
-        for role, advice in zip(roles, results):
-            opinions.append(separator.format(role=role, opinion=advice))
-        
-        return "\n".join(opinions)
 
     async def _ask_expert(self, role: str, instruction: str, case_info: str) -> str:
         """
@@ -224,7 +175,18 @@ class ReasonNode(BaseNode):
         system_prompt = expert_config.get("system_prompt", f"你是专业的{role}") if expert_config else f"你是专业的{role}"
         
         # 构建专家专用的prompt，包含角色设定和任务指令
-        prompt = f"你目前扮演【{role}】。\n{instruction}\n\n【病历资料】\n{case_info}"
+        prompt = f"""你目前是【{role}】。
+{instruction}
+
+【病历资料】
+{case_info}
+
+请形成可供其他专家质询的独立意见：
+1. 核心判断与不确定性
+2. 支持或反对某项处置的证据
+3. 你认为其他专业必须复核的问题
+
+关键医学判断必须尽量引用检索证据中的真实编号，例如【证据 R1-Q1-E1】；不得虚构证据编号。"""
         
         try:
             # 调用LLM进行专家推理

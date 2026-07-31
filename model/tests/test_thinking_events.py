@@ -47,6 +47,17 @@ def test_node_start_contains_running_status(agent):
             False,
         ),
         (
+            "research_plan",
+            {
+                "need_retrieve": True,
+                "retrieval_tasks": [{"question": "是否符合静脉溶栓"}],
+                "retrieval_queries": ["AIS thrombolysis guideline"],
+                "missing_information": ["INR"],
+            },
+            "扩展查询",
+            False,
+        ),
+        (
             "retrieve",
             {"evidence": "指南证据一\n---\n指南证据二"},
             "证据摘要",
@@ -70,6 +81,16 @@ def test_node_start_contains_running_status(agent):
                 "reflection_count": 1,
             },
             "校验结果",
+            False,
+        ),
+        (
+            "consensus_agent",
+            {
+                "consensus": "先完成影像和凝血评估",
+                "proposal": "启动卒中绿色通道",
+                "critique": "INR结果缺失",
+            },
+            "会诊共识",
             False,
         ),
         ("generate_report", {"report": "临床报告正文"}, "报告状态", True),

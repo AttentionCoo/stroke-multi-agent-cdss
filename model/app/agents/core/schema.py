@@ -22,10 +22,21 @@ class ClinicalState(TypedDict):
     """临床状态（用于 LangGraph）"""
     case_text: str
     all_info: str
+    patient_memory: Dict[str, str]
+    active_memory: str
     report_mode: str
     intent_type: str
     context: Dict
     clinical_questions: List[str]
+    retrieval_tasks: List[Dict]
+    retrieval_queries: List[str]
+    retrieved_queries: List[str]
+    hypothetical_document: str
+    need_retrieve: bool
+    evidence_quality: float
+    evidence_assessment: str
+    missing_information: List[str]
+    retrieval_round: int
     key_risks: List[str]
     complexity: str
     evidence: str
@@ -38,6 +49,9 @@ class ClinicalState(TypedDict):
     generalist_advice: str
     specialist_advice: str
     pharmacist_advice: str
+    expert_opinions: Dict[str, str]
+    debate_transcript: str
+    consensus: str
     validation_passed: bool
     validation_feedback: str
     reflection_count: int

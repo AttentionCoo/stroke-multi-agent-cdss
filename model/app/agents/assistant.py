@@ -47,7 +47,11 @@ class MedicalAssistant:
 
         logger.info("✅ MedicalAssistant（重构版）初始化完成，完全解耦")
 
-    async def afast_parallel_retrieve(self, sub_questions: List[str]) -> str:
+    async def afast_parallel_retrieve(
+        self,
+        sub_questions: List[str],
+        round_number: int = 1,
+    ) -> str:
         """异步快速并行检索（原生异步方案）"""
         if not sub_questions:
             return ""
@@ -55,7 +59,10 @@ class MedicalAssistant:
         logger.info(f"🔍 异步快速并行检索 {len(sub_questions)} 个子问题...")
 
         # 采用原生 asyncio 控制并发并发起检索
-        raw_evidence = await self.rag_pipeline.retrieval.aparallel_retrieve(sub_questions)
+        raw_evidence = await self.rag_pipeline.retrieval.aparallel_retrieve(
+            sub_questions,
+            round_number=round_number,
+        )
 
         # fast_parallel_retrieve 的截断逻辑和分段已经在 retrieval service 做了一部分，
         # 我们再重新套用截断保证安全。 (原代码在拼接前做了截断)

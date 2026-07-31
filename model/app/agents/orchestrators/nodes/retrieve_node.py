@@ -16,7 +16,32 @@ class RetrieveNode(BaseNode):
         self.medical_assistant = medical_assistant
 
     async def run(self, state: ClinicalState) -> Dict:
+        retrieval_round = int(state.get("retrieval_round", 0) or 0) + 1
+        previous_queries = [str(item).strip() for item in state.get("retrieved_queries", [])]
+        previous_keys = {item.casefold() for item in previous_queries}
+        queries = [
+            str(item).strip()
+            for item in state.get("retrieval_queries", state.get("clinical_questions", []))
+            if str(item).strip() and str(item).strip().casefold() not in previous_keys
+        ]
+
+        if not queries:
+            return {
+                "need_retrieve": False,
+                "retrieval_queries": [],
+                "retrieved_queries": previous_queries,
+            }
+
         evidence = await self.medical_assistant.afast_parallel_retrieve(
-            state["clinical_questions"]
+            queries,
+            round_number=retrieval_round,
         )
-        return {"evidence": truncate_text(evidence, MAX_EVIDENCE_CHARS)}
+        previous_evidence = str(state.get("evidence", "") or "").strip()
+        combined = "\n\n---\n\n".join(
+            part for part in (previous_evidence, evidence.strip()) if part
+        )
+        return {
+            "evidence": truncate_text(combined, MAX_EVIDENCE_CHARS),
+            "retrieval_round": retrieval_round,
+            "retrieved_queries": previous_queries + queries,
+        }
