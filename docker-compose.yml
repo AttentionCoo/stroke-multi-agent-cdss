@@ -33,6 +33,7 @@ services:
       retries: 5
 
   backend:
+    image: stroke-multi-agent-backend:${APP_IMAGE_TAG:-local}
     build:
       context: ./backend/stroke-server
       dockerfile: Dockerfile
@@ -49,6 +50,11 @@ services:
       MYSQL_DATABASE: medai
       MYSQL_USERNAME: root
       MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-stroke-local-only}
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: medai
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-stroke-local-only}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD:-stroke-local-only}
@@ -62,9 +68,16 @@ services:
       redis:
         condition: service_healthy
       model:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/api/monitor/health >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
   model:
+    image: stroke-multi-agent-model:${APP_IMAGE_TAG:-local}
     build:
       context: ./model
       dockerfile: Dockerfile
@@ -85,8 +98,15 @@ services:
       - model-cache:/app/model_cache
       - model-chroma:/app/chroma_db_unified
       - ./model/.env:/app/.env:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
 
   frontend:
+    image: stroke-multi-agent-frontend:${APP_IMAGE_TAG:-local}
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -97,7 +117,13 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
 volumes:
   mysql-data:

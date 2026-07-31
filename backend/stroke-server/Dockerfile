@@ -11,4 +11,5 @@ WORKDIR /app
 RUN apk add --no-cache curl
 COPY --from=builder /app/target/*.jar app.jar
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar", "--spring.profiles.active=dev"]
+ENV SPRING_PROFILES_ACTIVE=dev
+ENTRYPOINT ["java", "-jar", "app.jar"]

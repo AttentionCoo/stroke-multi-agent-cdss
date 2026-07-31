@@ -23,6 +23,13 @@ public class MonitorController {
     private final StringRedisTemplate stringRedisTemplate;
     private final OnlineUserTracker onlineUserTracker;
 
+    @GetMapping("/health")
+    public Result health() {
+        Map<String, String> status = new HashMap<>();
+        status.put("status", "UP");
+        return Result.success(status);
+    }
+
     @GetMapping("/rate-limit/status")
     public Result getRateLimitStatus() {
         Map<String, Object> status = new HashMap<>();
