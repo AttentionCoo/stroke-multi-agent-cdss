@@ -726,8 +726,8 @@ function evidenceCardsFor(msg, index) {
       <button v-if="isMobileLayout" type="button" class="sync-expander" :aria-expanded="isSyncExpanded"
         @click="toggleSyncPanel">
         <div class="sync-expander-copy">
-          <strong>同步到患者AI意见</strong>
-          <small>{{ syncPatient?.name || '请选择患者后同步当前对话' }}</small>
+          <strong>患者关联与同步</strong>
+          <small>{{ syncPatient?.name || '请选择关联患者' }}</small>
         </div>
         <span class="sync-expander-indicator">{{ isSyncExpanded ? '收起' : '展开' }}</span>
       </button>
@@ -735,7 +735,7 @@ function evidenceCardsFor(msg, index) {
       <div class="sync-card-body">
         <div class="section-head compact">
           <div>
-            <h3>同步到患者AI意见</h3>
+            <h3>患者关联与同步</h3>
             <p>将当前对话内容合并到指定患者的健康建议。</p>
           </div>
         </div>

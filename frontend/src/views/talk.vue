@@ -25,6 +25,7 @@ import {
 import { getLearningMaterialDetailAPI, getLearningMaterialsAPI } from '@/api/learning'
 import { analyzePatientAPI, syncTalkToPatientAPI } from '@/api/ai'
 import { createThinkingHistorySlots, mergeThinkingEvent } from '@/utils/thinkingEvents'
+import { buildPatientAwareRequest, resolveLinkedPatientId } from '@/utils/patientMemory'
 
 defineOptions({ name: 'TalkIndex' })
 
@@ -461,13 +462,13 @@ async function handleSendMessage({ text, images } = {}) {
   }
 
   try {
-    // 构造请求参数，有图片时携带 images 列表（影像识别功能）
-    const imagesPayload = images && images.length ? { images } : {}
+    // 选择患者后，服务端会安全加载该患者的分层记忆。
+    const requestPayload = buildPatientAwareRequest(text, syncPatientId.value, images)
     const finalResult =
       currentTalkId.value === NEW_TALK_ID
-        ? await newChatStreamAPI({ question: text, ...imagesPayload }, onChunk, onThinking)
+        ? await newChatStreamAPI(requestPayload, onChunk, onThinking)
         : await sendQuestionStreamAPI(
-          { talkId: currentTalkId.value, question: text, ...imagesPayload },
+          { ...requestPayload, talkId: currentTalkId.value },
           onChunk,
           onThinking,
         )
@@ -596,9 +597,7 @@ async function fetchPatients() {
       return
     }
 
-    if (!syncPatientId.value || !patients.value.some((patient) => patient.id === syncPatientId.value)) {
-      syncPatientId.value = patients.value[0].id
-    }
+    syncPatientId.value = resolveLinkedPatientId(syncPatientId.value, patients.value)
 
     const preferredId =
       selectedPatientId.value && patients.value.some((patient) => patient.id === selectedPatientId.value)
