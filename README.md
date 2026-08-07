@@ -735,7 +735,7 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 
 系统新增脑卒中领域工具集，既可独立调用（API），也已接入多智能体推理链（`tool_use` 节点）。
 
-**工具清单（7 个）：**
+**工具清单（8 个）：**
 
 | 类别 | 工具名 | 说明 |
 |---|---|---|
@@ -746,6 +746,9 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 | 溶栓治疗 | `rtpa_dose_calc` | rt-PA 剂量计算（0.9mg/kg，上限 90mg） |
 | 禁忌症检查 | `contraindication_check` | 基于规则引擎的溶栓/抗凝/双抗禁忌症筛查 |
 | 诊断分型 | `toast_classify` | TOAST 缺血性卒中病因分型辅助 |
+| 大血管闭塞筛查 | `lvo_screening` | LVO 筛查（NIHSS+失语/偏瘫/皮层体征→概率分层+CTA建议） |
+
+**工具调用 Level 优先级：** Level 1 基础评估（卒中类型/NIHSS/LVO/时间窗）→ Level 2 禁忌症检查 → Level 3 剂量计算。`rtpa_dose_calc` 不得先于禁忌症检查（先 CT 排除出血、血压达标、无禁忌、完成 LVO 评估再算剂量）。
 
 **独立 API：**
 
@@ -765,6 +768,21 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 | 房颤 / 血管狭窄 / 闭塞等 | `toast_classify` |
 
 > ⚠️ 医疗安全：所有工具均为计算/筛查辅助，输出不替代临床医生判断；工具结果需结合影像、实验室检查综合评估。
+
+**临床决策驱动的证据检索（Evidence Layer）：**
+
+```
+病例 → Clinical Decision Planner（决策节点+优先级）
+     → Evidence Router Agent（证据类型+知识类别+关键词）
+     → Medical Query Translator（术语标准化+同义词扩展+Query Abstraction+Source Constraint）
+     → Hybrid Retriever（类别过滤 + BM25 + 向量 + Rerank）
+     → Evidence Mismatch Filter（剔除不匹配类别）
+     → Evidence Grader（质量评估+缺口检测）→ 专家推理
+```
+
+- **临床决策节点**：`[10] 是否溶栓 → [9] CTA/LVO → [8] 血压 → [7] 病因 → [5] 二级预防`，按卒中绿色通道优先级排序
+- **决策驱动检索**：溶栓问题只召回指南/共识，定位问题只召回教材，TOAST 问题召回分型标准——不再"知识库里随机召回"
+- **医学检索范式**：临床语言自动转换为 `("mca" OR "middle cerebral artery" OR "mca syndrome") AND (aphasia OR 失语) AND ...` 的 OR-AND 组合式，并移除 NIHSS/ASPECTS 等患者变量、附加证据源约束
 
 ### 6. 结构化绿道评估
 
@@ -815,6 +833,20 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 - ✅ **修复**：对话列表过滤空内容记录 — 注册自动创建/发送失败残留的空「新对话」不再展示
 - ✅ **修复**：范围拦截（如「你好」）的问题也创建并保存对话 — 不再出现"发了消息却没对话记录"
 - ✅ **修复**：后端 CORS 白名单适配前端 8088 端口，登录/注册不再被跨域拦截
+
+### v2.5.0 (2026-08-07)
+
+- ✅ **核心升级：Clinical Decision Support Agent** — 从「医学知识问答 RAG」升级为「临床决策支持」：
+  - **Clinical Decision Planner**：`ResearchPlanNode` 生成带固定 Schema 的临床决策节点（decision_name/type/patient_evidence/uncertainty/required_evidence/priority/evidence_type），按临床优先级排序（再灌注→LVO→血压→病因→二级预防）
+  - **Evidence Router Agent**：LLM 判断每个检索查询的证据类型、目标知识类别与检索关键词，决策驱动检索
+  - **Medical Query Translator**：临床语言→医学数据库语言（40+ 医学术语同义词扩展、OR-AND 医学检索范式、Query Abstraction 去除患者变量如 NIHSS/ASPECTS）
+  - **Source Constraint**：按证据类型附加来源约束词（定位→教材、治疗→指南/RCT）
+  - **Evidence Mismatch Filter**：检索后按证据类型剔除不匹配类别（定位查询召回血脂指南→立即丢弃，不送 LLM）
+  - **Retrieval Failure Recovery**：0 结果时多级恢复（去过滤→同义词扩展→概念子集）
+- ✅ **工具增强**：新增 LVO 筛查工具（NIHSS+失语/偏瘫/皮层体征→LVO 概率分层+CTA 建议）；TOAST 评分分层（房颤+皮层/多血管区/无大动脉疾病加权）；工具调用 Level 优先级（评估→禁忌→剂量计算）
+- ✅ **量表临床优先**：临床已给 NIHSS/mRS/GCS 分数时直接采用（source=clinical_input），不重新计算；无给分时估算结果标注 source=estimated 与估算提示
+- ✅ **修复**：检索 0 结果根因（DASHSCOPE_API_KEY 加载时机、UnifiedSearchEngine 缺 category_filter 透传）；LangGraph 递归上限（recursion_limit 25→60）
+- ✅ **知识库**：重新分类（指南/共识/规范/教材+category 元数据）；教材语义分块（粗切+边界微调，缓存到磁盘，启动 264s→72s）
 
 ### v2.3.0 (2026-07-31)
 
