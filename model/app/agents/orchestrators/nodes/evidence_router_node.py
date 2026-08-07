@@ -44,7 +44,7 @@ class EvidenceRouterNode(BaseNode):
     async def run(self, state: ClinicalState) -> Dict:
         queries = [str(q).strip() for q in state.get("retrieval_queries", []) if str(q).strip()]
         if not queries:
-            return {"router_evidence_types": [], "router_categories": [], "router_keywords": []}
+            return {"router_evidence_types": [], "router_categories": [], "router_keywords": [], "router_routes": []}
 
         decisions = state.get("clinical_decisions", [])
         decisions_text = "\n".join(

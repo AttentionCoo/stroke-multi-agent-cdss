@@ -62,3 +62,9 @@ class ClinicalState(TypedDict):
 
     # 新增：临床决策规划（Clinical Decision Planner）
     clinical_decisions: List[Dict]
+
+    # 新增：Evidence Router Agent 输出
+    router_evidence_types: List[str]
+    router_categories: List[List[str]]
+    router_keywords: List[List[str]]
+    router_routes: List[Dict]

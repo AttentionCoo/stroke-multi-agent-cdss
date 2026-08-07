@@ -149,6 +149,10 @@ class QwenAgent:
             "tool_results": "",
             "tool_calls": [],
             "clinical_decisions": [],
+            "router_evidence_types": [],
+            "router_categories": [],
+            "router_keywords": [],
+            "router_routes": [],
         }
         streamed_nodes: set = set()
 
@@ -156,6 +160,7 @@ class QwenAgent:
             # 为每次请求生成唯一的thread_id
             import uuid
             config = {
+                "recursion_limit": 60,  # 提高递归上限,避免反思/检索循环超限
                 "configurable": {
                     "thread_id": uuid.uuid4().hex
                 }
