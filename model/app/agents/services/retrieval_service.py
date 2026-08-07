@@ -17,6 +17,16 @@ EVIDENCE_CATEGORY_ROUTING = {
     # 兜底:不限制
 }
 
+# 决策类型 → 应淘汰的 subtopic(Evidence Metadata 过滤)
+# 例如治疗查询不应召回血脂管理/二级预防等无关主题
+EXCLUDED_SUBTOPIC_BY_TYPE = {
+    "treatment": ["secondary_prevention", "lipid_management"],
+    "anatomy": ["secondary_prevention", "lipid_management", "antiplatelet", "anticoagulation"],
+    "etiology": ["secondary_prevention", "lipid_management"],
+    "diagnosis": ["secondary_prevention", "lipid_management"],
+    "prognosis": ["secondary_prevention"],
+}
+
 
 def route_category_filter(evidence_type: str) -> List[str] | None:
     """按证据类型返回类别过滤(Evidence Router)。"""
@@ -99,6 +109,12 @@ class EvidenceRetrievalService:
         unmatched = []
         for d in docs:
             cat = d.metadata.get("category", "?")
+            # Evidence Metadata 过滤:淘汰与决策类型不匹配的 subtopic
+            excluded = EXCLUDED_SUBTOPIC_BY_TYPE.get((evidence_type or "").strip().lower(), [])
+            sub = d.metadata.get("subtopic", [])
+            if isinstance(sub, list) and any(s in excluded for s in sub):
+                unmatched.append(d)
+                continue
             if exclude and cat in exclude:
                 unmatched.append(d)
             elif allow and cat in allow:

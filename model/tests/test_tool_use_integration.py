@@ -428,6 +428,34 @@ def test_pico_to_query():
     assert "functional independence" in q
 
 
+def test_evidence_metadata_enrichment():
+    """Evidence Metadata 应从内容生成 topic/subtopic/phase/year/authority 标签。"""
+    from app.rag.data_loader import enrich_metadata
+    m1 = enrich_metadata("中国急性缺血性卒中诊治指南2023.pdf", "患者发病4.5小时内应给予阿替普酶静脉溶栓", "指南")
+    assert "thrombolysis" in m1["subtopic"]
+    assert m1["phase"] == "acute"
+    assert m1["year"] == 2023
+    assert m1["authority"] == 5
+    assert m1["evidence_type"] == "guideline"
+    # 血脂/二级预防 chunk
+    m2 = enrich_metadata("中国脑卒中防治指导规范（2021 年版）.pdf", "他汀类药物降低LDL-C,二级预防", "规范")
+    assert "lipid_management" in m2["subtopic"]
+    assert "secondary_prevention" in m2["subtopic"]
+
+
+def test_subtopic_filter_drops_lipid():
+    """Evidence Metadata 过滤:治疗查询应淘汰血脂/二级预防 subtopic。"""
+    from langchain_core.documents import Document
+    from app.agents.services.retrieval_service import EvidenceRetrievalService
+    svc = EvidenceRetrievalService.__new__(EvidenceRetrievalService)
+    docs = [
+        Document(page_content="溶栓", metadata={"category": "指南", "subtopic": ["thrombolysis"]}),
+        Document(page_content="血脂他汀", metadata={"category": "指南", "subtopic": ["lipid_management", "secondary_prevention"]}),
+    ]
+    filtered = svc._filter_mismatched(docs, "treatment", ["指南"])
+    assert all("lipid_management" not in d.metadata.get("subtopic", []) for d in filtered)
+
+
 def test_lvo_screening_tool():
     """LVO 筛查工具应输出概率分层与 CTA 建议。"""
     from app.agents.tools.registry import call_tool

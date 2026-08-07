@@ -22,6 +22,99 @@ CATEGORY_RULES = [
 # 默认分类(未命中任何规则时)
 DEFAULT_CATEGORY = "其他"
 
+# Evidence Metadata 增强规则
+
+# 主题(subtopic)关键词 → 结构化标签
+SUBTOPIC_RULES = [
+    # (标签, 关键词列表)
+    ("thrombolysis", ["溶栓", "阿替普酶", "rt-pa", "rtpa", "alteplase", "静脉溶栓", "tpa", "组织型纤溶酶原激活剂"]),
+    ("thrombectomy", ["取栓", "血管内治疗", "thrombectomy", "机械取栓", "evt", "支架取栓", "抽吸取栓"]),
+    ("blood_pressure", ["血压管理", "降压", "收缩压", "舒张压", "血压控制", "blood pressure"]),
+    ("antiplatelet", ["抗血小板", "阿司匹林", "氯吡格雷", "双抗", "antiplatelet", "aspirin", "clopidogrel"]),
+    ("anticoagulation", ["抗凝", "华法林", "利伐沙班", "达比加群", "肝素", "anticoagul", "warfarin", "novac", "doac"]),
+    ("lipid_management", ["血脂", "他汀", "ldl", "降脂", "statins", "lipid", "低密度脂蛋白", "阿托伐他汀", "瑞舒伐他汀"]),
+    ("secondary_prevention", ["二级预防", "卒中复发", "复发风险", "secondary prevention", "复发预防"]),
+    ("toast_classification", ["toast", "分型", "病因分型", "卒中分型", "classification", "大动脉粥样硬化", "心源性栓塞", "小动脉闭塞"]),
+    ("lvo_assessment", ["大血管闭塞", "lvo", "cta", "ct血管造影", "mra", "闭塞评估", "血管成像", "large vessel"]),
+    ("imaging", ["ct", "mri", "dwi", "aspects", "影像学", "头颅ct", "核磁", "灌注", "ctp"]),
+    ("nihss_assessment", ["nihss", "卒中量表", "神经功能缺损评分", "gcs", "格拉斯哥"]),
+    ("stroke_identification", ["卒中识别", "急性缺血性卒中", "脑梗死", "脑出血", "脑卒中", "ischemic stroke", "intracerebral hemorrhage", "脑梗"]),
+]
+
+# 临床阶段(phase)关键词
+PHASE_RULES = [
+    # (阶段, 关键词列表)
+    ("acute", ["急性", "急诊", "急性期", "早期", "发病", "急性缺血性卒中", "溶栓", "取栓", "acute"]),
+    ("secondary", ["二级预防", "康复", "随访", "长期", "复发预防", "secondary"]),
+]
+
+# 权威等级:按文档来源评分(5 最高)
+AUTHORITY_BY_SOURCE = {
+    "诊治指南": 5, "管理指南": 5, "治疗指南": 5, "防治指南": 5, "诊疗指南": 5,
+    "专家共识": 4, "指导规范": 4, "防治规范": 4,
+    "guidelines": 5, "ais": 5,
+    "教材": 3, "textbook": 3,
+}
+
+
+def _extract_year(filename: str) -> int | None:
+    """从文件名提取年份(如 2023/2024)。"""
+    m = re.search(r"(20\d{2})", filename)
+    return int(m.group(1)) if m else None
+
+
+def enrich_metadata(filename: str, page_text: str, category: str) -> Dict:
+    """
+    Evidence Metadata 增强:从文件名+内容关键词生成结构化标签。
+
+    返回: source/category/evidence_type/topic/subtopic/phase/year/authority
+    """
+    lower_text = page_text.lower()
+    lower_file = filename.lower()
+
+    # subtopic:内容关键词命中(多个则取前 2)
+    subtopics = []
+    for label, kws in SUBTOPIC_RULES:
+        if any(kw.lower() in lower_text for kw in kws):
+            subtopics.append(label)
+    if not subtopics:
+        # 文件名兜底
+        for label, kws in SUBTOPIC_RULES:
+            if any(kw.lower() in lower_file for kw in kws):
+                subtopics.append(label)
+
+    # phase
+    phase = "general"
+    for p, kws in PHASE_RULES:
+        if any(kw.lower() in lower_text for kw in kws):
+            phase = p
+            break
+
+    # evidence_type:由 category 映射
+    evidence_type = {
+        "指南": "guideline",
+        "专家共识": "consensus",
+        "规范": "guideline",
+        "教材": "textbook",
+        "其他": "review",
+    }.get(category, "review")
+
+    # authority
+    authority = 3
+    for kw, score in AUTHORITY_BY_SOURCE.items():
+        if kw.lower() in lower_file:
+            authority = max(authority, score)
+
+    return {
+        "source": filename,
+        "category": category,
+        "evidence_type": evidence_type,
+        "subtopic": subtopics[:2],
+        "phase": phase,
+        "year": _extract_year(filename),
+        "authority": authority,
+    }
+
 
 def classify_document(filename: str) -> str:
     """根据文件名关键词将文档分类(指南/专家共识/规范/教材/其他)。"""
@@ -61,6 +154,8 @@ def load_pdfs_from_dir(dir_path: str):
                         "source": filename,
                         "page": page.metadata.get("page", -1),
                         "category": category,
+                        # Evidence Metadata 增强
+                        **enrich_metadata(filename, cleaned, category),
                     }
                 ))
         except Exception as e:
