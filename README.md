@@ -152,7 +152,7 @@ docker compose up -d
 |:---:|---|------|
 | 🎨 **前端交互层** | Vue 3 (Composition API) · Vite 7 · Pinia · SCSS · Fetch / ReadableStream | 以用户体验为核心，持续接收后端流式推送并实时打字机渲染。支持医学文档（PDF）在线预览、图片上传（多模态扩展）以及多 Agent 思考步骤折叠展示 |
 | ☕ **后端服务层** | Java 21 · Spring Boot 3.3.13 · Spring WebFlux · Redis 7 · Redisson · MySQL 8.0 · MyBatis-Plus | 采用响应式编程模型支持高并发吞吐。通过 JWT 实现身份认证与安全控制，利用 Redisson 分布式锁控制并发，通过 WebClient 对底层 Python 模型服务进行流式非阻塞调用与转发 |
-| 🐍 **模型推理层** | Python 3.11+ · FastAPI · LangGraph · LangChain · Qwen-Max/Plus/Turbo · ChromaDB · BM25 · RRF · gte-rerank | 统一加载模型、Agentic RAG 检索循环、专家辩论与共识模块，通过异步生成器输出 `node_start`、`node_done`、`token`、`done` 标准事件 |
+| 🐍 **模型推理层** | Python 3.11+ · FastAPI · LangGraph · LangChain · Qwen-Plus/Turbo · ChromaDB · BM25 · RRF · gte-rerank | 统一加载模型、Agentic RAG 检索循环、专家辩论与共识模块，通过异步生成器输出 `node_start`、`node_done`、`token`、`done` 标准事件 |
 
 ### 🔄 全链路流式数据管道（SSE Pipeline）
 
@@ -202,9 +202,9 @@ Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
 
 | 专家角色 | LLM 引擎 | 核心职责 |
 |----------|:--------:|----------|
-| 🏥 **全科医生 (GP)** | qwen-max | 全盘审视患者整体生命体征，提取主诉、现病史、重要既往史与合并慢性病（高血压、糖尿病、高脂血症）的整体风险分级 |
-| 🧠 **神经专科医生 (NS)** | qwen-max | 系统的"核心决策大脑"。专注于卒中特异性临床表现、责任血管解剖定位、NIHSS 评分计算、TOAST 分型，以及溶栓/取栓时间窗自适应决策 |
-| 💊 **临床药师 (CP)** | qwen-max | 侧重全链路用药安全。严密审查抗血小板、抗凝、降压、降脂等药物的绝对/相对禁忌症、药物相互作用（DDI）及配伍高危风险 |
+| 🏥 **全科医生 (GP)** | qwen-plus | 全盘审视患者整体生命体征，提取主诉、现病史、重要既往史与合并慢性病（高血压、糖尿病、高脂血症）的整体风险分级 |
+| 🧠 **神经专科医生 (NS)** | qwen-plus | 系统的"核心决策大脑"。专注于卒中特异性临床表现、责任血管解剖定位、NIHSS 评分计算、TOAST 分型，以及溶栓/取栓时间窗自适应决策 |
+| 💊 **临床药师 (CP)** | qwen-plus | 侧重全链路用药安全。严密审查抗血小板、抗凝、降压、降脂等药物的绝对/相对禁忌症、药物相互作用（DDI）及配伍高危风险 |
 
 #### 📌 横向维度：Independent-Debate-Consensus 状态机拓扑（Pipeline）
 
@@ -220,7 +220,7 @@ Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
 
 | 模型 | 负责节点 | 选择理由 |
 |------|----------|----------|
-| **qwen-max** | 专家独立意见、交叉质询、Report（报告） | 需要深度推理，容错率低 |
+| **qwen-plus** | 专家独立意见、交叉质询、Report（报告） | 需要深度推理，容错率低 |
 | **qwen-plus** | Analysis、ResearchPlan、EvidenceJudge、QueryRewrite、Consensus、Validate | 负责结构化、证据控制、共识与安全审查 |
 | **qwen-turbo** | Intent（意图识别）、QuickAnalyze（快速分析）、HealthRisk（风险评估）、Summary（摘要）、Naming（命名） | 简单任务，追求低延迟低成本 |
 

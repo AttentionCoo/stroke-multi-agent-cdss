@@ -155,11 +155,11 @@ def init_all_resources():
     
     logger.info("  ✅ API密钥: 已配置（日志中隐藏）")
     
-    llm_max = ChatOpenAI(model="qwen-max", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False})
+    llm_max = ChatOpenAI(model="qwen-plus", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False})
     llm_plus = ChatOpenAI(model="qwen-plus", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False})
     llm_turbo = ChatOpenAI(model="qwen-turbo", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False})
     
-    logger.info(f"  ✅ 模型加载完成: qwen-max, qwen-plus, qwen-turbo")
+    logger.info(f"  ✅ 模型加载完成: qwen-plus(主推理/质控), qwen-plus(快速), qwen-turbo(摘要/命名/工具)")
     
     # 步骤3: 初始化上下文摘要服务
     logger.info("💬 [3/7] 初始化上下文摘要服务...")

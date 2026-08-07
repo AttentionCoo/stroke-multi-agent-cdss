@@ -65,7 +65,7 @@ class VisionAnalysisService:
 
         try:
             response = MultiModalConversation.call(
-                model="qwen-vl-max",
+                model="qwen-vl-plus",
                 api_key=self._api_key,
                 messages=messages,
                 stream=True,
