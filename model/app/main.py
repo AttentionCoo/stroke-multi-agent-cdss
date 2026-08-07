@@ -376,13 +376,8 @@ async def get_model_result(request: QueryRequest):
 
             naming_future = None
             if not request.all_info and resources.get("naming_model"):
-                logger.info(f"🏷️  [节点 {node_count + 1}] 命名模型推理开始")
+                logger.info(f"🏷️  [节点 {node_count + 1}] 命名模型将在推理完成后执行")
                 node_start_time["naming"] = time.time()
-                naming_future = loop.run_in_executor(
-                    resources["executor"],
-                    resources["naming_model"].run_naming,
-                    request.question,
-                )
 
             logger.info(f"🧠 [节点 {node_count + 1}] 临床推理链开始")
             node_start_time["clinical_reasoning"] = time.time()
@@ -427,7 +422,19 @@ async def get_model_result(request: QueryRequest):
             for node, count in node_chunk_counts.items():
                 logger.info(f"     - {node}: {count} 个片段")
 
+            answer_text = "".join(final_answer_parts).strip()
+
             generated_name = "咨询"
+            if naming_future is None and not request.all_info and resources.get("naming_model"):
+                # 推理完成后基于问题+回答生成标题(更准确)
+                logger.info(f"🏷️  [节点 {node_count + 1}] 命名模型推理开始(基于问题+回答)")
+                node_start_time["naming"] = time.time()
+                naming_future = loop.run_in_executor(
+                    resources["executor"],
+                    resources["naming_model"].run_naming,
+                    request.question,
+                    answer_text[:500],
+                )
             if naming_future:
                 try:
                     generated_name = await naming_future or "咨询"
@@ -436,7 +443,6 @@ async def get_model_result(request: QueryRequest):
                 except Exception as e:
                     logger.warning(f"⚠️  命名推理失败: {e}")
 
-            answer_text = "".join(final_answer_parts).strip()
             updated_all_info = request.all_info
 
             if answer_text and resources.get("context_summary"):
