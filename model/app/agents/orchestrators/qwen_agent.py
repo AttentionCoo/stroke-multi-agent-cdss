@@ -12,6 +12,7 @@ from app.agents.orchestrators.nodes.research_node import ResearchPlanNode
 from app.agents.orchestrators.nodes.retrieve_node import RetrieveNode
 from app.agents.orchestrators.nodes.evidence_node import EvidenceJudgeNode, QueryRewriteNode
 from app.agents.orchestrators.nodes.reason_node import ReasonNode
+from app.agents.orchestrators.nodes.tool_use_node import ToolUseNode
 from app.agents.orchestrators.nodes.debate_node import DebateNode, ConsensusNode
 from app.agents.orchestrators.nodes.validate_node import ValidateNode
 from app.agents.orchestrators.nodes.report_node import ReportNode
@@ -24,6 +25,7 @@ _NODE_DISPLAY: Dict[str, Dict[str, str]] = {
     "reject": {"running": "正在处理回复...", "done": "请求处理"},
     "memory": {"running": "正在激活患者分层记忆...", "done": "患者分层记忆"},
     "analysis": {"running": "正在分析病例结构...", "done": "病例结构化分析"},
+    "tool_use": {"running": "正在调用脑卒中医疗工具...", "done": "医疗工具调用"},
     "research_plan": {"running": "正在规划循证检索任务...", "done": "主动检索规划"},
     "retrieve": {"running": "正在检索循证医学证据...", "done": "循证医学证据检索"},
     "evidence_judge": {"running": "正在评估证据充分性...", "done": "证据质量评估"},
@@ -68,6 +70,7 @@ class QwenAgent:
         self.intent_node = IntentNode(self.llm_turbo)
         self.memory_node = MemoryNode()
         self.analysis_node = AnalysisNode(self.llm_critic)
+        self.tool_use_node = ToolUseNode(self.llm_turbo)
         self.research_plan_node = ResearchPlanNode(self.llm_critic)
         self.retrieve_node = RetrieveNode(medical_assistant)
         self.evidence_judge_node = EvidenceJudgeNode(self.llm_critic)
@@ -92,6 +95,7 @@ class QwenAgent:
             consensus_node=self.consensus_node,
             validate_node=self.validate_node,
             report_node=self.report_node,
+            tool_use_node=self.tool_use_node,
             llm_critic=self.llm_critic,
             report_manager=self.reports,
         ).build()
@@ -138,7 +142,9 @@ class QwenAgent:
             "consensus": "",
             "validation_passed": True,
             "validation_feedback": "",
-            "reflection_count": 0
+            "reflection_count": 0,
+            "tool_results": "",
+            "tool_calls": [],
         }
         streamed_nodes: set = set()
 
@@ -199,6 +205,26 @@ class QwenAgent:
             if show_thinking:
                 translated_events.append(self._node_done_event(name, output))
 
+                # tool_use 节点:将每次工具调用展开为独立步骤事件,前端可逐条展示
+                if name == "tool_use" and isinstance(output, dict):
+                    tool_calls = output.get("tool_calls", []) or []
+                    for i, call in enumerate(tool_calls[:10]):  # 防止刷屏,最多展示 10 次
+                        if not isinstance(call, dict):
+                            continue
+                        tool_name = call.get("tool", "未知工具")
+                        args = call.get("arguments", {}) or {}
+                        result = call.get("result", {}) or {}
+                        translated_events.append({
+                            "type": "node_done",
+                            "node": f"tool_call_{i}",
+                            "label": f"工具调用: {tool_name}",
+                            "summary": (
+                                f"参数: {self._short_text(json.dumps(args, ensure_ascii=False), 200)}\n"
+                                f"结果: {self._short_text(json.dumps(result, ensure_ascii=False), 300)}"
+                            ),
+                            "status": "done",
+                        })
+
             needs_fallback_token = name == "reject" or (
                 name in self._STREAMING_NODES and name not in streamed_nodes
             )
@@ -253,6 +279,16 @@ class QwenAgent:
                 "病例复杂度": output.get("complexity", "未知"),
                 "关键风险": self._short_list(output.get("key_risks", []), 4, 100),
                 "检索子问题": self._short_list(output.get("clinical_questions", []), 5, 120),
+            }
+        elif node == "tool_use":
+            calls = output.get("tool_calls", [])
+            summary = {
+                "工具调用次数": len(calls) if isinstance(calls, list) else 0,
+                "工具列表": self._short_list(
+                    [f"{c.get('tool', '')}: {json.dumps(c.get('result', {}), ensure_ascii=False)[:120]}" for c in calls if isinstance(c, dict)],
+                    5,
+                    160,
+                ) or "未调用工具",
             }
         elif node == "research_plan":
             summary = {

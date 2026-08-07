@@ -101,6 +101,11 @@ class ReasonNode(BaseNode):
             f"证据评估：{state.get('evidence_assessment', '')}"
         )
 
+        # 工具调用结果(如有)注入推理上下文
+        tool_results = state.get("tool_results", "")
+        if tool_results:
+            case_info += f"\n\n【工具调用结果(量表/剂量/禁忌/分型)】\n{tool_results}"
+
         questions_text = format_numbered_questions(state.get("user_questions", []))
         if questions_text:
             case_info += (

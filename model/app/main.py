@@ -15,6 +15,7 @@ from sse_starlette.sse import EventSourceResponse
 import uvicorn
 
 from app.agents.assistant import MedicalAssistant
+from app.agents.tools.registry import call_tool, get_tool_schemas, TOOL_GROUPS
 from app.services.pubmed_service import PubMedService
 from app.agents.orchestrators.qwen_agent import QwenAgent
 from app.utils.error_codes import build_error_event, format_error_log
@@ -673,6 +674,47 @@ def _parse_json(text: str) -> dict:
 class PubMedSearchRequest(BaseModel):
     query: str
     max_results: int = 5
+
+
+class ToolCallRequest(BaseModel):
+    name: str = Field(description="工具名称,如 nihss_score")
+    arguments: dict = Field(default_factory=dict, description="工具参数 dict")
+    token: str = Field(default="", description="JWT 鉴权令牌(与 /model/get_result 一致)")
+
+
+@app.get("/model/tools/list")
+async def tools_list():
+    """脑卒中医疗工具列表接口"""
+    return {
+        "code": 1,
+        "msg": "success",
+        "data": {
+            "tools": get_tool_schemas(),
+            "groups": TOOL_GROUPS,
+            "count": len(get_tool_schemas()),
+        },
+    }
+
+
+@app.post("/model/tools/call")
+async def tools_call(request: ToolCallRequest):
+    """脑卒中医疗工具调用接口"""
+    if request.token:
+        verify_token(request.token)
+
+    result = call_tool(request.name, request.arguments)
+    if not result.get("ok"):
+        # 错误响应脱敏:不向外暴露内部异常细节
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "ok": False,
+                "tool": result.get("tool", ""),
+                "error": result.get("error", "工具调用失败"),
+                "available": result.get("available", []),
+            },
+        )
+    return {"code": 1, "msg": "success", "data": result["result"]}
 
 
 @app.post("/model/pubmed/search")

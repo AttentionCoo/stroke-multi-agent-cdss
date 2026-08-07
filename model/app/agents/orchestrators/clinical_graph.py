@@ -82,6 +82,7 @@ class ClinicalGraphBuilder:
         consensus_node: ConsensusNode,
         report_node: ReportNode,
         validate_node: ValidateNode = None,
+        tool_use_node=None,
         llm_critic=None,
         report_manager=None,
     ):
@@ -110,6 +111,7 @@ class ClinicalGraphBuilder:
         self.consensus_node = consensus_node
         self.report_node = report_node
         self.validate_node = validate_node
+        self.tool_use_node = tool_use_node
         self.llm_critic = llm_critic
         self.report_manager = report_manager
         
@@ -145,6 +147,8 @@ class ClinicalGraphBuilder:
         graph.add_node("knowledge_answer", self._knowledge_node)
         graph.add_node("memory", self.memory_node.run)
         graph.add_node("analysis", self.analysis_node.run)
+        if self.tool_use_node:
+            graph.add_node("tool_use", self.tool_use_node.run)
         graph.add_node("research_plan", self.research_plan_node.run)
         graph.add_node("retrieve", self.retrieve_node.run)
         graph.add_node("evidence_judge", self.evidence_judge_node.run)
@@ -178,7 +182,11 @@ class ClinicalGraphBuilder:
         graph.add_edge("reject", END)                    # 拒绝节点 → 结束
         graph.add_edge("knowledge_answer", END)          # 知识问答 → 结束
         graph.add_edge("memory", "analysis")
-        graph.add_edge("analysis", "research_plan")
+        if self.tool_use_node:
+            graph.add_edge("analysis", "tool_use")
+            graph.add_edge("tool_use", "research_plan")
+        else:
+            graph.add_edge("analysis", "research_plan")
         graph.add_conditional_edges(
             "research_plan",
             self._route_research,
