@@ -2,6 +2,7 @@
 
 运行: pytest tests/test_tool_use_integration.py -v
 """
+import asyncio
 import os
 import sys
 
@@ -246,3 +247,49 @@ def test_clinical_consistency_warns_on_conflict():
         [{"tool": "nihss_score", "result": {"total_score": 16}}],
     )
     assert warnings2 == []
+
+
+def test_clinical_scores_used_as_given_for_all_scales():
+    """临床量表只要给出分数就用给出的, 不自行计算(NIHSS/mRS/GCS 全覆盖)。"""
+    node = ToolUseNode(llm=_NoCallLLM(), tools=[FAKE_TOOL], max_rounds=2)
+    case = "NIHSS评分:16分, mRS分级:3分, GCS评分:15分, 右侧肢体无力2小时"
+    # 规则兜底: 三种量表均不调用计算工具
+    names = [n for n, _ in node._rule_based_fallback(case)]
+    assert "nihss_score" not in names
+    assert "mrs_score" not in names
+    assert "gcs_score" not in names
+    # 临床优先判定
+    assert node._should_use_clinical_score(case, "nihss_score") is True
+    assert node._should_use_clinical_score(case, "mrs_score") is True
+    assert node._should_use_clinical_score(case, "gcs_score") is True
+    # verdict 直接采用临床分数
+    assert node._clinical_score_verdict(case, "nihss_score")["total_score"] == 16
+    assert node._clinical_score_verdict(case, "mrs_score")["score"] == 3
+    assert node._clinical_score_verdict(case, "gcs_score")["total_score"] == 15
+
+
+def test_clinical_score_blocks_llm_direct_call():
+    """LLM 主动调用量表工具时, 病例已给分也以临床输入为准, 不执行计算。"""
+    from langchain_core.messages import AIMessage
+
+    class _ScoreLLM:
+        def bind_tools(self, tools):
+            return self
+
+        async def ainvoke(self, messages):
+            return AIMessage(
+                content="",
+                tool_calls=[{"name": "nihss_score", "args": {}, "id": "c1"}],
+            )
+
+    node = ToolUseNode(llm=_ScoreLLM(), max_rounds=1)
+    state = {
+        "case_text": "NIHSS评分:16分,右侧肢体无力",
+        "all_info": "",
+        "tool_results": "",
+        "tool_calls": [],
+    }
+    result = asyncio.run(node.run(state))
+    assert len(result["tool_calls"]) == 1
+    assert result["tool_calls"][0]["result"].get("source") == "clinical_input"
+    assert result["tool_calls"][0]["result"].get("total_score") == 16

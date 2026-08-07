@@ -125,7 +125,12 @@ class ToolUseNode(BaseNode):
                 call_id = tc.get("id", "")
                 tool = self.tool_map.get(name)
 
-                if tool is None:
+                # 临床量表优先:病例已明确给出分数时,跳过计算,以临床输入为准
+                if self._should_use_clinical_score(state.get("case_text", ""), name):
+                    clinical_verdict = self._clinical_score_verdict(state.get("case_text", ""), name)
+                    result = clinical_verdict
+                    logger.info(f"[tool_use] 病例已明确给出 {name} 分数, 跳过计算: {clinical_verdict}")
+                elif tool is None:
                     result = {"error": f"未知工具: {name}", "available": sorted(self.tool_map.keys())}
                 else:
                     try:
@@ -256,13 +261,17 @@ class ToolUseNode(BaseNode):
                        "hemiplegia", "dysarthria"]
         if any(s in text for s in neuro_signs):
             # 临床已明确给出 NIHSS 总分时,以临床输入为准,不重新计算(避免覆盖医生评估)
-            if not self._has_explicit_score(text, "nihss"):
+            if not self._should_use_clinical_score(text, "nihss_score"):
                 nihss_args = self._extract_nihss_args(text)
                 calls.append(("nihss_score", nihss_args))
-            # mRS 需临床随访评估，无法从文本可靠计算，不再占位调用
+            # 临床已明确给出 mRS 时,同样以临床输入为准
+            if not self._should_use_clinical_score(text, "mrs_score"):
+                mrs_args = self._extract_mrs_args(text)
+                if mrs_args is not None:
+                    calls.append(("mrs_score", mrs_args))
         if any(s in text for s in ["意识障碍", "昏迷", "嗜睡", "昏睡", "gcs", "格拉斯哥"]):
             # 临床已明确给出 GCS 时,以临床输入为准
-            if not self._has_explicit_score(text, "gcs"):
+            if not self._should_use_clinical_score(text, "gcs_score"):
                 gcs_args = self._extract_gcs_args(text)
                 calls.append(("gcs_score", gcs_args))
 
@@ -421,23 +430,112 @@ class ToolUseNode(BaseNode):
         return {"eye": eye, "verbal": verbal, "motor": motor}
 
     @staticmethod
-    def _has_explicit_score(text: str, scale: str) -> bool:
+    def _should_use_clinical_score(text: str, tool_name: str) -> bool:
         """
-        检测病例文本是否明确给出了某量表的总分(如"NIHSS评分:16分"、"GCS 12分")。
+        判断病例文本是否已明确给出该量表的分数。
 
-        若临床已明确给分,规则兜底不再调用计算工具,避免工具估算覆盖医生输入。
+        原则:临床量表只要给出分数,就用给出的,不自行计算。
+        覆盖 NIHSS / mRS / GCS 三种量表(含 LLM 主动调用与规则兜底两条路径)。
         """
         t = text.lower()
-        if scale == "nihss":
-            # 匹配: NIHSS评分:16 / NIHSS 16分 / 美国国立卫生研究院卒中量表评分16
+        if tool_name == "nihss_score":
             return bool(
                 re.search(r"nihss\s*(评分)?\s*[:：=]?\s*(\d{1,2})", t)
                 or re.search(r"卒中量表评分\s*[:：=]?\s*(\d{1,2})", t)
             )
-        if scale == "gcs":
-            # 匹配: GCS 12分 / 格拉斯哥评分:15 / GCS评分 15
+        if tool_name == "mrs_score":
+            return bool(
+                re.search(r"mrs\s*(评分|分级)?\s*[:：=]?\s*(\d{1,2})", t)
+                or re.search(r"改良\s*rank(in)?\s*(评分|量表)?\s*[:：=]?\s*(\d{1,2})", t)
+                or re.search(r"rank(in)?\s*评分\s*[:：=]?\s*(\d{1,2})", t)
+            )
+        if tool_name == "gcs_score":
             return bool(
                 re.search(r"gcs\s*(评分)?\s*[:：=]?\s*(\d{1,2})", t)
                 or re.search(r"格拉斯哥(昏迷)?(评分|量表)?\s*[:：=]?\s*(\d{1,2})", t)
             )
         return False
+
+    @staticmethod
+    def _clinical_score_verdict(text: str, tool_name: str) -> Dict:
+        """
+        返回临床已给出的量表分数(以临床输入为准,不覆盖)。
+
+        返回结构与对应计算工具一致,便于 reason 节点统一消费。
+        """
+        t = text.lower()
+        if tool_name == "nihss_score":
+            m = re.search(r"nihss\s*(评分)?\s*[:：=]?\s*(\d{1,2})", t) or re.search(
+                r"卒中量表评分\s*[:：=]?\s*(\d{1,2})", t)
+            score = int(m.group(2)) if m else None
+            if score is None:
+                return {"error": "未提取到临床 NIHSS 分数"}
+            if score <= 4:
+                severity = "轻度(0-4)"
+            elif score <= 15:
+                severity = "中度(5-15)"
+            elif score <= 20:
+                severity = "中重度(16-20)"
+            else:
+                severity = "重度(21-42)"
+            return {
+                "total_score": score,
+                "severity": severity,
+                "source": "clinical_input",
+                "note": "临床已明确给出 NIHSS 分数,直接采用,未重新计算。",
+            }
+        if tool_name == "mrs_score":
+            m = re.search(r"mrs\s*(评分|分级)?\s*[:：=]?\s*(\d{1,2})", t) or re.search(
+                r"改良\s*rank(in)?\s*(评分|量表)?\s*[:：=]?\s*(\d{1,2})", t) or re.search(
+                r"rank(in)?\s*评分\s*[:：=]?\s*(\d{1,2})", t)
+            score = int(m.group(2)) if m else None
+            if score is None:
+                return {"error": "未提取到临床 mRS 分数"}
+            descriptions = {
+                0: "完全无症状", 1: "无明显功能障碍", 2: "轻度残疾", 3: "中度残疾",
+                4: "中重度残疾", 5: "重度残疾", 6: "死亡",
+            }
+            return {
+                "score": score,
+                "description": descriptions.get(score, "未知"),
+                "source": "clinical_input",
+                "note": "临床已明确给出 mRS 分级,直接采用,未重新计算。",
+            }
+        if tool_name == "gcs_score":
+            m = re.search(r"gcs\s*(评分)?\s*[:：=]?\s*(\d{1,2})", t) or re.search(
+                r"格拉斯哥(昏迷)?(评分|量表)?\s*[:：=]?\s*(\d{1,2})", t)
+            score = int(m.group(2)) if m else None
+            if score is None:
+                return {"error": "未提取到临床 GCS 分数"}
+            if score >= 13:
+                severity = "正常/轻度意识障碍(13-15)"
+            elif score >= 9:
+                severity = "中度意识障碍(9-12)"
+            else:
+                severity = "重度意识障碍(≤8)"
+            return {
+                "total_score": score,
+                "severity": severity,
+                "source": "clinical_input",
+                "note": "临床已明确给出 GCS 分数,直接采用,未重新计算。",
+            }
+        return {"error": f"不支持的量表: {tool_name}"}
+
+    @staticmethod
+    def _extract_mrs_args(text: str):
+        """
+        从病例文本提取 mRS 分级(仅当病例明确描述功能状态且未给分时)。
+        无法可靠判断时返回 None(不调用,避免伪造)。
+        """
+        t = text.lower()
+        # 明确描述重度依赖/卧床
+        if any(s in t for s in ["卧床", "长期卧床", "完全依赖", "不能自理"]):
+            return {"score": 5}
+        # 需要帮助行走
+        if any(s in t for s in ["需他人帮助行走", "扶行", "需搀扶"]):
+            return {"score": 4}
+        # 生活需部分帮助
+        if any(s in t for s in ["部分依赖", "需人照料"]):
+            return {"score": 3}
+        # 无明显描述 → 不调用
+        return None
