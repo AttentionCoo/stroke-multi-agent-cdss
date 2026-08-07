@@ -387,6 +387,24 @@ def test_toast_evidence_graded_not_single_factor():
     assert r2["result"]["score"]["cardioembolic"] >= 4
 
 
+def test_evidence_mismatch_filter():
+    """Evidence Mismatch Filter 应剔除与证据类型不匹配的类别(如定位问题召回血脂指南)。"""
+    from langchain_core.documents import Document
+    from app.agents.services.retrieval_service import EvidenceRetrievalService
+
+    svc = EvidenceRetrievalService.__new__(EvidenceRetrievalService)
+    docs = [
+        Document(page_content="血脂管理他汀LDL-C", metadata={"category": "指南", "source": "防治指导规范.pdf"}),
+        Document(page_content="MCA syndrome aphasia", metadata={"category": "教材", "source": "neuroanatomy.pdf"}),
+    ]
+    filtered = svc._filter_mismatched(docs, "anatomy", ["教材"])
+    assert all(d.metadata["category"] == "教材" for d in filtered)
+    # 全部不匹配时保留前 2 条供评估(不返回空)
+    docs2 = [Document(page_content="x", metadata={"category": "指南"})] * 3
+    f2 = svc._filter_mismatched(docs2, "anatomy", ["教材"])
+    assert len(f2) == 2
+
+
 def test_lvo_screening_tool():
     """LVO 筛查工具应输出概率分层与 CTA 建议。"""
     from app.agents.tools.registry import call_tool

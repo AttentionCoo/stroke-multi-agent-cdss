@@ -53,6 +53,9 @@ class EvidenceRetrievalService:
             if recovery:
                 docs = recovery
 
+        # Evidence Mismatch Filter:按证据类型剔除不匹配类别(如定位问题召回血脂指南)
+        docs = self._filter_mismatched(docs, evidence_type, category_filter)
+
         if not docs:
             return ""
 
@@ -75,6 +78,42 @@ class EvidenceRetrievalService:
             )
 
         return "\n\n".join(results)
+
+    def _filter_mismatched(self, docs, evidence_type: str | None,
+                           category_filter: List[str] | None):
+        """
+        Evidence Mismatch Filter:按证据类型剔除不匹配类别。
+
+        例如 anatomy(定位)查询若召回"指南/规范"(含血脂/他汀等二级预防内容),
+        立即剔除, 不送入 LLM。保留匹配类别, 不足时回补其他类别(避免 0 结果)。
+        """
+        if not docs:
+            return docs
+        if not evidence_type and not category_filter:
+            return docs
+
+        allow = [c for c in (category_filter or []) if not c.startswith("!")]
+        exclude = [c[1:] for c in (category_filter or []) if c.startswith("!")]
+
+        matched = []
+        unmatched = []
+        for d in docs:
+            cat = d.metadata.get("category", "?")
+            if exclude and cat in exclude:
+                unmatched.append(d)
+            elif allow and cat in allow:
+                matched.append(d)
+            elif not allow:
+                matched.append(d)
+            else:
+                unmatched.append(d)
+
+        if matched:
+            return matched
+        # 全部不匹配 → 保留前几条(至少让下游有证据可评估), 但记录 mismatch
+        logger.warning(f"⚠️ [Evidence Mismatch] {evidence_type} 查询召回类别全部不匹配 "
+                       f"({[d.metadata.get('category','?') for d in docs]}), 保留前 {min(2, len(docs))} 条供评估")
+        return docs[:min(2, len(docs))]
 
     def _recover_retrieval(self, query: str, evidence_type: str | None,
                            category_filter: List[str] | None):
