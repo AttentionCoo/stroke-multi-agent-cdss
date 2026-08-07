@@ -52,8 +52,14 @@ public class InitialPageServiceImpl extends ServiceImpl<InitialPageMapper, Talk>
         }
 
         // 查询数据库
+        // 查询数据库：排除空内容对话（注册自动创建/发送失败残留的空"新对话"不应展示）
+        // 前端新建对话使用本地占位符，后端空记录展示会导致列表出现重复"新对话"
         List<Talk> talks = this.lambdaQuery()
                 .eq(Talk::getUserId, userId)
+                .and(wrapper -> wrapper
+                        .isNotNull(Talk::getContent)
+                        .ne(Talk::getContent, "")
+                )
                 .orderByDesc(Talk::getUpdateTime)
                 .list();
 
