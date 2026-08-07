@@ -145,6 +145,20 @@ class ToolUseNode(BaseNode):
                         logger.error(f"[tool_use] 工具 {name} 执行失败: {e}")
                         result = {"error": str(e)}
 
+                # 量表工具未由临床分数覆盖(实际执行了计算) → 标注为估算, 避免冒充临床评估
+                if (
+                    name in ("nihss_score", "mrs_score", "gcs_score")
+                    and isinstance(result, dict)
+                    and "error" not in result
+                    and result.get("source") != "clinical_input"
+                ):
+                    result["source"] = "estimated"
+                    result.setdefault("note", "")
+                    result["note"] += (
+                        "【估算提示】本分数由系统根据病例文本症状描述估算,"
+                        "非临床实际评估结果,仅供参考,建议以医生实际量表评分为准。"
+                    )
+
                 tool_records.append({"tool": name, "arguments": args, "result": result})
                 messages.append(
                     ToolMessage(
@@ -169,6 +183,19 @@ class ToolUseNode(BaseNode):
                     except Exception as e:  # noqa: BLE001 - 兜底工具失败不中断
                         logger.error(f"[tool_use] 兜底工具 {name} 执行失败: {e}")
                         result = {"error": str(e)}
+                    # 量表工具兜底执行 → 标注为估算(非临床实际评估)
+                    if (
+                        name in ("nihss_score", "mrs_score", "gcs_score")
+                        and isinstance(result, dict)
+                        and "error" not in result
+                        and result.get("source") != "clinical_input"
+                    ):
+                        result["source"] = "estimated"
+                        result.setdefault("note", "")
+                        result["note"] += (
+                            "【估算提示】本分数由系统根据病例文本症状描述估算,"
+                            "非临床实际评估结果,仅供参考,建议以医生实际量表评分为准。"
+                        )
                     tool_records.append({"tool": name, "arguments": args, "result": result})
                     logger.info(f"[tool_use] 兜底调用 {name}, 参数: {args}")
 

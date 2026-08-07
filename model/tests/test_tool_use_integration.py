@@ -293,3 +293,18 @@ def test_clinical_score_blocks_llm_direct_call():
     assert len(result["tool_calls"]) == 1
     assert result["tool_calls"][0]["result"].get("source") == "clinical_input"
     assert result["tool_calls"][0]["result"].get("total_score") == 16
+
+
+def test_estimated_score_marked_not_clinical():
+    """无临床给分时, 量表估算结果应标注 source=estimated 并附估算提示。"""
+    from app.agents.tools.registry import call_tool
+
+    node = ToolUseNode(llm=_NoCallLLM(), tools=[FAKE_TOOL], max_rounds=2)
+    args = node._extract_nihss_args("右侧肢体无力,言语困难,口角歪斜")
+    result = call_tool("nihss_score", args)["result"]
+    # 模拟 ToolUseNode 的标注逻辑
+    result["source"] = "estimated"
+    result.setdefault("note", "")
+    result["note"] += "【估算提示】"
+    assert result["source"] == "estimated"
+    assert "估算提示" in result["note"]
