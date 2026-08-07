@@ -296,7 +296,11 @@ class ToolUseNode(BaseNode):
                 mrs_args = self._extract_mrs_args(text)
                 if mrs_args is not None:
                     calls.append(("mrs_score", mrs_args))
-        if any(s in text for s in ["意识障碍", "昏迷", "嗜睡", "昏睡", "gcs", "格拉斯哥"]):
+        # GCS:仅在明确意识障碍时才评估(意识下降/昏迷/镇静/气道风险)
+        # 神志清楚/无意识障碍 → 禁止调用, 避免产生"意识障碍"错误语义
+        gcs_triggers = ["意识障碍", "昏迷", "昏睡", "嗜睡", "镇静", "气道风险", "格拉斯哥评分低", "gcs评分低"]
+        gcs_clear = any(s in text for s in ["神志清楚", "意识清醒", "无意识障碍", "定向力正常", "神清语利"])
+        if any(s in text for s in gcs_triggers) and not gcs_clear:
             # 临床已明确给出 GCS 时,以临床输入为准
             if not self._should_use_clinical_score(text, "gcs_score"):
                 gcs_args = self._extract_gcs_args(text)

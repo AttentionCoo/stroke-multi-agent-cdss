@@ -14,6 +14,21 @@ from app.agents.utils.text_utils import truncate_text
 logger = logging.getLogger(__name__)
 
 
+def _format_decisions_for_prompt(decisions) -> str:
+    """将决策节点格式化为提示词片段(含证据类型)。"""
+    if not isinstance(decisions, list):
+        return "无"
+    lines = []
+    for d in decisions[:5]:
+        if not isinstance(d, dict):
+            continue
+        lines.append(
+            f"- [{d.get('priority', '?')}] {d.get('decision_name', '')} "
+            f"(证据类型: {d.get('evidence_type', '?')})"
+        )
+    return "\n".join(lines) if lines else "无"
+
+
 class EvidenceJudgeNode(BaseNode):
     """判断证据是否充分，并控制是否继续检索。"""
 
@@ -40,6 +55,9 @@ class EvidenceJudgeNode(BaseNode):
 【临床问题】
 {questions}
 
+【临床决策(含所需证据类型)】
+{_format_decisions_for_prompt(state.get("clinical_decisions", []))}
+
 【检索证据】
 {truncate_text(evidence, 6000)}
 
@@ -48,10 +66,12 @@ class EvidenceJudgeNode(BaseNode):
   "quality": 0.0,
   "is_sufficient": false,
   "missing_information": ["尚未被证据覆盖的临床问题或关键信息"],
-  "assessment": "一句话说明证据的相关性、权威性和覆盖度"
+  "assessment": "一句话说明证据的相关性、权威性和覆盖度",
+  "evidence_mismatch": false
 }}
 
-评分需同时考虑：与病例的相关性、来源可信度、时效性、关键问题覆盖度。"""
+评分需同时考虑：与病例的相关性、来源可信度、时效性、关键问题覆盖度。
+若"所需证据类型"与"召回证据类别"明显不匹配(如决策需要指南却召回教材),将 evidence_mismatch 置为 true 并在 assessment 中说明。"""
 
         data = None
         try:
@@ -75,6 +95,7 @@ class EvidenceJudgeNode(BaseNode):
                     f"证据语义审查不可用；仅确认检索到 {evidence_count} 条带编号候选证据，"
                     "尚未验证来源、时效与覆盖度"
                 ),
+                "evidence_mismatch": False,
             }
 
         try:
@@ -84,15 +105,19 @@ class EvidenceJudgeNode(BaseNode):
         missing = data.get("missing_information", [])
         if not isinstance(missing, list):
             missing = []
+        mismatch = bool(data.get("evidence_mismatch", False))
         sufficient = bool(data.get("is_sufficient", False)) and quality >= self.quality_threshold
         can_retry = retrieval_round < self.max_rounds
+        # Evidence mismatch:证据类型不匹配时视为不足并重检(带路由过滤)
+        need_retry = (not sufficient or mismatch) and can_retry
 
         return {
             "evidence_quality": quality,
             "evidence_assessment": str(data.get("assessment", "") or "").strip(),
             "missing_information": [str(item).strip() for item in missing if str(item).strip()],
-            "need_retrieve": not sufficient and can_retry,
+            "need_retrieve": need_retry,
         }
+
 
 
 class QueryRewriteNode(BaseNode):
@@ -105,15 +130,17 @@ class QueryRewriteNode(BaseNode):
     async def run(self, state: ClinicalState) -> Dict:
         previous = [str(item).strip() for item in state.get("retrieved_queries", [])]
         missing = [str(item).strip() for item in state.get("missing_information", [])]
-        prompt = f"""你是医学检索查询重写专家。当前证据不足，请为下一轮生成更精确且不重复的查询。
+        prompt = f"""你是医学检索查询重写专家。当前证据不足或证据类型不匹配，请为下一轮生成更精确且不重复的查询。
 
 【病例】{state.get('case_text', '')}
 【证据缺口】{missing}
 【已检索查询】{previous}
 【证据评估】{state.get('evidence_assessment', '')}
+【临床决策与所需证据类型】{_format_decisions_for_prompt(state.get("clinical_decisions", []))}
 
 只输出 JSON：{{"queries": ["查询1", "查询2"]}}
-查询可使用中英文指南术语、同义词、检查名称和关键禁忌证。"""
+查询可使用中英文指南术语、同义词、检查名称和关键禁忌证。
+若某决策需要"指南"类证据，请在查询中明确包含"指南/guideline"字样（如"AHA/中国卒中指南"），确保重检召回正确证据源。"""
 
         candidates: List[str] = []
         try:

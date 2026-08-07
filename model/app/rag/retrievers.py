@@ -194,8 +194,17 @@ class HybridRetriever:
             result.append(doc)
         return result
 
-    def search(self, query: str, top_k_final: int = 3) -> List[Document]:
-        cache_key = hashlib.md5(f"{query}_{top_k_final}".encode("utf-8")).hexdigest()
+    def search(self, query: str, top_k_final: int = 3, category_filter: List[str] = None) -> List[Document]:
+        """检索。
+
+        Args:
+            query: 检索式
+            top_k_final: 返回条数
+            category_filter: Evidence Router 的类别过滤
+                - 提供允许类别列表(如 ['指南']):只检索这些类别的文档
+                - 提供排除类别(以 '!' 开头,如 ['!教材']):排除这些类别
+        """
+        cache_key = hashlib.md5(f"{query}_{top_k_final}_{category_filter}".encode("utf-8")).hexdigest()
         if cache_key in self._cache:
             result, ts = self._cache[cache_key]
             if time.time() - ts < self._cache_ttl:
@@ -203,10 +212,21 @@ class HybridRetriever:
                 return result
             del self._cache[cache_key]
 
-        logger.info(f"🔍 [HybridRetriever] 检索: {query[:60]}...")
+        logger.info(f"🔍 [HybridRetriever] 检索: {query[:60]}... filter={category_filter}")
 
         v_docs = self.vector_retriever.invoke(query)
         b_docs = self.bm25.invoke(query) if self.bm25 else []
+
+        # Evidence Router:按类别过滤(向量 + BM25 结果)
+        if category_filter:
+            allow = [c for c in category_filter if not c.startswith("!")]
+            exclude = [c[1:] for c in category_filter if c.startswith("!")]
+            if allow:
+                v_docs = [d for d in v_docs if d.metadata.get("category") in allow]
+                b_docs = [d for d in b_docs if d.metadata.get("category") in allow]
+            if exclude:
+                v_docs = [d for d in v_docs if d.metadata.get("category") not in exclude]
+                b_docs = [d for d in b_docs if d.metadata.get("category") not in exclude]
 
         ranked_lists = [v_docs]
         if b_docs:

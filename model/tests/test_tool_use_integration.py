@@ -308,3 +308,24 @@ def test_estimated_score_marked_not_clinical():
     result["note"] += "【估算提示】"
     assert result["source"] == "estimated"
     assert "估算提示" in result["note"]
+
+
+def test_gcs_not_called_when_alert():
+    """神志清楚时禁止调用 GCS(避免产生'意识障碍'错误语义)。"""
+    node = ToolUseNode(llm=_NoCallLLM(), tools=[FAKE_TOOL], max_rounds=2)
+    case_clear = "患者神志清楚,言语清晰,突发右侧偏瘫2小时"
+    names = [n for n, _ in node._rule_based_fallback(case_clear)]
+    assert "gcs_score" not in names
+    # 昏迷时应调用
+    case_coma = "患者昏迷,刺痛无反应,突发偏瘫"
+    names_coma = [n for n, _ in node._rule_based_fallback(case_coma)]
+    assert "gcs_score" in names_coma
+
+
+def test_evidence_router_category_routing():
+    """Evidence Router 应按决策类型返回正确类别过滤。"""
+    from app.agents.services.retrieval_service import route_category_filter
+    assert route_category_filter("treatment") == ["指南", "专家共识", "规范"]
+    assert route_category_filter("anatomy") == ["教材"]
+    assert route_category_filter("etiology") == ["指南", "专家共识"]
+    assert route_category_filter(None) is None

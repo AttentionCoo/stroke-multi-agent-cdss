@@ -51,6 +51,7 @@ class MedicalAssistant:
         self,
         sub_questions: List[str],
         round_number: int = 1,
+        evidence_types: List[str] = None,
     ) -> str:
         """异步快速并行检索（原生异步方案）"""
         if not sub_questions:
@@ -62,6 +63,7 @@ class MedicalAssistant:
         raw_evidence = await self.rag_pipeline.retrieval.aparallel_retrieve(
             sub_questions,
             round_number=round_number,
+            evidence_types=evidence_types,
         )
 
         # fast_parallel_retrieve 的截断逻辑和分段已经在 retrieval service 做了一部分，
