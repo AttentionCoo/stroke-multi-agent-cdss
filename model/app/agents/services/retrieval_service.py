@@ -44,11 +44,14 @@ class EvidenceRetrievalService:
         if category_filter is None and evidence_type:
             category_filter = route_category_filter(evidence_type)
 
-        # 过滤检索;若空则回退无过滤(避免 Evidence Router 过严导致 0 结果)
+        # 过滤检索
         docs = self.retriever.search(query, self.top_k, category_filter=category_filter)
-        if not docs and category_filter:
-            logger.info(f"⚠️ [Evidence Router] 类别过滤 {category_filter} 无结果, 回退无过滤检索: {query[:40]}...")
-            docs = self.retriever.search(query, self.top_k, category_filter=None)
+
+        # P2: Retrieval Failure Recovery — 0 结果时多级恢复
+        if not docs:
+            recovery = self._recover_retrieval(query, evidence_type, category_filter)
+            if recovery:
+                docs = recovery
 
         if not docs:
             return ""
@@ -72,6 +75,49 @@ class EvidenceRetrievalService:
             )
 
         return "\n\n".join(results)
+
+    def _recover_retrieval(self, query: str, evidence_type: str | None,
+                           category_filter: List[str] | None):
+        """
+        Retrieval Failure Recovery:
+        1. 去掉类别过滤, 无过滤检索
+        2. 扩展同义词(概念 OR 组)检索
+        3. 降低限定(用核心概念子集)检索
+        """
+        from app.agents.services.query_translator import (
+            extract_medical_concepts, build_or_and_query, expand_synonyms,
+        )
+
+        # 级别1:去掉类别过滤(Evidence Router 过严时)
+        if category_filter:
+            logger.info(f"⚠️ [Recovery-1] 类别过滤 {category_filter} 无结果, 回退无过滤检索")
+            docs = self.retriever.search(query, self.top_k, category_filter=None)
+            if docs:
+                return docs
+
+        # 级别2:同义词扩展(OR 组)
+        concepts = extract_medical_concepts(query)
+        or_and = build_or_and_query(concepts) if concepts else ""
+        candidates = [or_and] if or_and else []
+        candidates += expand_synonyms(query)[:3]
+        for variant in candidates:
+            if variant.strip().casefold() == query.strip().casefold():
+                continue
+            logger.info(f"⚠️ [Recovery-2] 同义词扩展检索: {variant[:60]}...")
+            docs = self.retriever.search(variant, self.top_k, category_filter=None)
+            if docs:
+                return docs
+
+        # 级别3:核心概念子集(取前2个概念组合)
+        if concepts and len(concepts) > 2:
+            subset = dict(list(concepts.items())[:2])
+            subset_query = build_or_and_query(subset)
+            logger.info(f"⚠️ [Recovery-3] 降低限定检索: {subset_query[:60]}...")
+            docs = self.retriever.search(subset_query, self.top_k, category_filter=None)
+            if docs:
+                return docs
+
+        return []
 
     async def aretrieve_single(self, query: str, evidence_prefix: str = "R1-Q1",
                                evidence_type: str = None, category_filter: List[str] = None) -> str:

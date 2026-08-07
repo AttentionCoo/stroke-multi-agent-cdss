@@ -78,13 +78,18 @@ class ResearchPlanNode(BaseNode):
 要求：
 - decision_type 取值：diagnosis / treatment / anatomy / etiology / prognosis / prevention
 - priority：1-10，时间敏感性×生命危险×治疗获益，越紧急越高
-- 决策必须按优先级从高到低排列（先再灌注、再LVO评估、再病因、再二级预防）
+- 决策必须按优先级从高到低排列（先再灌注、再LVO评估、再血压/病因、最后定位）
+- **定位类决策(anatomy)优先级应低于治疗类**：急诊医生不会因不知道MCA定位而暂停治疗
 - patient_evidence 只写病例中真实存在的事实，不得编造检查结果
 - uncertainty 必须列出影响该决策的缺失信息
 - 每个决策至少对应一个检索任务，查询应包含具体疾病实体、检查或指南术语
 - 检索任务必须是**临床决策问题**，不是文献性能问题：
   ✅ "对于NIHSS16分伴失语偏瘫的急性卒中患者，是否推荐急诊CTA筛查大血管闭塞？"
   ❌ "CTA/MRA检出前循环LVO的敏感性与特异性是多少？"
+- **常识性/已明确的定位问题不需要检索**，可在 retrieval_tasks 中标记 need_retrieve=false
+- **禁止从神经定位直接推导病因**：定位证据和病因证据必须分离
+  ❌ "失语+偏瘫 → 心源性栓塞"
+  ✅ "左MCA综合征 → 需CTA/ECG/Holter/Echo进一步检查 → 再TOAST分类"
 - 不给出最终治疗结论"""
 
         data = None

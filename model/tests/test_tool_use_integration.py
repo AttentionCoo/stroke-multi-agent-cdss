@@ -342,6 +342,24 @@ def test_query_translator_medical_terms():
     assert any("middle cerebral artery" in v for v in variants)
 
 
+def test_medical_concept_normalizer_or_and():
+    """Medical Concept Normalizer 应抽取概念并生成 OR-AND 医学检索式。"""
+    from app.agents.services.query_translator import (
+        extract_medical_concepts, build_or_and_query,
+    )
+    q = "急性缺血性卒中 左大脑中动脉闭塞 对侧偏瘫 失语"
+    concepts = extract_medical_concepts(q)
+    assert "mca" in concepts or "middle cerebral artery" in concepts
+    assert "aphasia" in concepts
+    assert "hemiparesis" in concepts
+    or_and = build_or_and_query(concepts)
+    # OR-AND 结构:多组概念 AND 连接, 每组内含 OR
+    assert " AND " in or_and
+    assert " OR " in or_and
+    # 同义词不交叉重复(mca 只出现一次)
+    assert or_and.count('"mca"') == 1
+
+
 def test_lvo_screening_tool():
     """LVO 筛查工具应输出概率分层与 CTA 建议。"""
     from app.agents.tools.registry import call_tool

@@ -140,22 +140,99 @@ def inject_evidence_keywords(query: str, evidence_type: str | None) -> str:
     return f"{query} {' '.join(to_add[:3])}"
 
 
+def extract_medical_concepts(query: str) -> Dict[str, List[str]]:
+    """
+    Medical Concept Normalizer:从临床查询中抽取医学概念及其同义词组。
+
+    返回 {"概念名": [该概念的标准术语+同义词]}。
+    概念顺序按在查询中出现的先后排列。
+    """
+    lower = query.lower()
+    concepts: Dict[str, List[str]] = {}
+
+    for term, synonyms in SYNONYM_MAP.items():
+        # 匹配:查询中包含该术语或其任一同义词
+        matched = term in lower or any(syn.lower() in lower for syn in synonyms)
+        if not matched:
+            continue
+        # 概念组 = 标准术语 + 同义词(去重,最多 4 个)
+        group = [term] + synonyms
+        unique_group = []
+        seen = set()
+        for g in group:
+            key = g.casefold()
+            if key not in seen:
+                seen.add(key)
+                unique_group.append(g)
+        concepts[term] = unique_group[:4]
+
+    return concepts
+
+
+def build_or_and_query(concepts: Dict[str, List[str]], max_concepts: int = 4) -> str:
+    """
+    将抽取的概念组合为 OR-AND 检索式:
+    ("概念A同义词1" OR "概念A同义词2") AND ("概念B同义词1" OR ...) AND ...
+    """
+    if not concepts:
+        return ""
+    terms = list(concepts.items())[:max_concepts]
+    clauses = []
+    used_synonyms: set = set()
+    for _term, synonyms in terms:
+        # 过滤掉已在其他概念组用过的同义词(避免交叉重复)
+        fresh = []
+        for s in synonyms:
+            key = s.casefold()
+            if key not in used_synonyms:
+                used_synonyms.add(key)
+                fresh.append(s)
+        if not fresh:
+            continue
+        if len(fresh) == 1:
+            clauses.append(f'"{fresh[0]}"')
+        else:
+            quoted = [f'"{s}"' for s in fresh[:3]]
+            clauses.append("(" + " OR ".join(quoted) + ")")
+    return " AND ".join(clauses)
+
+
 def translate_query(query: str, evidence_type: str | None = None) -> List[str]:
     """
-    完整转换:术语标准化 + 同义词扩展 + 证据源关键词注入。
+    完整转换:Medical Concept Normalizer(概念抽取+OR组合) + 同义词扩展 + 证据源关键词。
 
     Args:
         query: 临床检索式
         evidence_type: 决策类型(treatment/diagnosis/etiology/anatomy/...)
 
     Returns:
-        一组待检索的查询变体(用于多路召回)
+        一组待检索的查询变体:
+        1. OR-AND 组合式(医学检索范式)
+        2. 原始查询 + 证据关键词
+        3. 同义词替换变体
     """
-    # 1. 证据类型关键词注入
+    # 1. 医学概念抽取 + OR-AND 组合(医学检索范式)
+    concepts = extract_medical_concepts(query)
+    or_and = build_or_and_query(concepts) if concepts else ""
+
+    # 2. 证据类型关键词注入
     enriched = inject_evidence_keywords(query, evidence_type)
-    # 2. 同义词扩展
-    variants = expand_synonyms(enriched)
-    # 3. 若无任何扩展,保留原查询
-    if not variants:
-        variants = [query]
-    return variants
+
+    # 3. 同义词替换变体
+    variants = [enriched]
+    if or_and:
+        variants.insert(0, or_and)
+
+    for v in expand_synonyms(enriched):
+        if v not in variants:
+            variants.append(v)
+
+    # 去重保序
+    seen = set()
+    result = []
+    for v in variants:
+        key = v.strip().casefold()
+        if key and key not in seen:
+            seen.add(key)
+            result.append(v)
+    return result
