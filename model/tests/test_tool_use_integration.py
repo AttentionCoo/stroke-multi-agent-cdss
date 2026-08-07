@@ -146,3 +146,24 @@ def test_graph_builds_without_tool_use_node():
     graph = builder.build()
     nodes = getattr(graph, "nodes", {})
     assert "tool_use" not in nodes
+
+
+@pytest.mark.asyncio
+async def test_rule_based_fallback_triggers_on_stroke_case():
+    """LLM 不调用工具时,规则兜底应根据病例线索自动调度工具。"""
+    node = ToolUseNode(llm=_NoCallLLM(), tools=[FAKE_TOOL], max_rounds=2)
+    # 直接测试规则方法
+    case = "69岁患者突发混合性失语伴右侧偏瘫,血压170/102mmHg"
+    calls = node._rule_based_fallback(case)
+    names = [n for n, _ in calls]
+    assert "nihss_score" in names
+    assert "mrs_score" in names
+    assert "contraindication_check" in names
+    # 含发病时间 → 时间窗
+    case2 = "男65岁突发右侧肢体无力3小时,既往房颤史,血压185/115"
+    calls2 = node._rule_based_fallback(case2)
+    names2 = {n for n, _ in calls2}
+    assert "thrombolysis_window_check" in names2
+    assert "toast_classify" in names2
+    # 知识问题不误触发
+    assert node._rule_based_fallback("如何预防脑卒中?") == []
