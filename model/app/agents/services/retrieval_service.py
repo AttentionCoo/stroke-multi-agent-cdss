@@ -44,7 +44,11 @@ class EvidenceRetrievalService:
         if category_filter is None and evidence_type:
             category_filter = route_category_filter(evidence_type)
 
+        # 过滤检索;若空则回退无过滤(避免 Evidence Router 过严导致 0 结果)
         docs = self.retriever.search(query, self.top_k, category_filter=category_filter)
+        if not docs and category_filter:
+            logger.info(f"⚠️ [Evidence Router] 类别过滤 {category_filter} 无结果, 回退无过滤检索: {query[:40]}...")
+            docs = self.retriever.search(query, self.top_k, category_filter=None)
 
         if not docs:
             return ""
@@ -78,27 +82,57 @@ class EvidenceRetrievalService:
 
     async def aparallel_retrieve(self, queries: List[str], round_number: int = 1,
                                  evidence_types: List[str] = None) -> str:
-        """并行检索,支持按决策类型逐查询路由证据源。"""
+        """并行检索,支持按决策类型路由证据源,并用 Query Translator 多路召回。
+
+        每条临床查询先经 Medical Query Translator 转换为多组文献查询变体
+        (术语标准化+同义词扩展+证据源关键词),再并行检索,提升召回率。
+        """
         import asyncio
+        from app.agents.services.query_translator import translate_query
+
         types = evidence_types or [None] * len(queries)
-        tasks = [
-            self.aretrieve_single(
-                q, f"R{round_number}-Q{i + 1}",
-                evidence_type=types[i] if i < len(types) else None,
-            )
-            for i, q in enumerate(queries)
-        ]
+
+        # 1. 翻译:每条查询 → 多组变体
+        translated: List[tuple] = []  # (原查询, 证据类型, 变体列表)
+        for i, q in enumerate(queries):
+            ev_type = types[i] if i < len(types) else None
+            variants = translate_query(q, ev_type)
+            translated.append((q, ev_type, variants))
+
+        # 2. 并行检索所有变体
+        tasks = []
+        task_meta = []  # (原查询, 变体, 前缀)
+        for i, (q, ev_type, variants) in enumerate(translated):
+            for j, variant in enumerate(variants):
+                tasks.append(self.aretrieve_single(
+                    variant, f"R{round_number}-Q{i + 1}v{j + 1}",
+                    evidence_type=ev_type,
+                ))
+                task_meta.append((q, variant))
+
         results_list = await asyncio.gather(*tasks, return_exceptions=True)
 
+        # 3. 按原查询聚合变体结果
         parts = []
-        for i, (q, content) in enumerate(zip(queries, results_list)):
+        for i, (q, _variant) in enumerate(task_meta):
+            content = results_list[i]
             if isinstance(content, Exception):
                 logger.error(f"检索失败 {q}: {content}")
-                content = ""
+                continue
             if content:
-                parts.append(f"### 检索维度{i+1}: {q}\n{content}")
+                parts.append(content)
 
-        return "\n\n---\n\n".join(parts)
+        # 去重(内容相同的检索块合并)
+        seen_blocks = set()
+        unique_parts = []
+        for block in parts:
+            key = block[:200]
+            if key in seen_blocks:
+                continue
+            seen_blocks.add(key)
+            unique_parts.append(block)
+
+        return "\n\n---\n\n".join(unique_parts)
 
     def parallel_retrieve(self, queries: List[str]) -> str:
 

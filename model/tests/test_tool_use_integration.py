@@ -329,3 +329,31 @@ def test_evidence_router_category_routing():
     assert route_category_filter("anatomy") == ["教材"]
     assert route_category_filter("etiology") == ["指南", "专家共识"]
     assert route_category_filter(None) is None
+
+
+def test_query_translator_medical_terms():
+    """Query Translator 应把临床语言转换为医学文献标准术语并扩展同义词。"""
+    from app.agents.services.query_translator import translate_query
+    variants = translate_query("左侧大脑中动脉供血区急性缺血性卒中定位依据", "anatomy")
+    assert len(variants) >= 2
+    # 证据类型关键词注入
+    assert any("localization" in v or "神经解剖" in v for v in variants)
+    # 同义词扩展(MCA → middle cerebral artery)
+    assert any("middle cerebral artery" in v for v in variants)
+
+
+def test_lvo_screening_tool():
+    """LVO 筛查工具应输出概率分层与 CTA 建议。"""
+    from app.agents.tools.registry import call_tool
+    r = call_tool("lvo_screening", {
+        "nihss_score": 16, "aphasia": True, "hemiplegia": True,
+        "cortical_signs": True,
+    })
+    assert r["ok"] is True
+    result = r["result"]
+    assert result["lvo_probability"] == "高"
+    assert result["cta_recommended"] is True
+    # 低风险案例
+    r2 = call_tool("lvo_screening", {"nihss_score": 2})
+    assert r2["result"]["lvo_probability"] == "低"
+    assert r2["result"]["cta_recommended"] is False

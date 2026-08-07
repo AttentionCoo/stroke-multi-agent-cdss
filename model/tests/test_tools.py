@@ -33,7 +33,8 @@ def test_registry_aggregates_expected_tools():
     assert {"thrombolysis_window_check", "rtpa_dose_calc"} <= names
     assert "contraindication_check" in names
     assert "toast_classify" in names
-    assert len(get_all_tools()) == 7
+    assert "lvo_screening" in names
+    assert len(get_all_tools()) == 8
 
 
 def test_tool_groups_cover_all_tools():
@@ -43,7 +44,7 @@ def test_tool_groups_cover_all_tools():
 
 def test_schemas_are_serializable():
     schemas = get_tool_schemas()
-    assert len(schemas) == 7
+    assert len(schemas) == 8
     for s in schemas:
         assert s["name"] and s["description"]
         assert "properties" in s["parameters"]

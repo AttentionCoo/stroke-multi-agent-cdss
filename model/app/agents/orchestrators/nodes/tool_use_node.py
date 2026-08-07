@@ -342,6 +342,15 @@ class ToolUseNode(BaseNode):
                                    "血管炎", "af", "atrial", "stenosis", "plaque", "occlu"]):
             calls.append(("toast_classify", {}))
 
+        # 5. LVO 筛查:失语+偏瘫+皮层体征, 或 NIHSS≥6 且肢体无力
+        has_lvo_features = (
+            (any(s in text for s in ["失语", "言语困难", "aphasia"]) and any(s in text for s in ["偏瘫", "瘫痪", "无力", "hemiparesis", "hemiplegia"]))
+            or any(s in text for s in ["凝视偏移", "偏视", "忽视", "单侧忽略"])
+        )
+        if has_lvo_features:
+            lvo_args = self._extract_lvo_args(text)
+            calls.append(("lvo_screening", lvo_args))
+
         # 去重(同一工具保留第一次调用)
         seen: set = set()
         unique: List[tuple] = []
@@ -570,3 +579,29 @@ class ToolUseNode(BaseNode):
             return {"score": 3}
         # 无明显描述 → 不调用
         return None
+
+    @staticmethod
+    def _extract_lvo_args(text: str) -> Dict:
+        """从病例文本提取 LVO 筛查输入(失语/偏瘫/皮层体征/凝视/忽视/NIHSS)。"""
+        t = text.lower()
+        args: Dict = {"aphasia": False, "hemiplegia": False, "cortical_signs": False,
+                      "gaze_deviation": False, "neglect": False}
+
+        # NIHSS(临床给分或估算)
+        m = re.search(r"nihss\s*(评分)?\s*[:：=]?\s*(\d{1,2})", t)
+        args["nihss_score"] = int(m.group(2)) if m else 0
+
+        # 失语/言语障碍
+        if any(s in t for s in ["失语", "言语困难", "言语障碍", "不能表达", "aphasia", "表达困难"]):
+            args["aphasia"] = True
+        # 偏瘫/肢体无力
+        if any(s in t for s in ["偏瘫", "瘫痪", "不能抬起", "无力", "hemiparesis", "hemiplegia", "肌力"]):
+            args["hemiplegia"] = True
+        # 皮层体征(凝视/忽视/视野/意识下降)
+        if any(s in t for s in ["凝视偏移", "偏视", "同向偏视", "忽视", "单侧忽略", "视野缺损", "偏盲", "意识下降", "意识障碍"]):
+            args["cortical_signs"] = True
+        if any(s in t for s in ["凝视偏移", "偏视", "同向偏视", "gaze"]):
+            args["gaze_deviation"] = True
+        if any(s in t for s in ["忽视", "单侧忽略", "忽略一侧", "neglect"]):
+            args["neglect"] = True
+        return args
