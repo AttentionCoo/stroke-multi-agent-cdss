@@ -197,6 +197,37 @@ def build_or_and_query(concepts: Dict[str, List[str]], max_concepts: int = 4) ->
     return " AND ".join(clauses)
 
 
+# 证据类型 → 来源约束词(附加到检索式, 约束证据源)
+SOURCE_CONSTRAINTS = {
+    "treatment": ["guideline", "recommendation", "meta-analysis", "RCT", "指南", "治疗推荐"],
+    "diagnosis": ["diagnostic criteria", "classification", "诊断标准", "鉴别诊断"],
+    "etiology": ["TOAST", "classification", "病因", "分型", "diagnostic criteria"],
+    "anatomy": ["neurology textbook", "neuroanatomy", "clinical localization", "syndrome", "神经解剖", "定位"],
+    "prognosis": ["prognosis", "outcome", "预后", "mortality"],
+    "prevention": ["secondary prevention", "二级预防", "guideline", "指南"],
+}
+
+
+def add_source_constraint(query: str, evidence_type: str | None) -> str:
+    """
+    Source Constraint:按证据类型附加来源约束词。
+
+    例: anatomy 查询 → "... AND (neurology textbook OR clinical localization)"
+    避免检索撞上 stroke prevention(二级预防)等无关内容。
+    """
+    if not evidence_type:
+        return query
+    keywords = SOURCE_CONSTRAINTS.get(evidence_type.strip().lower())
+    if not keywords:
+        return query
+    # 只追加查询中未出现的约束词(取前 2 个)
+    to_add = [kw for kw in keywords if kw.lower() not in query.lower()]
+    if not to_add:
+        return query
+    constraint = " OR ".join(f'"{kw}"' for kw in to_add[:2])
+    return f"{query} AND ({constraint})"
+
+
 def abstract_patient_variables(query: str) -> str:
     """
     Query Abstraction:移除患者特定变量(年龄/NIHSS/ASPECTS/血压等具体数值),
@@ -252,6 +283,12 @@ def translate_query(query: str, evidence_type: str | None = None) -> List[str]:
     # 3. 证据类型关键词注入
     enriched = inject_evidence_keywords(query, evidence_type)
     abstracted_enriched = inject_evidence_keywords(abstracted, evidence_type)
+
+    # 3.5 Source Constraint:按证据类型附加来源约束词(如 anatomy → textbook/定位)
+    if or_and:
+        or_and = add_source_constraint(or_and, evidence_type)
+    if abstracted_enriched:
+        abstracted_enriched = add_source_constraint(abstracted_enriched, evidence_type)
 
     # 4. 同义词替换变体
     variants = []

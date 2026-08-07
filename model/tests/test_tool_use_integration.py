@@ -405,6 +405,15 @@ def test_evidence_mismatch_filter():
     assert len(f2) == 2
 
 
+def test_source_constraint_added():
+    """Source Constraint 应按证据类型附加来源约束词。"""
+    from app.agents.services.query_translator import translate_query
+    variants = translate_query("左大脑中动脉综合征 失语 对侧偏瘫 临床定位", "anatomy")
+    assert any("neurology textbook" in v or "neuroanatomy" in v for v in variants)
+    variants2 = translate_query("急性缺血性卒中 静脉溶栓 时间窗", "treatment")
+    assert any("recommendation" in v or "meta-analysis" in v for v in variants2)
+
+
 def test_lvo_screening_tool():
     """LVO 筛查工具应输出概率分层与 CTA 建议。"""
     from app.agents.tools.registry import call_tool
