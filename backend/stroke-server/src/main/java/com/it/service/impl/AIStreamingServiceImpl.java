@@ -99,6 +99,20 @@ public class AIStreamingServiceImpl implements AIStreamingService {
 
     @Transactional
     @Override
+    public void persistRejectedScopeConversation(Long userId, Long talkId, String question, String message) {
+        try {
+            // 复用持久化服务：保存"问题(user) + 范围提示(assistant)"
+            conversationPersistenceService.persistConversation(
+                    userId, talkId, question, message, "", "问题范围提示", List.of());
+            clearTalkListCache(userId);
+            log.info("已保存被范围拦截的对话: talkId={}, question={}", talkId, question);
+        } catch (Exception e) {
+            log.error("保存被拦截对话失败: talkId={}, err={}", talkId, e.getMessage());
+        }
+    }
+
+    @Transactional
+    @Override
     public Long createNewTalk(Long userId) {
         LocalDateTime now = LocalDateTime.now();
         Long talkId = IdWorker.getId();

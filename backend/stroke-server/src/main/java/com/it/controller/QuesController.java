@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -65,14 +66,6 @@ public class QuesController {
 
         String question = quesParam == null ? null : quesParam.getQuestion();
         List<String> images = quesParam == null ? List.of() : quesParam.getImages();
-        QuestionScopeGuard.Decision scopeDecision = questionScopeGuard.inspect(question, images);
-        if (!scopeDecision.allowed()) {
-            log.info("问诊范围拦截: reason={}", scopeDecision.reasonCode());
-            return Flux.just(
-                    sse("result", json("result", mapOf("content", scopeDecision.message()))),
-                    sse("done", json("done", mapOf("title", "问题范围提示")))
-            );
-        }
 
         String upstreamToken = resolveToken(token, authorization);
 
@@ -108,6 +101,23 @@ public class QuesController {
         final Long finalTalkId = talkId;
         final boolean finalNeedCreate = needCreate;
         final String finalTalkIdStr = String.valueOf(finalTalkId);
+
+        // 问诊范围拦截：仍在已创建对话中保存本次问答，避免"发个你好没对话"的体验
+        QuestionScopeGuard.Decision scopeDecision = questionScopeGuard.inspect(question, images);
+        if (!scopeDecision.allowed()) {
+            log.info("问诊范围拦截: reason={}, talkId={}", scopeDecision.reasonCode(), finalTalkId);
+            final String scopeMsg = scopeDecision.message();
+            // 异步保存"问题+范围提示"到当前对话，确保对话列表可见
+            String scopeQuestion = question == null ? "" : question;
+            Mono.fromRunnable(() -> streamingService.persistRejectedScopeConversation(
+                            userId, finalTalkId, scopeQuestion, scopeMsg))
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .subscribe();
+            return Flux.just(
+                    sse("result", json("result", mapOf("content", scopeMsg))),
+                    sse("done", json("done", mapOf("title", "问题范围提示", "talkId", finalTalkIdStr)))
+            );
+        }
 
         // ===== 断线续传：有 Last-Event-ID 时走重连路径，不触发新的 AI 推理 =====
         if (lastEventId != null && !lastEventId.isBlank()) {

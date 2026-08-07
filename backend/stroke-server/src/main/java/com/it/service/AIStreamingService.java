@@ -26,5 +26,8 @@ public interface AIStreamingService {
     // 获取历史对话内容，返回含 role/content/images 的 DTO 列表
     List<ContDTO> getPreContent(Long userId, Long talkId);
 
+    // 保存被范围拦截的问题+提示到对话（确保"你好"等也有对话记录）
+    void persistRejectedScopeConversation(Long userId, Long talkId, String question, String message);
+
     Talk getTalkById(Long talkId);
 }
