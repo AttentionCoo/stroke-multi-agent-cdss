@@ -206,10 +206,12 @@ class ToolUseNode(BaseNode):
                        "麻木", "共济失调", "忽视", "肢体", "numb", "hemiparesis", "aphasia",
                        "hemiplegia", "dysarthria"]
         if any(s in text for s in neuro_signs):
-            calls.append(("nihss_score", {}))
-            calls.append(("mrs_score", {"score": 0}))  # 占位,由 reason 节点结合整体评估
+            nihss_args = self._extract_nihss_args(text)
+            calls.append(("nihss_score", nihss_args))
+            # mRS 需临床随访评估，无法从文本可靠计算，不再占位调用
         if any(s in text for s in ["意识障碍", "昏迷", "嗜睡", "昏睡", "gcs", "格拉斯哥"]):
-            calls.append(("gcs_score", {"eye": 4, "verbal": 5, "motor": 6}))  # 占位默认值
+            gcs_args = self._extract_gcs_args(text)
+            calls.append(("gcs_score", gcs_args))
 
         # 2. 溶栓时间窗:出现发病时长描述
         if re.search(r"(\d+(\.\d+)?)\s*(小时|h|hrs?|分钟|min|mins?)", lower) and any(
@@ -233,8 +235,13 @@ class ToolUseNode(BaseNode):
             s in text for s in ["血小板", "出血", "凝血", "血小板低"]
         )
         if treatment_hits or (has_stroke_signs and bp_abnormal):
-            treatment = "溶栓" if any(s in text for s in ["溶栓", "阿替普酶", "rt-pa", "rtpa", "thrombolysis"]) else (
-                "抗凝" if any(s in text for s in ["抗凝", "华法林", "anticoagul"]) else "双抗")
+            # 急性卒中场景默认优先溶栓评估(时间窗内)；仅在文本明确指向抗凝/双抗时切换
+            if any(s in text for s in ["抗凝", "华法林", "anticoagul", "低分子肝素", "肝素"]):
+                treatment = "抗凝"
+            elif any(s in text for s in ["双抗", "阿司匹林", "氯吡格雷", "替格瑞洛", "双联抗血小板"]):
+                treatment = "双抗"
+            else:
+                treatment = "溶栓"
             calls.append(("contraindication_check", {"treatment": treatment, "patient_info": text}))
 
         # 4. TOAST 分型:存在血管/心脏/影像线索
@@ -250,3 +257,112 @@ class ToolUseNode(BaseNode):
                 seen.add(name)
                 unique.append((name, args))
         return unique
+
+    def _extract_nihss_args(self, text: str) -> Dict:
+        """
+        从病例文本提取 NIHSS 分项(基于明确症状描述,不臆测未提及的分项)。
+
+        注意:本方法只为规则兜底提供"文本中明确存在"的症状映射,
+        未提及的分项保持默认 0,不代表临床正常——reason 节点应结合全文判断。
+        """
+        t = text.lower()
+        args: Dict = {}
+
+        # 1a 意识水平
+        if any(s in t for s in ["昏迷", "深度昏迷", "无反应"]):
+            args["level_of_consciousness"] = 3
+        elif any(s in t for s in ["昏睡", "昏沉", "嗜睡但能唤醒", "刺激可唤醒"]):
+            args["level_of_consciousness"] = 2
+        elif any(s in t for s in ["嗜睡", "倦怠", "唤醒后应答"]):
+            args["level_of_consciousness"] = 1
+        elif "无意识障碍" in t or "意识清醒" in t or "神志清楚" in t:
+            args["level_of_consciousness"] = 0
+
+        # 1b 意识提问(语言理解)
+        if any(s in t for s in ["完全失语", "缄默", "不能理解", "完全不能理解"]):
+            args["loc_questions"] = 2
+        elif any(s in t for s in ["理解困难", "言语混乱", "答非所问", "部分理解"]):
+            args["loc_questions"] = 1
+        elif any(s in t for s in ["言语不清", "构音障碍", "表达困难", "找词困难"]):
+            args["loc_questions"] = 1
+
+        # 2 凝视
+        if any(s in t for s in ["凝视麻痹", "同向偏视", "双眼向一侧"]):
+            args["gaze"] = 2
+        elif "凝视" in t:
+            args["gaze"] = 1
+
+        # 3 视野
+        if any(s in t for s in ["偏盲", "视野缺损", "看不见一侧"]):
+            args["visual"] = 2
+
+        # 4 面瘫
+        if any(s in t for s in ["口角歪斜", "面部歪斜", "面瘫", "口角下垂", "鼻唇沟变浅"]):
+            args["facial"] = 2
+        elif any(s in t for s in ["面部麻木", "轻微面瘫"]):
+            args["facial"] = 1
+
+        # 5/6 肢体运动:区分左右侧
+        motor = 0
+        if any(s in t for s in ["完全瘫痪", "不能抬起", "无法抬起", "无运动", "肌力0级", "肌力 0"]):
+            motor = 4
+        elif any(s in t for s in ["不能抗重力", "肌力2级", "肌力 2", "仅能水平移动"]):
+            motor = 3
+        elif any(s in t for s in ["抗重力", "肌力3级", "肌力 3", "可抬离床面"]):
+            motor = 2
+        elif any(s in t for s in ["肌力4级", "肌力 4", "轻度无力", "肢体无力"]):
+            motor = 1
+
+        if "右侧" in t or "右肢" in t or "右上下肢" in t or "右半身" in t:
+            args["motor_arm"] = max(args.get("motor_arm", 0), motor)
+            args["motor_leg"] = max(args.get("motor_leg", 0), motor)
+        elif "左侧" in t or "左肢" in t or "左上下肢" in t or "左半身" in t:
+            args["motor_arm"] = max(args.get("motor_arm", 0), motor)
+            args["motor_leg"] = max(args.get("motor_leg", 0), motor)
+        elif motor > 0:
+            # 未指明侧别但明确无力
+            args["motor_arm"] = max(args.get("motor_arm", 0), motor)
+            args["motor_leg"] = max(args.get("motor_leg", 0), motor)
+
+        # 7 共济失调
+        if any(s in t for s in ["共济失调", "指鼻试验", "跟膝胫", "辨距不良"]):
+            args["ataxia"] = 2
+
+        # 8 感觉
+        if any(s in t for s in ["感觉减退", "麻木", "针刺感减退", "痛觉减退"]):
+            args["sensory"] = 1
+        elif any(s in t for s in ["感觉丧失", "完全麻木", "无感觉"]):
+            args["sensory"] = 2
+
+        # 9 语言
+        if any(s in t for s in ["完全失语", "缄默", "不能说话"]):
+            args["language"] = 3
+        elif any(s in t for s in ["严重失语", "不能表达", "表达不能"]):
+            args["language"] = 2
+        elif any(s in t for s in ["失语", "言语困难", "言语障碍", "不能正确表达", "表达困难", "找词困难"]):
+            args["language"] = 1
+
+        # 10 构音障碍
+        if any(s in t for s in ["构音障碍", "言语含糊", "吐字不清", "说话不清"]):
+            args["dysarthria"] = 1
+
+        # 11 忽视
+        if any(s in t for s in ["忽视", "忽略一侧", "单侧忽略", "偏侧忽略"]):
+            args["extinction"] = 2
+
+        return args
+
+    def _extract_gcs_args(self, text: str) -> Dict:
+        """从病例文本提取 GCS 三部分(仅当提及意识障碍时才调用,按描述映射)。"""
+        t = text.lower()
+        # 默认按明显意识障碍设置,避免"昏迷"却返回满分
+        eye, verbal, motor = 1, 1, 1
+        if any(s in t for s in ["神志清楚", "意识清醒", "无意识障碍", "定向力正常"]):
+            eye, verbal, motor = 4, 5, 6
+        elif any(s in t for s in ["嗜睡", "倦怠", "唤醒后应答", "唤醒后可回答"]):
+            eye, verbal, motor = 3, 4, 5
+        elif any(s in t for s in ["昏睡", "昏沉", "刺激可唤醒", "疼痛刺激睁眼"]):
+            eye, verbal, motor = 2, 3, 4
+        elif any(s in t for s in ["昏迷", "深度昏迷", "无反应", "刺痛无反应"]):
+            eye, verbal, motor = 1, 1, 1
+        return {"eye": eye, "verbal": verbal, "motor": motor}

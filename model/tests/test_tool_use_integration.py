@@ -157,8 +157,9 @@ async def test_rule_based_fallback_triggers_on_stroke_case():
     calls = node._rule_based_fallback(case)
     names = [n for n, _ in calls]
     assert "nihss_score" in names
-    assert "mrs_score" in names
     assert "contraindication_check" in names
+    # mRS 需临床随访评估,不应占位调用
+    assert "mrs_score" not in names
     # 含发病时间 → 时间窗
     case2 = "男65岁突发右侧肢体无力3小时,既往房颤史,血压185/115"
     calls2 = node._rule_based_fallback(case2)
@@ -167,3 +168,34 @@ async def test_rule_based_fallback_triggers_on_stroke_case():
     assert "toast_classify" in names2
     # 知识问题不误触发
     assert node._rule_based_fallback("如何预防脑卒中?") == []
+
+
+@pytest.mark.asyncio
+async def test_rule_based_fallback_extracts_real_nihss():
+    """NIHSS 兜底应从病例文本提取真实症状分项,而非全 0 占位。"""
+    node = ToolUseNode(llm=_NoCallLLM(), tools=[FAKE_TOOL], max_rounds=2)
+    case = "突发右侧肢体无力1.5小时,右侧上下肢不能抬起,言语困难,口角歪斜,无意识障碍"
+    calls = dict(node._rule_based_fallback(case))
+    assert "nihss_score" in calls
+    nihss_args = calls["nihss_score"]
+    # 右侧完全瘫痪 → 肢体运动 4;口角歪斜 → 面瘫;失语 → 语言
+    assert nihss_args.get("motor_arm") == 4
+    assert nihss_args.get("motor_leg") == 4
+    assert nihss_args.get("facial") >= 1
+    assert nihss_args.get("language") >= 1
+    # 未提及的分项不应被臆测为非零
+    assert nihss_args.get("visual", 0) == 0
+
+
+@pytest.mark.asyncio
+async def test_rule_based_fallback_treatment_defaults_to_thrombolysis():
+    """急性卒中无明确药物指征时,禁忌症检查默认溶栓而非双抗。"""
+    node = ToolUseNode(llm=_NoCallLLM(), tools=[FAKE_TOOL], max_rounds=2)
+    case = "男65岁,突发左侧肢体无力2小时,言语不清,血压185/115,血小板90"
+    calls = dict(node._rule_based_fallback(case))
+    assert calls.get("contraindication_check", {}).get("treatment") == "溶栓"
+
+    # 明确双抗用药时切换为双抗
+    case2 = "男70岁,右侧肢体无力1小时,服用阿司匹林+氯吡格雷"
+    calls2 = dict(node._rule_based_fallback(case2))
+    assert calls2.get("contraindication_check", {}).get("treatment") == "双抗"
