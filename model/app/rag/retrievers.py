@@ -292,10 +292,10 @@ class UnifiedSearchEngine:
         )
 
 
-    def search(self, query: str, top_k_final: int = 3) -> List[Document]:
+    def search(self, query: str, top_k_final: int = 3, category_filter: List[str] = None) -> List[Document]:
         try:
-            logger.info(f"🔍 执行检索: {query[:60]}...")
-            docs = self.retriever.search(query, top_k_final=top_k_final)
+            logger.info(f"🔍 执行检索: {query[:60]}... filter={category_filter}")
+            docs = self.retriever.search(query, top_k_final=top_k_final, category_filter=category_filter)
             logger.info(f"🏆 检索完成，命中 {len(docs)} 条")
             return docs
         except Exception as e:
