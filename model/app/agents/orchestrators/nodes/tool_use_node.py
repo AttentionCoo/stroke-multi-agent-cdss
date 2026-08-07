@@ -177,6 +177,15 @@ class ToolUseNode(BaseNode):
                     f"结果: {json.dumps(rec.get('result', {}), ensure_ascii=False)}"
                 )
             tool_results_text = "\n\n".join(parts)
+
+            # 临床一致性校验:工具计算结果与病例明确输入的分数冲突时附加警示
+            consistency_warnings = self._check_clinical_consistency(
+                state.get("case_text", ""), tool_records
+            )
+            if consistency_warnings:
+                warning_block = "\n\n【临床一致性校验警示】\n" + "\n".join(consistency_warnings)
+                tool_results_text += warning_block
+                logger.warning(f"[tool_use] 临床一致性校验发现 {len(consistency_warnings)} 处冲突")
         else:
             tool_results_text = ""
 
@@ -186,6 +195,46 @@ class ToolUseNode(BaseNode):
             "tool_results": tool_results_text,
             "tool_calls": tool_records,
         }
+
+    def _check_clinical_consistency(self, case_text: str, tool_records: List[Dict]) -> List[str]:
+        """
+        临床一致性校验:对比病例文本中明确给出的量表分数与工具计算结果。
+
+        原则:医生结构化输入优先于工具估算。若工具结果与临床输入冲突,
+        返回警示信息,reason 节点应以临床输入为准。
+        """
+        warnings: List[str] = []
+        if not case_text:
+            return warnings
+
+        for rec in tool_records:
+            tool_name = rec.get("tool", "")
+            result = rec.get("result", {}) or {}
+
+            # NIHSS:病例明确总分 vs 工具计算结果
+            if tool_name == "nihss_score":
+                m = re.search(r"nihss\s*(评分)?\s*[:：=]?\s*(\d{1,2})", case_text.lower())
+                if m and isinstance(result, dict) and "total_score" in result:
+                    clinical = int(m.group(2))
+                    computed = result["total_score"]
+                    if clinical != computed:
+                        warnings.append(
+                            f"⚠️ NIHSS 冲突: 病例明确给出 {clinical} 分, 工具按症状估算 {computed} 分。"
+                            f"临床评估优先, 请以 {clinical} 分为准。"
+                        )
+
+            # GCS:病例明确总分 vs 工具计算结果
+            if tool_name == "gcs_score":
+                m = re.search(r"gcs\s*(评分)?\s*[:：=]?\s*(\d{1,2})", case_text.lower())
+                if m and isinstance(result, dict) and "total_score" in result:
+                    clinical = int(m.group(2))
+                    computed = result["total_score"]
+                    if clinical != computed:
+                        warnings.append(
+                            f"⚠️ GCS 冲突: 病例明确给出 {clinical} 分, 工具估算 {computed} 分。"
+                            f"临床评估优先, 请以 {clinical} 分为准。"
+                        )
+        return warnings
 
     def _rule_based_fallback(self, case_text: str) -> List[tuple]:
         """
@@ -206,12 +255,16 @@ class ToolUseNode(BaseNode):
                        "麻木", "共济失调", "忽视", "肢体", "numb", "hemiparesis", "aphasia",
                        "hemiplegia", "dysarthria"]
         if any(s in text for s in neuro_signs):
-            nihss_args = self._extract_nihss_args(text)
-            calls.append(("nihss_score", nihss_args))
+            # 临床已明确给出 NIHSS 总分时,以临床输入为准,不重新计算(避免覆盖医生评估)
+            if not self._has_explicit_score(text, "nihss"):
+                nihss_args = self._extract_nihss_args(text)
+                calls.append(("nihss_score", nihss_args))
             # mRS 需临床随访评估，无法从文本可靠计算，不再占位调用
         if any(s in text for s in ["意识障碍", "昏迷", "嗜睡", "昏睡", "gcs", "格拉斯哥"]):
-            gcs_args = self._extract_gcs_args(text)
-            calls.append(("gcs_score", gcs_args))
+            # 临床已明确给出 GCS 时,以临床输入为准
+            if not self._has_explicit_score(text, "gcs"):
+                gcs_args = self._extract_gcs_args(text)
+                calls.append(("gcs_score", gcs_args))
 
         # 2. 溶栓时间窗:出现发病时长描述
         if re.search(r"(\d+(\.\d+)?)\s*(小时|h|hrs?|分钟|min|mins?)", lower) and any(
@@ -366,3 +419,25 @@ class ToolUseNode(BaseNode):
         elif any(s in t for s in ["昏迷", "深度昏迷", "无反应", "刺痛无反应"]):
             eye, verbal, motor = 1, 1, 1
         return {"eye": eye, "verbal": verbal, "motor": motor}
+
+    @staticmethod
+    def _has_explicit_score(text: str, scale: str) -> bool:
+        """
+        检测病例文本是否明确给出了某量表的总分(如"NIHSS评分:16分"、"GCS 12分")。
+
+        若临床已明确给分,规则兜底不再调用计算工具,避免工具估算覆盖医生输入。
+        """
+        t = text.lower()
+        if scale == "nihss":
+            # 匹配: NIHSS评分:16 / NIHSS 16分 / 美国国立卫生研究院卒中量表评分16
+            return bool(
+                re.search(r"nihss\s*(评分)?\s*[:：=]?\s*(\d{1,2})", t)
+                or re.search(r"卒中量表评分\s*[:：=]?\s*(\d{1,2})", t)
+            )
+        if scale == "gcs":
+            # 匹配: GCS 12分 / 格拉斯哥评分:15 / GCS评分 15
+            return bool(
+                re.search(r"gcs\s*(评分)?\s*[:：=]?\s*(\d{1,2})", t)
+                or re.search(r"格拉斯哥(昏迷)?(评分|量表)?\s*[:：=]?\s*(\d{1,2})", t)
+            )
+        return False

@@ -199,3 +199,50 @@ async def test_rule_based_fallback_treatment_defaults_to_thrombolysis():
     case2 = "男70岁,右侧肢体无力1小时,服用阿司匹林+氯吡格雷"
     calls2 = dict(node._rule_based_fallback(case2))
     assert calls2.get("contraindication_check", {}).get("treatment") == "双抗"
+
+
+def test_contraindication_negative_ct_no_false_positive():
+    """CT平扫未见出血不应被误判为'头颅CT高密度'(出血)。"""
+    from app.agents.tools.registry import call_tool
+    r = call_tool(
+        "contraindication_check",
+        {"treatment": "溶栓", "patient_info": "头颅CT平扫:未见出血,左侧基底节区低密度影"},
+    )
+    assert r["result"]["passed"] is True
+    assert "头颅CT高密度" not in r["result"]["hits"]
+
+
+def test_contraindication_real_hemorrhage_still_detected():
+    """真实的CT高密度(出血)仍应命中禁忌症。"""
+    from app.agents.tools.registry import call_tool
+    r = call_tool(
+        "contraindication_check",
+        {"treatment": "溶栓", "patient_info": "头颅CT示高密度影,考虑出血"},
+    )
+    assert r["result"]["passed"] is False
+    assert "头颅CT高密度" in r["result"]["hits"]
+
+
+def test_rule_based_fallback_respects_explicit_nihss_score():
+    """病例明确给出 NIHSS 总分时,规则兜底不应重新计算覆盖临床输入。"""
+    node = ToolUseNode(llm=_NoCallLLM(), tools=[FAKE_TOOL], max_rounds=2)
+    case = "NIHSS评分:16分,右侧肢体无力2小时,言语困难"
+    calls = [n for n, _ in node._rule_based_fallback(case)]
+    assert "nihss_score" not in calls
+
+
+def test_clinical_consistency_warns_on_conflict():
+    """工具计算结果与病例明确分数冲突时应产生警示。"""
+    node = ToolUseNode(llm=_NoCallLLM(), tools=[FAKE_TOOL], max_rounds=2)
+    warnings = node._check_clinical_consistency(
+        "NIHSS评分:16分,右侧肢体无力",
+        [{"tool": "nihss_score", "result": {"total_score": 11}}],
+    )
+    assert len(warnings) == 1
+    assert "16" in warnings[0]
+    # 一致时无警示
+    warnings2 = node._check_clinical_consistency(
+        "NIHSS评分:16分",
+        [{"tool": "nihss_score", "result": {"total_score": 16}}],
+    )
+    assert warnings2 == []

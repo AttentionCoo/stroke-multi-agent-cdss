@@ -21,10 +21,32 @@ _SYNONYMS = {
     "血压超180/110": ["180/110", "血压180", "收缩压180", "高压180", "血压超180"],
     "活动性出血": ["活动性出血", "活动出血", "消化道出血", "脑出血", "颅内出血", "鼻出血", "牙龈出血", "血尿", "黑便", "呕血"],
     "近期大手术": ["近期手术", "大手术", "外科手术", "术后", "手术史"],
-    "头颅CT高密度": ["ct高密度", "ct示高密度", "高密度影", "ct见高密度", "头颅ct"],
+    "头颅CT高密度": ["ct高密度", "ct示高密度", "高密度影", "ct见高密度"],
     "出血倾向": ["出血倾向", "凝血异常", "凝血功能异常", "血小板低", "血小板减少", "易出血"],
     "活动性溃疡": ["活动性溃疡", "胃溃疡", "十二指肠溃疡", "消化性溃疡"],
     "既往脑出血史": ["既往脑出血", "脑出血史", "曾有脑出血", "出血性卒中史", "脑溢血"],
+}
+
+# 否定表述:命中这些短语时,即使出现规则关键词也不判为阳性(排除误杀)
+_NEGATION_PATTERNS = [
+    "未见出血", "无出血", "未见高密度", "无高密度", "未见明显出血", "排除出血",
+    "未见脑出血", "无脑出血", "无颅内出血", "未见颅内出血", "ct未见出血",
+    "未提示出血", "没有出血", "未见活动性出血", "无活动性出血",
+    "出血已止", "无出血倾向", "未见异常", "正常",
+]
+
+# 语境敏感的规则:只有"阳性语境"才命中(避免"CT平扫"误判为"CT高密度")
+_CONTEXT_SENSITIVE_RULES = {
+    "头颅CT高密度": [
+        # 阳性语境:明确描述高密度/出血
+        ("阳性", ["高密度", "高密度影", "ct示高密度", "ct见高密度", "出血灶", "出血表现"]),
+        # 阴性语境:描述平扫/未见异常等,不命中
+        ("阴性", ["平扫", "未见异常", "未见出血", "排除出血"]),
+    ],
+    "活动性出血": [
+        ("阳性", ["活动性出血", "活动出血", "消化道出血", "脑出血", "颅内出血", "鼻出血", "牙龈出血", "血尿", "黑便", "呕血"]),
+        ("阴性", ["未见活动性出血", "无活动性出血", "出血已止", "无出血", "排除出血"]),
+    ],
 }
 
 _RULE_ALIASES = {
@@ -34,9 +56,38 @@ _RULE_ALIASES = {
 }
 
 
-def _matches(text: str, rule: str) -> bool:
-    """判断患者信息文本是否命中某条规则(支持同义词表与数值匹配)。"""
+def _has_negation(text: str, window: int = 40) -> bool:
+    """判断文本中是否出现否定/排除表述(命中则不应判为阳性)。"""
     lower_text = text.lower()
+    for neg in _NEGATION_PATTERNS:
+        idx = lower_text.find(neg.lower())
+        if idx != -1:
+            return True
+    return False
+
+
+def _matches(text: str, rule: str) -> bool:
+    """判断患者信息文本是否命中某条规则(支持同义词表、数值匹配与否定语义识别)。"""
+    lower_text = text.lower()
+
+    # 否定表述优先:明确"未见出血/排除出血"等,不再命中出血类规则
+    if rule in ("头颅CT高密度", "活动性出血", "出血倾向", "既往脑出血史") and _has_negation(lower_text):
+        return False
+
+    # 语境敏感规则:CT 平扫/未见异常 ≠ CT 高密度(出血)
+    if rule in _CONTEXT_SENSITIVE_RULES:
+        groups = _CONTEXT_SENSITIVE_RULES[rule]
+        # 先查阳性语境
+        for label, keywords in groups:
+            if label == "阳性":
+                if any(k.lower() in lower_text for k in keywords):
+                    return True
+            else:
+                # 阴性语境命中 → 直接不判阳性
+                if any(k.lower() in lower_text for k in keywords):
+                    return False
+        return False  # 只有阳性语境才命中,其余一律不判
+
     rule_lower = rule.lower()
     if rule_lower in lower_text:
         return True
