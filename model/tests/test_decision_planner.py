@@ -56,7 +56,7 @@ async def test_decision_planner_generates_schema():
     for d in decisions:
         assert set(d.keys()) == {
             "decision_name", "decision_type", "patient_evidence",
-            "uncertainty", "required_evidence", "evidence_type", "priority",
+            "uncertainty", "required_evidence", "evidence_type", "priority", "pico",
         }
     prios = [d["priority"] for d in decisions]
     assert prios == sorted(prios, reverse=True)

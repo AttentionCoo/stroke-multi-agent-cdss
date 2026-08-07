@@ -414,6 +414,20 @@ def test_source_constraint_added():
     assert any("recommendation" in v or "meta-analysis" in v for v in variants2)
 
 
+def test_pico_to_query():
+    """PICO 结构化应生成干预+人群+结局核心词的检索式。"""
+    from app.agents.orchestrators.nodes.research_node import _pico_to_query
+    pico = {
+        "population": "急性缺血性卒中发病4.5小时内患者(acute ischemic stroke within 4.5h)",
+        "intervention": "阿替普酶静脉溶栓(alteplase IV thrombolysis)",
+        "outcome": "功能独立(functional independence)",
+    }
+    q = _pico_to_query(pico)
+    assert "alteplase" in q
+    assert "acute ischemic stroke" in q
+    assert "functional independence" in q
+
+
 def test_lvo_screening_tool():
     """LVO 筛查工具应输出概率分层与 CTA 建议。"""
     from app.agents.tools.registry import call_tool

@@ -67,10 +67,16 @@ class ResearchPlanNode(BaseNode):
       "uncertainty": ["决策关键但病例中缺失/不明确的信息，如'血小板计数'"],
       "required_evidence": ["支持该决策的指南或证据名称，如'AHA卒中指南'"],
       "evidence_type": "treatment",
-      "priority": 10
+      "priority": 10,
+      "pico": {{
+        "population": "急性缺血性卒中发病4.5小时内患者",
+        "intervention": "阿替普酶静脉溶栓(alteplase IV thrombolysis)",
+        "comparison": "不溶栓(no thrombolysis)",
+        "outcome": "功能独立/症状性颅内出血(functional independence, symptomatic ICH)"
+      }}
     }}
   ],
-  "retrieval_tasks": [{{"question": "面向该决策的临床问题", "query": "对应的中英文专业检索式"}}],
+  "retrieval_tasks": [{{"question": "面向该决策的临床问题", "query": "由PICO生成的检索式，如 alteplase acute ischemic stroke within 4.5 hours guideline"}}],
   "expanded_queries": ["医学同义词、指南术语或疾病实体扩展查询"],
   "hypothetical_document": "一段用于 HyDE 向量检索的可能相关医学描述，不得虚构患者事实"
 }}
@@ -83,6 +89,10 @@ class ResearchPlanNode(BaseNode):
 - patient_evidence 只写病例中真实存在的事实，不得编造检查结果
 - uncertainty 必须列出影响该决策的缺失信息
 - 每个决策至少对应一个检索任务，查询应包含具体疾病实体、检查或指南术语
+- 每个决策必须生成 **PICO 结构化检索式**（Population/Intervention/Comparison/Outcome），
+  retrieval_tasks 的 query 由 PICO 生成（英文标准术语），如：
+  "alteplase acute ischemic stroke within 4.5 hours guideline"（I 溶栓 + P 卒中 + 时间窗）
+- PICO 的 Intervention 与 Outcome 是检索核心词，Population 限定人群（如 AF 相关卒中）
 - 检索任务必须是**临床决策问题**，不是文献性能问题：
   ✅ "对于NIHSS16分伴失语偏瘫的急性卒中患者，是否推荐急诊CTA筛查大血管闭塞？"
   ❌ "CTA/MRA检出前循环LVO的敏感性与特异性是多少？"
@@ -161,6 +171,7 @@ class ResearchPlanNode(BaseNode):
                     "required_evidence": _as_str_list(item.get("required_evidence")),
                     "evidence_type": str(item.get("evidence_type") or decision_type or DEFAULT_EVIDENCE_TYPE),
                     "priority": priority,
+                    "pico": item.get("pico") if isinstance(item.get("pico"), dict) else {},
                 })
 
         if decisions:
@@ -195,12 +206,15 @@ class ResearchPlanNode(BaseNode):
                     tasks.append({"question": question or query, "query": query})
         if tasks:
             return tasks
-        # 回退：从决策节点生成任务
-        fallback = [
-            {"question": d["decision_name"], "query": d["decision_name"]}
-            for d in decisions
-            if d.get("decision_name")
-        ]
+        # 回退：从决策节点生成任务(优先用 PICO 拼检索式)
+        fallback = []
+        for d in decisions:
+            if not d.get("decision_name"):
+                continue
+            query = _pico_to_query(d.get("pico") or {})
+            if not query:
+                query = d["decision_name"]
+            fallback.append({"question": d["decision_name"], "query": query})
         if fallback:
             return fallback
         return [
@@ -243,3 +257,21 @@ def _as_str_list(value) -> List[str]:
     if value:
         return [str(value).strip()]
     return []
+
+
+def _pico_to_query(pico: Dict) -> str:
+    """从 PICO 结构生成检索式(intervention + population + outcome 核心词)。"""
+    if not isinstance(pico, dict):
+        return ""
+    parts = []
+    for key in ("intervention", "population", "outcome"):
+        val = str(pico.get(key, "") or "").strip()
+        if not val:
+            continue
+        # 提取英文核心词(括号内的英文术语优先)
+        en = val[val.find("(") + 1:val.find(")")] if "(" in val and ")" in val else ""
+        if en and any(c.isascii() and c.isalpha() for c in en):
+            parts.append(en.strip())
+        else:
+            parts.append(val)
+    return " ".join(parts) if parts else ""
