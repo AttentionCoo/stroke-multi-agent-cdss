@@ -32,28 +32,51 @@ class RetrieveNode(BaseNode):
                 "retrieved_queries": previous_queries,
             }
 
-        # Decision → Evidence Type Router:按决策节点的 evidence_type 路由检索类别
-        # retrieval_tasks 由 Decision Planner 生成,含 evidence_type 字段
+        # Decision → Evidence Router:优先用 Evidence Router Agent 的输出
+        # (evidence_type + target_categories + keywords), 回退到决策节点的 evidence_type
+        router_types = state.get("router_evidence_types", [])
+        router_categories = state.get("router_categories", [])
+        router_keywords = state.get("router_keywords", [])
+
         evidence_types: List[str] = []
-        tasks = state.get("retrieval_tasks", [])
-        decisions = state.get("clinical_decisions", [])
-        if isinstance(tasks, list) and tasks:
-            for task in tasks:
-                if not isinstance(task, dict):
-                    continue
-                ev_type = task.get("evidence_type") or task.get("type") or ""
-                evidence_types.append(str(ev_type).strip() if ev_type else "")
-        elif isinstance(decisions, list) and decisions:
-            # 无 tasks 时回退到决策节点的 evidence_type
-            evidence_types = [
-                str(d.get("evidence_type", "")).strip()
-                for d in decisions if isinstance(d, dict)
-            ][:len(queries)]
+        category_filters: List[List[str]] = []
+        if isinstance(router_types, list) and len(router_types) == len(queries):
+            evidence_types = [str(t) if t else "" for t in router_types]
+            if isinstance(router_categories, list) and len(router_categories) == len(queries):
+                category_filters = [list(c) if isinstance(c, list) else [] for c in router_categories]
+        else:
+            # 回退:从决策节点取 evidence_type
+            tasks = state.get("retrieval_tasks", [])
+            decisions = state.get("clinical_decisions", [])
+            if isinstance(tasks, list) and tasks:
+                for task in tasks:
+                    if not isinstance(task, dict):
+                        continue
+                    ev_type = task.get("evidence_type") or task.get("type") or ""
+                    evidence_types.append(str(ev_type).strip() if ev_type else "")
+            elif isinstance(decisions, list) and decisions:
+                evidence_types = [
+                    str(d.get("evidence_type", "")).strip()
+                    for d in decisions if isinstance(d, dict)
+                ][:len(queries)]
+
+        # 附加 Router 关键词到查询(增强检索)
+        if isinstance(router_keywords, list) and len(router_keywords) == len(queries):
+            enriched_queries = []
+            for i, q in enumerate(queries):
+                kws = router_keywords[i] if isinstance(router_keywords[i], list) else []
+                kws = [str(k) for k in kws if str(k).strip()]
+                if kws:
+                    enriched_queries.append(f"{q} {' '.join(kws[:3])}")
+                else:
+                    enriched_queries.append(q)
+            queries = enriched_queries
 
         evidence = await self.medical_assistant.afast_parallel_retrieve(
             queries,
             round_number=retrieval_round,
             evidence_types=evidence_types,
+            category_filters=category_filters,
         )
         previous_evidence = str(state.get("evidence", "") or "").strip()
         combined = "\n\n---\n\n".join(

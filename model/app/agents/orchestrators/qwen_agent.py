@@ -13,6 +13,7 @@ from app.agents.orchestrators.nodes.retrieve_node import RetrieveNode
 from app.agents.orchestrators.nodes.evidence_node import EvidenceJudgeNode, QueryRewriteNode
 from app.agents.orchestrators.nodes.reason_node import ReasonNode
 from app.agents.orchestrators.nodes.tool_use_node import ToolUseNode
+from app.agents.orchestrators.nodes.evidence_router_node import EvidenceRouterNode
 from app.agents.orchestrators.nodes.debate_node import DebateNode, ConsensusNode
 from app.agents.orchestrators.nodes.validate_node import ValidateNode
 from app.agents.orchestrators.nodes.report_node import ReportNode
@@ -72,6 +73,7 @@ class QwenAgent:
         self.analysis_node = AnalysisNode(self.llm_critic)
         self.tool_use_node = ToolUseNode(self.llm_turbo)
         self.research_plan_node = ResearchPlanNode(self.llm_critic)
+        self.evidence_router_node = EvidenceRouterNode(self.llm_critic)
         self.retrieve_node = RetrieveNode(medical_assistant)
         self.evidence_judge_node = EvidenceJudgeNode(self.llm_critic)
         self.query_rewrite_node = QueryRewriteNode(self.llm_critic)
@@ -96,6 +98,7 @@ class QwenAgent:
             validate_node=self.validate_node,
             report_node=self.report_node,
             tool_use_node=self.tool_use_node,
+            evidence_router_node=self.evidence_router_node,
             llm_critic=self.llm_critic,
             report_manager=self.reports,
         ).build()

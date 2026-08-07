@@ -127,32 +127,37 @@ class EvidenceRetrievalService:
             None, self.retrieve_single, query, evidence_prefix, evidence_type, category_filter)
 
     async def aparallel_retrieve(self, queries: List[str], round_number: int = 1,
-                                 evidence_types: List[str] = None) -> str:
+                                 evidence_types: List[str] = None,
+                                 category_filters: List[List[str]] = None) -> str:
         """并行检索,支持按决策类型路由证据源,并用 Query Translator 多路召回。
 
         每条临床查询先经 Medical Query Translator 转换为多组文献查询变体
         (术语标准化+同义词扩展+证据源关键词),再并行检索,提升召回率。
+        category_filters: 每条查询的目标类别过滤(Evidence Router Agent 输出)。
         """
         import asyncio
         from app.agents.services.query_translator import translate_query
 
         types = evidence_types or [None] * len(queries)
+        filters = category_filters or [None] * len(queries)
 
         # 1. 翻译:每条查询 → 多组变体
-        translated: List[tuple] = []  # (原查询, 证据类型, 变体列表)
+        translated: List[tuple] = []  # (原查询, 证据类型, 类别过滤, 变体列表)
         for i, q in enumerate(queries):
             ev_type = types[i] if i < len(types) else None
+            cat_filter = filters[i] if i < len(filters) else None
             variants = translate_query(q, ev_type)
-            translated.append((q, ev_type, variants))
+            translated.append((q, ev_type, cat_filter, variants))
 
         # 2. 并行检索所有变体
         tasks = []
-        task_meta = []  # (原查询, 变体, 前缀)
-        for i, (q, ev_type, variants) in enumerate(translated):
+        task_meta = []  # (原查询, 变体, 类别过滤, 前缀)
+        for i, (q, ev_type, cat_filter, variants) in enumerate(translated):
             for j, variant in enumerate(variants):
                 tasks.append(self.aretrieve_single(
                     variant, f"R{round_number}-Q{i + 1}v{j + 1}",
                     evidence_type=ev_type,
+                    category_filter=cat_filter,
                 ))
                 task_meta.append((q, variant))
 

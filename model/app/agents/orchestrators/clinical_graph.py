@@ -83,6 +83,7 @@ class ClinicalGraphBuilder:
         report_node: ReportNode,
         validate_node: ValidateNode = None,
         tool_use_node=None,
+        evidence_router_node=None,
         llm_critic=None,
         report_manager=None,
     ):
@@ -112,6 +113,7 @@ class ClinicalGraphBuilder:
         self.report_node = report_node
         self.validate_node = validate_node
         self.tool_use_node = tool_use_node
+        self.evidence_router_node = evidence_router_node
         self.llm_critic = llm_critic
         self.report_manager = report_manager
         
@@ -150,6 +152,8 @@ class ClinicalGraphBuilder:
         if self.tool_use_node:
             graph.add_node("tool_use", self.tool_use_node.run)
         graph.add_node("research_plan", self.research_plan_node.run)
+        if self.evidence_router_node:
+            graph.add_node("evidence_router", self.evidence_router_node.run)
         graph.add_node("retrieve", self.retrieve_node.run)
         graph.add_node("evidence_judge", self.evidence_judge_node.run)
         graph.add_node("query_rewrite", self.query_rewrite_node.run)
@@ -187,11 +191,17 @@ class ClinicalGraphBuilder:
             graph.add_edge("tool_use", "research_plan")
         else:
             graph.add_edge("analysis", "research_plan")
+        # Evidence Router 存在时先路由, 否则直接检索
+        research_retrieve_target = "evidence_router" if self.evidence_router_node else "retrieve"
+        rewrite_retrieve_target = "evidence_router" if self.evidence_router_node else "retrieve"
+
         graph.add_conditional_edges(
             "research_plan",
             self._route_research,
-            {"retrieve": "retrieve", "reason": "reason"},
+            {"retrieve": research_retrieve_target, "reason": "reason"},
         )
+        if self.evidence_router_node:
+            graph.add_edge("evidence_router", "retrieve")
         graph.add_edge("retrieve", "evidence_judge")
         graph.add_conditional_edges(
             "evidence_judge",
@@ -201,7 +211,7 @@ class ClinicalGraphBuilder:
         graph.add_conditional_edges(
             "query_rewrite",
             self._route_rewrite,
-            {"retrieve": "retrieve", "reason": "reason"},
+            {"retrieve": rewrite_retrieve_target, "reason": "reason"},
         )
         graph.add_edge("reason", "debate")
         graph.add_edge("debate", "consensus_agent")
