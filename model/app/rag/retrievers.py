@@ -44,7 +44,12 @@ CONFIG = {
 class DashScopeEmbeddings(Embeddings):
     def __init__(self, model: str = "text-embedding-v2"):
         self.model = model
+        # 防御性加载:确保任何初始化时机都能拿到 API key(不依赖模块导入顺序)
+        load_dotenv()
         self.api_key = os.getenv("DASHSCOPE_API_KEY")
+        if not self.api_key:
+            logger.error("❌ DASHSCOPE_API_KEY 未设置,embedding 将失败")
+            raise ValueError("DASHSCOPE_API_KEY 环境变量未设置")
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         result = []
@@ -76,6 +81,7 @@ class DashScopeEmbeddings(Embeddings):
 
 class BGEReranker:
     def __init__(self, top_k: int = 5):
+        load_dotenv()
         self.api_key = os.getenv("DASHSCOPE_API_KEY")
         if not self.api_key:
             logger.warning("⚠️ 未找到 DASHSCOPE_API_KEY，Rerank 功能已禁用")
