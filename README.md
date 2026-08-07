@@ -66,7 +66,7 @@ docker compose ps
 
 | 服务 | 访问地址 | 用途 |
 |------|----------|------|
-| 前端 | `http://localhost/` | 登录与临床辅助分析工作台 |
+| 前端 | `http://localhost:8088/` | 登录与临床辅助分析工作台 |
 | 后端 | `http://localhost:8080` | Spring Boot API 服务 |
 | 模型服务 | `http://localhost:8000/docs` | FastAPI 接口文档 |
 
@@ -131,6 +131,10 @@ docker compose up -d
 ### 🆕 5. 分层测试与可复现评测
 
 系统配备前端、后端与模型层自动化测试；新增离线评测运行器，对必需信息、禁用表述、引用白名单和结果哈希进行可复现检查。临床结论仍需使用冻结病例集和专家盲评另行验证。
+
+### 🆕 6. 脑卒中医疗工具调用（Skill & Tool Calling）
+
+系统内置 7 个脑卒中领域工具（NIHSS/mRS/GCS 量表、溶栓时间窗、rt-PA 剂量、禁忌症筛查、TOAST 分型），通过 LangGraph `tool_use` 节点接入推理链：LLM 以 function calling 自主选择工具，结果注入多专家推理；当弱模型判断信息不足时，规则引擎按病例临床线索自动兜底调度，确保明确的评估/检查需求不被遗漏。工具既可在推理链中调用，也可通过独立 API 直接使用。
 
 ---
 
@@ -352,9 +356,15 @@ stroke-multi-agent-system/
 │   │   ├── agents/                        # 智能体核心模块
 │   │   │   ├── core/                      # 状态机模式与 ClinicalState 状态定义
 │   │   │   ├── orchestrators/             # LangGraph 推理图构建
-│   │   │   │   ├── clinical_graph.py      # Agentic RAG 与会诊双循环状态图
+│   │   │   │   ├── clinical_graph.py      # Agentic RAG 与会诊双循环状态图（含 tool_use 节点）
 │   │   │   │   ├── qwen_agent.py          # Qwen Agent 编排器
-│   │   │   │   └── nodes/                 # 记忆、规划、检索、证据评估、辩论、共识与校验节点
+│   │   │   │   └── nodes/                 # 记忆、规划、检索、证据评估、辩论、共识、校验与工具调用节点
+│   │   │   ├── tools/                     # ★ 脑卒中医疗工具集（量表/溶栓/禁忌症/TOAST）
+│   │   │   │   ├── scales.py              # NIHSS / mRS / GCS 量表评估
+│   │   │   │   ├── thrombolysis.py        # 溶栓时间窗 / rt-PA 剂量计算
+│   │   │   │   ├── contraindications.py   # 禁忌症筛查（复用 rules_config）
+│   │   │   │   ├── subtype.py             # TOAST 分型辅助
+│   │   │   │   └── registry.py            # 工具注册表与统一执行器
 │   │   │   ├── pipelines/                 # RAG 检索处理管道
 │   │   │   ├── services/                  # 业务服务 (查询、检索、综合)
 │   │   │   ├── bailian/                   # 百炼模型集成 (健康风险分析)
@@ -387,10 +397,10 @@ stroke-multi-agent-system/
 │
 └── docs/                                  # 📄 项目文档
     ├── backend-technical-documentation.md  # ★ 后端技术文档（完整）
-    ├── LangChain版本升级风险分析报告.md
-    ├── LangChain迁移可行性分析报告.md
-    ├── 全链路流式重构策略.md
-    └── 模型层重构完成报告.md
+    ├── tool-calling-design.md              # ★ 脑卒中医疗工具集设计文档
+    ├── Agentic-RAG与协作式多智能体架构.md   # Agentic RAG 与多智能体设计
+    ├── model-memory-and-context-storage.md # 模型记忆与上下文存储
+    └── 全链路流式重构策略.md                # 流式数据管道设计
 ```
 
 ---
@@ -468,10 +478,10 @@ docker compose ps
 
 | 服务 | 地址 | 说明 |
 |------|------|------|
-| 前端 | http://localhost/ | 系统登录与工作台 |
+| 前端 | http://localhost:8088/ | 系统登录与工作台 |
 | 后端 | http://localhost:8080 | Spring Boot API（未登录访问受鉴权保护） |
 | 模型服务 | http://localhost:8000/docs | FastAPI 接口文档 |
-| MySQL | `localhost:3306` | 数据库服务 |
+| MySQL | `localhost:3307` | 数据库服务（映射 3307，避免与本机 MySQL 冲突） |
 | Redis | `localhost:6379` | 缓存服务 |
 
 Compose 默认从 AWS 公共仓库拉取 Docker 官方基础镜像，并为模型镜像使用清华 Debian/PyPI 软件源，避免部分网络环境无法访问 Docker Hub 鉴权服务或官方软件源。可通过 `APP_IMAGE_TAG`、`DOCKER_BASE_IMAGE_REGISTRY`、`DEBIAN_MIRROR` 和 `PIP_INDEX_URL` 覆盖镜像标签、基础镜像仓库和软件源；若当前网络可直接访问官方服务，可分别设置为 `docker.io/library`、`http://deb.debian.org` 和 `https://pypi.org/simple`。
@@ -732,7 +742,17 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 - **路径**：`GET /model/tools/list` — 返回全部工具及其参数 schema
 - **路径**：`POST /model/tools/call` — 调用指定工具（body：`{"name": "rtpa_dose_calc", "arguments": {"weight_kg": 70}}`）
 
-**推理链集成：** 在病例分析（analysis）之后、检索规划（research_plan）之前插入 `tool_use` 节点，LLM 通过 function calling 自主选择调用工具，结果注入多专家推理上下文。事件流中新增 `tool_use` 节点（「医疗工具调用」）。
+**推理链集成：** 在病例分析（analysis）之后、检索规划（research_plan）之前插入 `tool_use` 节点，LLM 通过 function calling 自主选择调用工具，结果注入多专家推理上下文。事件流中新增 `tool_use` 节点（「医疗工具调用」），每次工具调用展开为独立思考步骤（工具名 + 参数 + 结果）。
+
+**规则兜底：** 当 LLM 判断信息不足而未调用任何工具时，规则引擎自动扫描病例文本中的临床线索并调度对应工具，避免弱模型漏掉明确存在的评估需求：
+
+| 病例线索 | 自动调用工具 |
+|---|---|
+| 偏瘫 / 失语 / 肢体无力等神经体征 | `nihss_score` + `mrs_score` |
+| 意识障碍 / 昏迷 / 格拉斯哥 | `gcs_score` |
+| 发病时长（如"3小时"） | `thrombolysis_window_check` |
+| 卒中症状 + 血压异常 / 血小板低，或提及溶栓/抗凝 | `contraindication_check` |
+| 房颤 / 血管狭窄 / 闭塞等 | `toast_classify` |
 
 > ⚠️ 医疗安全：所有工具均为计算/筛查辅助，输出不替代临床医生判断；工具结果需结合影像、实验室检查综合评估。
 
@@ -760,12 +780,9 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 |------|------|
 | [docs/backend-technical-documentation.md](docs/backend-technical-documentation.md) | ★ **后端技术文档（完整版）** — 涵盖架构设计、数据库设计、SSE 通信、安全体系、限流熔断、部署架构等 15 个章节 |
 | [docs/tool-calling-design.md](docs/tool-calling-design.md) | ★ 脑卒中医疗工具集（Skill & Tool Calling）设计文档 — 工具清单、LangGraph 集成、API 规范、测试 |
-| [docs/模型层重构完成报告.md](docs/模型层重构完成报告.md) | Python 模型层架构重构总结 |
 | [docs/Agentic-RAG与协作式多智能体架构.md](docs/Agentic-RAG与协作式多智能体架构.md) | Agentic RAG 检索循环、专家辩论共识与三级患者记忆设计 |
-| [docs/模型层改动汇报.md](docs/模型层改动汇报.md) | 模型层改动详情汇报 |
+| [docs/model-memory-and-context-storage.md](docs/model-memory-and-context-storage.md) | 模型记忆与上下文存储设计 |
 | [docs/全链路流式重构策略.md](docs/全链路流式重构策略.md) | 全链路流式数据管道设计策略 |
-| [docs/LangChain版本升级风险分析报告.md](docs/LangChain版本升级风险分析报告.md) | LangChain 版本升级风险评估 |
-| [docs/LangChain迁移可行性分析报告.md](docs/LangChain迁移可行性分析报告.md) | LangChain 迁移方案与可行性分析 |
 | [backend/stroke-server/BAOTA_DEPLOY.md](backend/stroke-server/BAOTA_DEPLOY.md) | 宝塔面板生产环境部署指南 |
 | [百度千帆.md](百度千帆.md) | 百度千帆大模型平台能力集成方案（模型底座、RAG 组件、安全网关） |
 | [计设大赛本项目简介.md](计设大赛本项目简介.md) | 计算机设计大赛项目完整简介（功能、架构、创新点详解） |
@@ -773,6 +790,16 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 ---
 
 ## 🔄 版本更新日志
+
+### v2.4.0 (2026-08-07)
+
+- ✅ **新增**：脑卒中医疗工具集（Tool Calling）— NIHSS/mRS/GCS 量表评估、溶栓时间窗与 rt-PA 剂量计算、禁忌症筛查、TOAST 分型共 7 个工具
+- ✅ **新增**：独立工具 API — `GET /model/tools/list` 与 `POST /model/tools/call`（JWT 校验 + 错误脱敏）
+- ✅ **新增**：`tool_use` 节点接入 LangGraph 推理链 — LLM 通过 function calling 自主调用工具，结果注入多专家推理；事件流逐条展示每次工具调用
+- ✅ **新增**：规则兜底 — LLM 未调用工具时按病例临床线索（神经体征/意识障碍/发病时长/血压异常/血管线索）自动调度对应工具
+- ✅ **安全**：`patient_info` 等敏感字段日志截断；参数校验错误不暴露输入值；`/model/tools/call` 支持 token 校验
+- ✅ **部署**：Docker 端口适配 — MySQL 映射 3307、前端映射 8088（规避本机 3306/80 端口冲突）
+- ✅ **测试**：33+ 个工具单元测试与 tool calling 集成测试
 
 ### v2.3.0 (2026-07-31)
 
