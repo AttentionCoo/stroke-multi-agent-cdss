@@ -1,4 +1,9 @@
-"""临床检索规划与医学查询扩展节点。"""
+"""临床决策规划与循证检索节点（Clinical Decision Planner）。
+
+将"生成医学问题→搜索答案"升级为"生成临床决策→判断缺失信息→检索支持决策的证据"。
+每个决策携带固定 Schema(decision_name/decision_type/patient_evidence/uncertainty/
+required_evidence/priority/evidence_type),并由 Evidence Router 按决策类型路由检索源。
+"""
 
 import logging
 from typing import Dict, List
@@ -12,17 +17,31 @@ from app.agents.utils.json_utils import parse_json_output
 
 logger = logging.getLogger(__name__)
 
+# 决策类型 → 优先证据源类型（Evidence Router）
+EVIDENCE_SOURCE_ROUTING = {
+    "treatment": ["临床指南", "RCT", "Meta分析"],
+    "diagnosis": ["诊断标准", "系统综述", "临床综述"],
+    "anatomy": ["神经解剖教材", "定位参考"],
+    "etiology": ["TOAST标准", "诊断指南"],
+    "prognosis": ["预后研究", "队列研究", "临床指南"],
+    "prevention": ["二级预防指南", "RCT", "临床指南"],
+}
+
+# 决策类型默认（未命中时）
+DEFAULT_EVIDENCE_TYPE = "treatment"
+
 
 class ResearchPlanNode(BaseNode):
-    """把临床问题拆成检索任务，并生成专业查询与 HyDE 文档。"""
+    """把临床问题拆成决策节点，并生成专业查询与 HyDE 文档。"""
 
-    def __init__(self, llm, max_queries: int = 8):
+    def __init__(self, llm, max_queries: int = 8, max_decisions: int = 6):
         self.llm = llm
         self.max_queries = max_queries
+        self.max_decisions = max_decisions
 
     async def run(self, state: ClinicalState) -> Dict:
         questions = state.get("clinical_questions", [])
-        prompt = f"""你是循证医学检索规划专家。请根据病例制定主动检索计划。
+        prompt = f"""你是高级卒中中心临床决策规划专家。你的任务不是回答"患者是什么病"，而是识别"当前医生需要做什么决定、需要什么证据支持这个决定"。
 
 【病例】
 {state.get('case_text', '')}
@@ -30,41 +49,59 @@ class ResearchPlanNode(BaseNode):
 【结构化信息】
 {state.get('context', {})}
 
-【待回答问题】
+【待决策方向】
 {questions}
 
 【患者记忆】
 {state.get('active_memory', '')}
 
-只输出 JSON：
+请按临床优先级生成 1-{self.max_decisions} 个临床决策节点，只输出 JSON：
 {{
   "need_retrieve": true,
   "missing_information": ["影响决策但病例中缺失的信息"],
-  "tasks": [{{"question": "临床任务", "query": "对应的中英文专业检索式"}}],
+  "clinical_decisions": [
+    {{
+      "decision_name": "是否进行静脉溶栓(IV thrombolysis)",
+      "decision_type": "treatment",
+      "patient_evidence": ["病例中支持该决策的事实，如'发病90分钟'"],
+      "uncertainty": ["决策关键但病例中缺失/不明确的信息，如'血小板计数'"],
+      "required_evidence": ["支持该决策的指南或证据名称，如'AHA卒中指南'"],
+      "evidence_type": "treatment",
+      "priority": 10
+    }}
+  ],
+  "retrieval_tasks": [{{"question": "面向该决策的临床问题", "query": "对应的中英文专业检索式"}}],
   "expanded_queries": ["医学同义词、指南术语或疾病实体扩展查询"],
   "hypothetical_document": "一段用于 HyDE 向量检索的可能相关医学描述，不得虚构患者事实"
 }}
 
 要求：
-- 每个待回答问题至少对应一个检索任务
-- 同时覆盖诊断、再灌注指征和关键禁忌证中的相关项
-- 查询应包含具体疾病实体、检查或指南术语
+- decision_type 取值：diagnosis / treatment / anatomy / etiology / prognosis / prevention
+- priority：1-10，时间敏感性×生命危险×治疗获益，越紧急越高
+- 决策必须按优先级从高到低排列（先再灌注、再LVO评估、再病因、再二级预防）
+- patient_evidence 只写病例中真实存在的事实，不得编造检查结果
+- uncertainty 必须列出影响该决策的缺失信息
+- 每个决策至少对应一个检索任务，查询应包含具体疾病实体、检查或指南术语
 - 不给出最终治疗结论"""
 
         data = None
         try:
             response = await self.llm.ainvoke([
-                SystemMessage(content="你是医学检索规划与查询扩展专家。"),
+                SystemMessage(content="你是医学临床决策规划与循证检索专家。"),
                 HumanMessage(content=prompt),
             ])
             data = parse_json_output(getattr(response, "content", ""), None)
         except Exception as exc:
-            logger.warning("检索规划失败，使用临床问题回退: %s", exc)
+            logger.warning("决策规划失败，使用临床问题回退: %s", exc)
 
         if not isinstance(data, dict):
             data = {}
 
-        tasks = self._normalize_tasks(data.get("tasks"), questions)
+        # 决策节点（决策驱动核心）
+        decisions = self._normalize_decisions(data.get("clinical_decisions"), questions)
+        clinical_decisions = decisions
+
+        tasks = self._normalize_tasks(data.get("retrieval_tasks"), questions, decisions)
         task_queries = [task["query"] for task in tasks]
         expanded = data.get("expanded_queries", [])
         if not isinstance(expanded, list):
@@ -86,10 +123,59 @@ class ResearchPlanNode(BaseNode):
             "retrieval_round": 0,
             "evidence_quality": 0.0,
             "evidence_assessment": "等待证据检索与质量评估",
+            # 临床决策节点（供 reason 等下游节点消费）
+            "clinical_decisions": clinical_decisions,
         }
 
     @staticmethod
-    def _normalize_tasks(raw_tasks, questions: List[str]) -> List[Dict[str, str]]:
+    def _normalize_decisions(raw_decisions, questions: List[str]) -> List[Dict]:
+        """规范化决策节点，保证 Schema 字段齐全并按优先级排序。"""
+        decisions = []
+        if isinstance(raw_decisions, list):
+            for item in raw_decisions:
+                if not isinstance(item, dict):
+                    continue
+                decision_name = str(item.get("decision_name", "") or "").strip()
+                if not decision_name:
+                    continue
+                decision_type = str(item.get("decision_type", "") or "").strip().lower()
+                if decision_type not in EVIDENCE_SOURCE_ROUTING:
+                    decision_type = DEFAULT_EVIDENCE_TYPE
+                try:
+                    priority = int(item.get("priority", 5))
+                except (TypeError, ValueError):
+                    priority = 5
+                decisions.append({
+                    "decision_name": decision_name,
+                    "decision_type": decision_type,
+                    "patient_evidence": _as_str_list(item.get("patient_evidence")),
+                    "uncertainty": _as_str_list(item.get("uncertainty")),
+                    "required_evidence": _as_str_list(item.get("required_evidence")),
+                    "evidence_type": str(item.get("evidence_type") or decision_type or DEFAULT_EVIDENCE_TYPE),
+                    "priority": priority,
+                })
+
+        if decisions:
+            decisions.sort(key=lambda d: d["priority"], reverse=True)
+            return decisions[:6]
+
+        # 回退：将临床问题包装为诊断决策（保证下游可消费）
+        return [
+            {
+                "decision_name": str(question),
+                "decision_type": "diagnosis",
+                "patient_evidence": [],
+                "uncertainty": [],
+                "required_evidence": [],
+                "evidence_type": "diagnosis",
+                "priority": 5,
+            }
+            for question in questions[:3]
+            if str(question).strip()
+        ]
+
+    @staticmethod
+    def _normalize_tasks(raw_tasks, questions: List[str], decisions: List[Dict]) -> List[Dict[str, str]]:
         tasks = []
         if isinstance(raw_tasks, list):
             for item in raw_tasks:
@@ -101,6 +187,14 @@ class ResearchPlanNode(BaseNode):
                     tasks.append({"question": question or query, "query": query})
         if tasks:
             return tasks
+        # 回退：从决策节点生成任务
+        fallback = [
+            {"question": d["decision_name"], "query": d["decision_name"]}
+            for d in decisions
+            if d.get("decision_name")
+        ]
+        if fallback:
+            return fallback
         return [
             {"question": str(question), "query": str(question)}
             for question in questions
@@ -132,3 +226,12 @@ class ResearchPlanNode(BaseNode):
 
         regular_limit = max(self.max_queries - 1, 0)
         return regular[:regular_limit] + ([hyde] if self.max_queries > 0 else [])
+
+
+def _as_str_list(value) -> List[str]:
+    """将任意值规范化为字符串列表。"""
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if value:
+        return [str(value).strip()]
+    return []

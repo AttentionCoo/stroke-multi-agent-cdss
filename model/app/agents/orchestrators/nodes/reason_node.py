@@ -106,6 +106,28 @@ class ReasonNode(BaseNode):
         if tool_results:
             case_info += f"\n\n【工具调用结果(量表/剂量/禁忌/分型)】\n{tool_results}"
 
+        # 临床决策节点(Clinical Decision Planner 产出)注入推理上下文
+        clinical_decisions = state.get("clinical_decisions", [])
+        if clinical_decisions:
+            decision_lines = []
+            for i, d in enumerate(clinical_decisions, 1):
+                if not isinstance(d, dict):
+                    continue
+                decision_lines.append(
+                    f"{i}. [{d.get('priority', '?')}] {d.get('decision_name', '')} "
+                    f"(类型: {d.get('decision_type', '')})\n"
+                    f"   患者证据: {d.get('patient_evidence', [])}\n"
+                    f"   缺失信息: {d.get('uncertainty', [])}\n"
+                    f"   所需证据: {d.get('required_evidence', [])}"
+                )
+            if decision_lines:
+                case_info += (
+                    "\n\n【临床决策节点(按优先级排序)】\n"
+                    "专家意见必须围绕这些决策展开：先回答最高优先级决策(如再灌注治疗)，"
+                    "再依次处理病因与二级预防，不得停留在泛泛的疾病知识描述。\n"
+                    + "\n".join(decision_lines)
+                )
+
         questions_text = format_numbered_questions(state.get("user_questions", []))
         if questions_text:
             case_info += (

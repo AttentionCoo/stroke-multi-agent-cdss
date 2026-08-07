@@ -59,3 +59,6 @@ class ClinicalState(TypedDict):
     # 新增：工具调用（tool calling）字段
     tool_results: str
     tool_calls: List[Dict]
+
+    # 新增：临床决策规划（Clinical Decision Planner）
+    clinical_decisions: List[Dict]

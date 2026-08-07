@@ -145,6 +145,7 @@ class QwenAgent:
             "reflection_count": 0,
             "tool_results": "",
             "tool_calls": [],
+            "clinical_decisions": [],
         }
         streamed_nodes: set = set()
 
@@ -291,8 +292,18 @@ class QwenAgent:
                 ) or "未调用工具",
             }
         elif node == "research_plan":
+            decisions = output.get("clinical_decisions", [])
             summary = {
                 "需要检索": bool(output.get("need_retrieve", False)),
+                "临床决策节点(按优先级)": self._short_list(
+                    [
+                        f"[{d.get('priority', '?')}] {d.get('decision_name', '')}"
+                        for d in decisions
+                        if isinstance(d, dict) and d.get("decision_name")
+                    ],
+                    6,
+                    80,
+                ) or "未生成决策节点",
                 "检索任务": self._short_list(
                     [task.get("question", "") for task in output.get("retrieval_tasks", []) if isinstance(task, dict)],
                     5,

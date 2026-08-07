@@ -1,6 +1,8 @@
 import os
+import json
 import logging
 import re
+from typing import Dict, List
 import numpy as np
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
@@ -86,6 +88,46 @@ def _cosine_sim(a, b):
     return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-9))
 
 
+# 语义分块结果缓存目录(避免每次启动重复 embedding)
+_SEMANTIC_CACHE_DIR = os.environ.get(
+    "SEMANTIC_CACHE_DIR",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "model_cache", "semantic_chunks"),
+)
+
+
+def _semantic_cache_path(source: str) -> str:
+    """计算某来源文档的语义分块缓存文件路径。"""
+    safe_name = re.sub(r"[^0-9A-Za-z\u4e00-\u9fff_-]", "_", source)
+    return os.path.join(_SEMANTIC_CACHE_DIR, f"{safe_name}.json")
+
+
+def _load_semantic_cache(source: str) -> List[Dict] | None:
+    """读取语义分块缓存;不存在或为空返回 None。"""
+    path = _semantic_cache_path(source)
+    try:
+        if not os.path.exists(path):
+            return None
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, list) and data:
+            return data
+    except Exception as e:
+        logger.warning(f"⚠️  [语义分块缓存] 读取失败({e}), 重新分块")
+    return None
+
+
+def _save_semantic_cache(source: str, chunks: List[Dict]) -> None:
+    """保存语义分块结果到磁盘缓存。"""
+    try:
+        os.makedirs(_SEMANTIC_CACHE_DIR, exist_ok=True)
+        path = _semantic_cache_path(source)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(chunks, f, ensure_ascii=False)
+        logger.info(f"💾 [语义分块缓存] 已保存 {len(chunks)} 块: {source[:40]}...")
+    except Exception as e:
+        logger.warning(f"⚠️  [语义分块缓存] 写入失败: {e}")
+
+
 def semantic_split(documents, break_percentile=SEMANTIC_BREAK_PERCENTILE):
     """
     粗切 + 边界语义微调分块(适用于教材, 兼顾效率与语义完整性):
@@ -106,6 +148,17 @@ def semantic_split(documents, break_percentile=SEMANTIC_BREAK_PERCENTILE):
         by_source[doc.metadata.get("source", "unknown")].append(doc)
 
     for source, docs in by_source.items():
+        # 尝试命中缓存(教材分块结果持久化, 避免每次启动重复 embedding)
+        cached = _load_semantic_cache(source)
+        if cached:
+            logger.info(f"💾 [语义分块] {source[:40]}... 命中缓存 {len(cached)} 块")
+            for item in cached:
+                result.append(Document(
+                    page_content=item.get("page_content", ""),
+                    metadata=item.get("metadata", {"source": source, "category": "教材"}),
+                ))
+            continue
+
         full_text = "\n".join(d.page_content for d in docs)
         if len(full_text.strip()) < SEMANTIC_MIN_CHUNK:
             result.append(Document(
@@ -169,17 +222,18 @@ def semantic_split(documents, break_percentile=SEMANTIC_BREAK_PERCENTILE):
                 merged.append(current)
 
         logger.info(f"🧠 [语义分块] {source}: {len(coarse_texts)} 粗块 → {len(merged)} 语义块")
+        cached_items = []
         for chunk_text in merged:
             if chunk_text.strip():
-                result.append(Document(
-                    page_content=chunk_text.strip(),
-                    metadata={
-                        "source": source,
-                        "page": docs[0].metadata.get("page", -1),
-                        "category": docs[0].metadata.get("category", ""),
-                        "chunk_type": "semantic",
-                    },
-                ))
+                meta = {
+                    "source": source,
+                    "page": docs[0].metadata.get("page", -1),
+                    "category": docs[0].metadata.get("category", ""),
+                    "chunk_type": "semantic",
+                }
+                result.append(Document(page_content=chunk_text.strip(), metadata=meta))
+                cached_items.append({"page_content": chunk_text.strip(), "metadata": meta})
+        _save_semantic_cache(source, cached_items)
     return result
 
 
