@@ -360,6 +360,33 @@ def test_medical_concept_normalizer_or_and():
     assert or_and.count('"mca"') == 1
 
 
+def test_query_abstraction_removes_patient_variables():
+    """Query Abstraction 应移除患者特定变量(NIHSS/ASPECTS/年龄), 保留医学概念。"""
+    from app.agents.services.query_translator import abstract_patient_variables
+    q = "NIHSS18分 ASPECTS10分 69岁 房颤 急性缺血性卒中 完全性失语 右侧偏瘫"
+    abstracted = abstract_patient_variables(q)
+    assert "NIHSS" not in abstracted.upper()
+    assert "ASPECTS" not in abstracted.upper()
+    assert "69" not in abstracted
+    # 医学概念保留
+    assert "房颤" in abstracted
+    assert "失语" in abstracted
+
+
+def test_toast_evidence_graded_not_single_factor():
+    """TOAST 心源性评分应分层: 仅房颤 1 分, 多证据加分, 避免'有房颤=心源性'。"""
+    from app.agents.tools.registry import call_tool
+    # 仅房颤
+    r1 = call_tool("toast_classify", {"cardioembolic_evidence": True})
+    assert r1["result"]["score"]["cardioembolic"] == 1
+    # 房颤 + 皮层 + 多血管区 + 无大动脉疾病
+    r2 = call_tool("toast_classify", {
+        "cardioembolic_evidence": True, "cortical_infarct": True,
+        "multiple_vascular_territory": True, "no_large_artery_disease": True,
+    })
+    assert r2["result"]["score"]["cardioembolic"] >= 4
+
+
 def test_lvo_screening_tool():
     """LVO 筛查工具应输出概率分层与 CTA 建议。"""
     from app.agents.tools.registry import call_tool

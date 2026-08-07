@@ -32,6 +32,15 @@ class TOASTInput(BaseModel):
     large_vessel_lesion_gt_1_5cm: bool = Field(
         default=False, description="影像学梗死灶是否 >1.5cm(用于区分大动脉与小动脉闭塞)"
     )
+    cortical_infarct: bool = Field(
+        default=False, description="是否存在皮层梗死(提示栓塞而非小动脉闭塞)"
+    )
+    multiple_vascular_territory: bool = Field(
+        default=False, description="是否存在多血管区梗死(心源性栓塞的强提示)"
+    )
+    no_large_artery_disease: bool = Field(
+        default=False, description="是否排除大动脉粥样硬化疾病(无≥50%狭窄/闭塞)"
+    )
     additional_info: str = Field(
         default="", description="其他补充信息(如血管超声、DSA、超声心动结果),可帮助分型判断"
     )
@@ -63,12 +72,25 @@ def _toast_classify(inputs: TOASTInput) -> Dict:
     }
     reasons: List[str] = []
 
+    # 大动脉粥样硬化
     if inputs.large_artery_evidence:
         score["large_artery"] += 2
         reasons.append("检出大动脉狭窄/斑块/闭塞证据")
+
+    # 心源性栓塞:按证据强度分层(避免"有房颤=心源性"的过强规则)
     if inputs.cardioembolic_evidence:
+        score["cardioembolic"] += 1
+        reasons.append("存在心源性栓子来源(房颤等),基础证据")
+    if inputs.cardioembolic_evidence and inputs.cortical_infarct:
+        score["cardioembolic"] += 1
+        reasons.append("皮层梗死提示栓塞性而非小动脉闭塞")
+    if inputs.cardioembolic_evidence and inputs.multiple_vascular_territory:
         score["cardioembolic"] += 2
-        reasons.append("检出心源性栓塞来源(房颤/心内血栓/瓣膜病等)")
+        reasons.append("多血管区梗死是心源性栓塞的强提示")
+    if inputs.cardioembolic_evidence and inputs.no_large_artery_disease:
+        score["cardioembolic"] += 1
+        reasons.append("已排除大动脉粥样硬化,支持心源性病因")
+
     if inputs.small_vessel_evidence:
         score["small_vessel"] += 2
         reasons.append("符合典型腔隙综合征且深部梗死灶<1.5cm")

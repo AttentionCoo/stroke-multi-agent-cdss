@@ -197,6 +197,37 @@ def build_or_and_query(concepts: Dict[str, List[str]], max_concepts: int = 4) ->
     return " AND ".join(clauses)
 
 
+def abstract_patient_variables(query: str) -> str:
+    """
+    Query Abstraction:移除患者特定变量(年龄/NIHSS/ASPECTS/血压等具体数值),
+    保留医学概念,使检索匹配文献而非病例。
+
+    例: "NIHSS18 ASPECTS10 房颤卒中" → "atrial fibrillation acute ischemic stroke"
+    """
+    # 移除具体数值与量表分数模式
+    patterns = [
+        r"nihss\s*[:：=]?\s*\d{1,2}\s*分?",      # NIHSS 18分
+        r"aspects\s*[:：=]?\s*\d{1,2}\s*分?",     # ASPECTS 10分
+        r"gcs\s*[:：=]?\s*\d{1,2}\s*分?",         # GCS 15分
+        r"\b\d{1,3}\s*岁\b",                     # 69岁
+        r"血压\s*[:：=]?\s*\d{2,3}\s*[/／]\s*\d{2,3}",  # 血压 185/110
+        r"(?:收缩压|高压)\s*[:：=]?\s*\d{2,3}",
+        r"血小板\s*[:：=]?\s*\d+",
+        r"发病\s*\d+(\.\d+)?\s*(小时|分钟)",
+        r"\b\d+(\.\d+)?\s*(小时|h|hrs?)\b",
+    ]
+    abstracted = query
+    for p in patterns:
+        abstracted = re.sub(p, "", abstracted, flags=re.IGNORECASE)
+    # 清理多余空格与连接词
+    abstracted = re.sub(r"\s+", " ", abstracted).strip()
+    abstracted = re.sub(r"\s+(AND|OR)\s+$", "", abstracted, flags=re.IGNORECASE)
+    # 清理残留的孤立"分"字(如 "NIHSS18分" 移除后残留)
+    abstracted = re.sub(r"(?<!\d)\s*分\s*(?!\d)", " ", abstracted)
+    abstracted = re.sub(r"\s+", " ", abstracted).strip()
+    return abstracted
+
+
 def translate_query(query: str, evidence_type: str | None = None) -> List[str]:
     """
     完整转换:Medical Concept Normalizer(概念抽取+OR组合) + 同义词扩展 + 证据源关键词。
@@ -215,13 +246,21 @@ def translate_query(query: str, evidence_type: str | None = None) -> List[str]:
     concepts = extract_medical_concepts(query)
     or_and = build_or_and_query(concepts) if concepts else ""
 
-    # 2. 证据类型关键词注入
-    enriched = inject_evidence_keywords(query, evidence_type)
+    # 2. Query Abstraction:患者变量 → 医学概念(去除 NIHSS/ASPECTS/年龄等)
+    abstracted = abstract_patient_variables(query)
 
-    # 3. 同义词替换变体
-    variants = [enriched]
+    # 3. 证据类型关键词注入
+    enriched = inject_evidence_keywords(query, evidence_type)
+    abstracted_enriched = inject_evidence_keywords(abstracted, evidence_type)
+
+    # 4. 同义词替换变体
+    variants = []
+    if abstracted_enriched and abstracted_enriched.strip().casefold() != enriched.strip().casefold():
+        variants.append(abstracted_enriched)  # 抽象后查询优先
     if or_and:
-        variants.insert(0, or_and)
+        variants.append(or_and)
+    if enriched not in variants:
+        variants.append(enriched)
 
     for v in expand_synonyms(enriched):
         if v not in variants:
