@@ -711,7 +711,32 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 - **路径**：`POST /model/pubmed/search`
 - **说明**：代理 PubMed 文献检索，辅助循证决策
 
-### 5. 结构化绿道评估
+### 5. 脑卒中医疗工具 (Tool Calling)
+
+系统新增脑卒中领域工具集，既可独立调用（API），也已接入多智能体推理链（`tool_use` 节点）。
+
+**工具清单（7 个）：**
+
+| 类别 | 工具名 | 说明 |
+|---|---|---|
+| 量表评估 | `nihss_score` | NIHSS 卒中量表评分与分级 |
+| 量表评估 | `mrs_score` | mRS 功能结局分级 |
+| 量表评估 | `gcs_score` | GCS 意识障碍分级 |
+| 溶栓治疗 | `thrombolysis_window_check` | 溶栓时间窗判断（3h/4.5h） |
+| 溶栓治疗 | `rtpa_dose_calc` | rt-PA 剂量计算（0.9mg/kg，上限 90mg） |
+| 禁忌症检查 | `contraindication_check` | 基于规则引擎的溶栓/抗凝/双抗禁忌症筛查 |
+| 诊断分型 | `toast_classify` | TOAST 缺血性卒中病因分型辅助 |
+
+**独立 API：**
+
+- **路径**：`GET /model/tools/list` — 返回全部工具及其参数 schema
+- **路径**：`POST /model/tools/call` — 调用指定工具（body：`{"name": "rtpa_dose_calc", "arguments": {"weight_kg": 70}}`）
+
+**推理链集成：** 在病例分析（analysis）之后、检索规划（research_plan）之前插入 `tool_use` 节点，LLM 通过 function calling 自主选择调用工具，结果注入多专家推理上下文。事件流中新增 `tool_use` 节点（「医疗工具调用」）。
+
+> ⚠️ 医疗安全：所有工具均为计算/筛查辅助，输出不替代临床医生判断；工具结果需结合影像、实验室检查综合评估。
+
+### 6. 结构化绿道评估
 
 | 方法与路径 | 说明 |
 |---|---|
@@ -734,6 +759,7 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 | 文档 | 说明 |
 |------|------|
 | [docs/backend-technical-documentation.md](docs/backend-technical-documentation.md) | ★ **后端技术文档（完整版）** — 涵盖架构设计、数据库设计、SSE 通信、安全体系、限流熔断、部署架构等 15 个章节 |
+| [docs/tool-calling-design.md](docs/tool-calling-design.md) | ★ 脑卒中医疗工具集（Skill & Tool Calling）设计文档 — 工具清单、LangGraph 集成、API 规范、测试 |
 | [docs/模型层重构完成报告.md](docs/模型层重构完成报告.md) | Python 模型层架构重构总结 |
 | [docs/Agentic-RAG与协作式多智能体架构.md](docs/Agentic-RAG与协作式多智能体架构.md) | Agentic RAG 检索循环、专家辩论共识与三级患者记忆设计 |
 | [docs/模型层改动汇报.md](docs/模型层改动汇报.md) | 模型层改动详情汇报 |

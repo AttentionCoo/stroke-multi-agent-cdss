@@ -7,7 +7,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-stroke-local-only}
       MYSQL_DATABASE: medai
     ports:
-      - "3306:3306"
+      - "3307:3306"   # 宿主机 3307 → 容器 3306(避免与本机 MySQL 冲突)
     volumes:
       - mysql-data:/var/lib/mysql
       - ./backend/stroke-server/sql/medai_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
@@ -115,7 +115,7 @@ services:
     container_name: stroke-frontend
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "8088:80"   # 宿主机 8088 → 容器 80(80 端口被 Docker wslrelay 残留占用)
     depends_on:
       backend:
         condition: service_healthy

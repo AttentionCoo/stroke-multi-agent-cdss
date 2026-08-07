@@ -375,6 +375,20 @@ model/
 │   │   ├── report_templates.yaml            # 5 种报告模板
 │   │   ├── limits_config.yaml               # 参数限制配置
 │   │   └── rules_config.yaml                # 禁忌症校验规则
+│   ├── agents/
+│   │   ├── core/schema.py                   # ★ 统一数据模型 (ClinicalState, 含 tool 字段)
+│   │   ├── orchestrators/
+│   │   │   ├── clinical_graph.py            # ★ LangGraph 推理图（含 tool_use 节点）
+│   │   │   ├── qwen_agent.py                # Qwen Agent 编排器 Facade
+│   │   │   └── nodes/
+│   │   │       ├── tool_use_node.py         # ★ 工具调用节点（LLM function calling）
+│   │   │       └── ...                      # intent/memory/analysis/reason/validate 等节点
+│   │   └── tools/                           # ★ 脑卒中医疗工具包（7 个工具）
+│   │       ├── scales.py                    # NIHSS / mRS / GCS 量表评估
+│   │       ├── thrombolysis.py              # 溶栓时间窗 / rt-PA 剂量
+│   │       ├── contraindications.py         # 禁忌症检查（复用 rules_config）
+│   │       ├── subtype.py                   # TOAST 分型辅助
+│   │       └── registry.py                  # 工具注册表与执行器
 │   ├── rag/
 │   │   ├── data_loader.py                   # PDF 加载 + 文本分割
 │   │   ├── qa_generator.py                  # QA 对生成
@@ -841,6 +855,8 @@ SSE 事件类型:
 | POST | `/ai/analyze` | 健康风险分析（非流式） |
 | POST | `/ai/quick-analyze` | 快速 AI 意见（非流式，跳过多专家推理） |
 | POST | `/model/pubmed/search` | PubMed 文献检索 |
+| GET | `/model/tools/list` | 脑卒中医疗工具清单（7 个工具及参数 schema） |
+| POST | `/model/tools/call` | 调用脑卒中医疗工具（量表/溶栓/禁忌/分型） |
 | POST | `/admin/reload_config` | 热更新配置（无需重启） |
 | GET | `/admin/report_modes` | 列出可用报告模式 |
 
