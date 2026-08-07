@@ -62,6 +62,8 @@ const isDialogShow = ref(false)
 const talkTitleList = ref([])
 const currentTalkId = ref(NEW_TALK_ID)
 const currentTalkList = ref([])
+// 用户是否主动点击了"新建对话"（区别于页面首次加载的初始空状态）
+const userRequestedNewChat = ref(false)
 const isStreaming = ref(false)
 // isThinking：收到第一个 chunk 之前，AI 处于推理（thinking）阶段
 const isThinking = ref(false)
@@ -245,13 +247,13 @@ async function refreshTitleList() {
   try {
     const res = await getChatTitlesAPI()
     const titles = normalizeTalkTitles(res.data)
+    // 用户主动新建对话时，确保顶部保留占位符（normalizeTalkTitles 会过滤空 talkId）
+    if (currentTalkId.value === NEW_TALK_ID && userRequestedNewChat.value) {
+      const hasPlaceholder = titles.some((talk) => talk.talkId === NEW_TALK_ID)
+      if (!hasPlaceholder) titles.unshift({ talkId: NEW_TALK_ID, title: '新对话' })
+    }
     // 只更新列表，不改变 currentTalkId，不触发 fetchTalkHistory
     talkTitleList.value = titles
-    // 如果当前是新对话且已有真实 talkId，更新 currentTalkId 使其与列表对齐
-    if (currentTalkId.value !== NEW_TALK_ID) {
-      const found = titles.find((t) => t.talkId === currentTalkId.value)
-      if (found) talkTitleList.value = titles  // 已对齐，无需其他操作
-    }
   } catch (error) {
     console.error('刷新标题列表失败', error)
   }
@@ -271,6 +273,12 @@ async function fetchTalkTitle() {
 
     const preferredTalk = talkTitleList.value.find((talk) => talk.talkId === currentTalkId.value)
     const firstValidTalk = preferredTalk || talkTitleList.value.find((talk) => talk.talkId !== NEW_TALK_ID) || talkTitleList.value[0]
+
+    // 若用户主动新建对话（区别于首次加载），保留占位符，不要强制切回旧对话
+    if (currentTalkId.value === NEW_TALK_ID && userRequestedNewChat.value) {
+      talkTitleList.value.unshift({ talkId: NEW_TALK_ID, title: '新对话' })
+      return
+    }
 
     currentTalkId.value = firstValidTalk.talkId
     await fetchTalkHistory(firstValidTalk.talkId)
@@ -309,6 +317,7 @@ function handleSelectTalk(talkId) {
 }
 
 function handleNewChat() {
+  userRequestedNewChat.value = true
   currentTalkId.value = NEW_TALK_ID
   currentTalkList.value = []
   thinkingHistoryList.value = []
@@ -502,11 +511,13 @@ async function handleSendMessage({ text, images } = {}) {
 
     if (currentTalkId.value === NEW_TALK_ID && talkId) {
       currentTalkId.value = talkId
+      userRequestedNewChat.value = false
       const placeholderIndex = talkTitleList.value.findIndex((talk) => talk.talkId === NEW_TALK_ID)
 
       if (placeholderIndex !== -1) {
         talkTitleList.value[placeholderIndex] = { talkId, title: title || '新对话' }
-      } else {
+      } else if (!talkTitleList.value.some((talk) => talk.talkId === talkId)) {
+        // 无占位符且列表中尚未存在该对话（避免 refreshTitleList 已拉回时重复插入）
         talkTitleList.value.unshift({ talkId, title: title || '新对话' })
       }
     }
