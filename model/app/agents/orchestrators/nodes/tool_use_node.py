@@ -14,6 +14,7 @@
 
 import json
 import logging
+import re
 from typing import Dict, List, Optional
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -149,6 +150,22 @@ class ToolUseNode(BaseNode):
 
         if not called_once:
             logger.info("[tool_use] LLM 未调用任何工具(信息不足或无需调用)")
+            # 规则兜底:根据病例文本中的关键临床线索自动调用工具
+            # 避免弱模型漏掉明确存在的评估/检查需求
+            fallback_calls = self._rule_based_fallback(state.get("case_text", ""))
+            if fallback_calls:
+                logger.info(f"[tool_use] 规则兜底触发: 自动调用 {len(fallback_calls)} 个工具")
+                for name, args in fallback_calls:
+                    tool = self.tool_map.get(name)
+                    if tool is None:
+                        continue
+                    try:
+                        result = tool.invoke(args)
+                    except Exception as e:  # noqa: BLE001 - 兜底工具失败不中断
+                        logger.error(f"[tool_use] 兜底工具 {name} 执行失败: {e}")
+                        result = {"error": str(e)}
+                    tool_records.append({"tool": name, "arguments": args, "result": result})
+                    logger.info(f"[tool_use] 兜底调用 {name}, 参数: {args}")
 
         # 结构化结果文本,供 reason 等节点注入提示词
         if tool_records:
@@ -169,3 +186,67 @@ class ToolUseNode(BaseNode):
             "tool_results": tool_results_text,
             "tool_calls": tool_records,
         }
+
+    def _rule_based_fallback(self, case_text: str) -> List[tuple]:
+        """
+        基于病例文本关键词的规则兜底调度。
+
+        当 LLM 未调用任何工具时,若病例文本命中明确的临床线索,则自动调用对应工具。
+        返回 [(工具名, 参数dict), ...]
+        """
+        text = (case_text or "").strip()
+        if not text:
+            return []
+
+        calls: List[tuple] = []
+        lower = text.lower()
+
+        # 1. 量表评估:NIHSS(神经功能缺损体征)/ GCS(意识障碍)/ mRS
+        neuro_signs = ["偏瘫", "无力", "瘫痪", "失语", "言语不清", "构音", "凝视", "面瘫",
+                       "麻木", "共济失调", "忽视", "肢体", "numb", "hemiparesis", "aphasia",
+                       "hemiplegia", "dysarthria"]
+        if any(s in text for s in neuro_signs):
+            calls.append(("nihss_score", {}))
+            calls.append(("mrs_score", {"score": 0}))  # 占位,由 reason 节点结合整体评估
+        if any(s in text for s in ["意识障碍", "昏迷", "嗜睡", "昏睡", "gcs", "格拉斯哥"]):
+            calls.append(("gcs_score", {"eye": 4, "verbal": 5, "motor": 6}))  # 占位默认值
+
+        # 2. 溶栓时间窗:出现发病时长描述
+        if re.search(r"(\d+(\.\d+)?)\s*(小时|h|hrs?|分钟|min|mins?)", lower) and any(
+            s in text for s in ["发病", "起病", "突发", "onset", "起病时间"]
+        ):
+            # 提取分钟数用于窗口判断
+            m = re.search(r"(\d+(\.\d+)?)\s*(小时|h|hrs?|分钟|min|mins?)", lower)
+            if m:
+                val = float(m.group(1))
+                unit = m.group(3)
+                minutes = val * 60 if "小时" in unit or unit.startswith("h") else val
+                calls.append(("thrombolysis_window_check", {"minutes_from_onset": minutes}))
+
+        # 3. 禁忌症检查:涉及治疗方式关键词,或卒中症状+血压/血小板异常
+        treatment_hits = [s for s in ["溶栓", "抗凝", "双抗", "阿替普酶", "rt-pa", "rtpa", "华法林",
+                                      "阿司匹林", "氯吡格雷", "thrombolysis", "anticoagul"] if s in text]
+        has_stroke_signs = any(s in text for s in neuro_signs) or any(
+            s in text for s in ["卒中", "中风", "stroke", "梗死", "缺血"] if s.lower() in lower
+        )
+        bp_abnormal = re.search(r"血压\s*[=:]?\s*(\d{2,3})\s*[/／]\s*(\d{2,3})", text) or any(
+            s in text for s in ["血小板", "出血", "凝血", "血小板低"]
+        )
+        if treatment_hits or (has_stroke_signs and bp_abnormal):
+            treatment = "溶栓" if any(s in text for s in ["溶栓", "阿替普酶", "rt-pa", "rtpa", "thrombolysis"]) else (
+                "抗凝" if any(s in text for s in ["抗凝", "华法林", "anticoagul"]) else "双抗")
+            calls.append(("contraindication_check", {"treatment": treatment, "patient_info": text}))
+
+        # 4. TOAST 分型:存在血管/心脏/影像线索
+        if any(s in text for s in ["房颤", "瓣膜", "心梗", "狭窄", "斑块", "闭塞", "夹层",
+                                   "血管炎", "af", "atrial", "stenosis", "plaque", "occlu"]):
+            calls.append(("toast_classify", {}))
+
+        # 去重(同一工具保留第一次调用)
+        seen: set = set()
+        unique: List[tuple] = []
+        for name, args in calls:
+            if name not in seen:
+                seen.add(name)
+                unique.append((name, args))
+        return unique
