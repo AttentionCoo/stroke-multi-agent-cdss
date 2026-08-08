@@ -241,6 +241,13 @@ def build_or_load_vectorstore(chunks, persist_dir: str, enable_qa: bool = False)
             for i in range(0, total_docs, batch_size):
                 batch = docs_to_insert[i:i + batch_size]
                 try:
+                    # 清理 metadata 中的 None 值(Chroma 不接受)
+                    for doc in batch:
+                        if doc.metadata:
+                            doc.metadata = {
+                                k: (v if v is not None else "")
+                                for k, v in doc.metadata.items()
+                            }
                     vectordb.add_documents(documents=batch)
                     current_processed = min(i + batch_size, total_docs)
                     # 每 5 个批次或是最后一批时打印进度
