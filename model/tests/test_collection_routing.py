@@ -122,24 +122,29 @@ class TestMedicalEvidenceScore(unittest.TestCase):
         """无 rerank API 时, 规则回退应把干预匹配的 chunk 排第一(而非 embedding 顺序)。"""
         docs = [
             self._doc("MCA 供血区解剖", {"evidence_type": "textbook", "subtopic": "imaging",
-                                       "intervention": "", "authority": 3, "year": 2018,
-                                       "rrf_score": 0.030}),
+                                       "intervention": "", "decision_node": "",
+                                       "evidence_level": "NA", "time_window": "",
+                                       "authority": 3, "year": 2018, "rrf_score": 0.030}),
             self._doc("二级预防抗凝治疗", {"evidence_type": "guideline", "subtopic": "anticoagulation,secondary_prevention",
-                                       "intervention": "warfarin", "authority": 5, "year": 2022,
-                                       "rrf_score": 0.028}),
+                                       "intervention": "warfarin", "decision_node": "anticoagulation",
+                                       "evidence_level": "A", "time_window": "",
+                                       "authority": 5, "year": 2022, "rrf_score": 0.028}),
             self._doc("rt-PA 静脉溶栓 4.5 小时时间窗", {"evidence_type": "guideline", "subtopic": "thrombolysis",
-                                                    "intervention": "alteplase", "authority": 5, "year": 2023,
-                                                    "rrf_score": 0.032}),
+                                                    "intervention": "alteplase", "decision_node": "iv_thrombolysis",
+                                                    "evidence_level": "A", "time_window": "0-4.5h",
+                                                    "authority": 5, "year": 2023, "rrf_score": 0.032}),
         ]
         result = self.reranker._fallback_medical_rank(
-            docs, "IV alteplase 急性缺血性卒中静脉溶栓", "treatment", 3)
+            docs, "IV alteplase 急性缺血性卒中静脉溶栓 4.5小时", "treatment", 3)
         self.assertEqual(result[0].metadata["intervention"], "alteplase")
         self.assertTrue(result[0].metadata["medical_score"] > 0.5)
 
     def test_intervention_boost_scores(self):
         """干预匹配 + 权威 + 时效 → 高医学分。"""
         doc = self._doc("rt-PA 静脉溶栓", {"evidence_type": "guideline", "subtopic": "thrombolysis",
-                                          "intervention": "alteplase", "authority": 5, "year": 2023})
+                                          "intervention": "alteplase", "decision_node": "iv_thrombolysis",
+                                          "evidence_level": "A", "time_window": "0-4.5h",
+                                          "authority": 5, "year": 2023})
         out = self.reranker._apply_medical_score([doc], "alteplase 溶栓", "treatment")
         self.assertGreater(out[0].metadata["medical_score"], 0.5)
 
@@ -147,7 +152,9 @@ class TestMedicalEvidenceScore(unittest.TestCase):
         """treatment 查询中纯 prevention subtopic 被惩罚(-0.3)。"""
         doc = self._doc("二级预防血脂管理", {"evidence_type": "guideline",
                                             "subtopic": "secondary_prevention,lipid_management",
-                                            "intervention": "statin", "authority": 5, "year": 2022})
+                                            "intervention": "statin", "decision_node": "lipid_management",
+                                            "evidence_level": "A", "time_window": "",
+                                            "authority": 5, "year": 2022})
         out = self.reranker._apply_medical_score([doc], "alteplase 溶栓", "treatment")
         self.assertLess(out[0].metadata["medical_score"], 0.3)
 
@@ -155,14 +162,18 @@ class TestMedicalEvidenceScore(unittest.TestCase):
         """含相关主题的混合 subtopic(如 thrombolysis,lipid_management)不惩罚。"""
         doc = self._doc("溶栓章节含血脂讨论", {"evidence_type": "guideline",
                                             "subtopic": "thrombolysis,lipid_management",
-                                            "intervention": "alteplase", "authority": 5, "year": 2023})
+                                            "intervention": "alteplase", "decision_node": "iv_thrombolysis",
+                                            "evidence_level": "A", "time_window": "0-4.5h",
+                                            "authority": 5, "year": 2023})
         out = self.reranker._apply_medical_score([doc], "alteplase 溶栓", "treatment")
         self.assertGreater(out[0].metadata["medical_score"], 0.5)
 
     def test_intervention_alias_match(self):
         """query 用别名(rt-pa)也应命中 intervention=alteplase 的 chunk。"""
         doc = self._doc("阿替普酶静脉溶栓", {"evidence_type": "guideline", "subtopic": "thrombolysis",
-                                          "intervention": "alteplase", "authority": 5, "year": 2023})
+                                          "intervention": "alteplase", "decision_node": "iv_thrombolysis",
+                                          "evidence_level": "A", "time_window": "0-4.5h",
+                                          "authority": 5, "year": 2023})
         out = self.reranker._apply_medical_score([doc], "rt-pa 溶栓", "treatment")
         self.assertGreater(out[0].metadata["medical_score"], 0.5)
 
@@ -186,6 +197,70 @@ class TestInterventionExtraction(unittest.TestCase):
         from app.rag.data_loader import enrich_metadata
         meta = enrich_metadata("指南总论.pdf", "本指南适用范围与编写说明", "指南")
         self.assertEqual(meta["intervention"], "")
+
+
+class TestStructuredMetadata(unittest.TestCase):
+    """decision_node / evidence_level / time_window 元数据提取。"""
+
+    def test_decision_node_thrombolysis(self):
+        from app.rag.data_loader import enrich_metadata
+        meta = enrich_metadata("中国急性缺血性卒中诊治指南2023.pdf",
+                               "阿替普酶静脉溶栓治疗", "指南")
+        self.assertIn("iv_thrombolysis", meta["decision_node"])
+
+    def test_decision_node_thrombectomy(self):
+        from app.rag.data_loader import enrich_metadata
+        meta = enrich_metadata("血管内治疗专家共识.pdf", "机械取栓 血管内治疗", "专家共识")
+        self.assertIn("mechanical_thrombectomy", meta["decision_node"])
+
+    def test_evidence_level(self):
+        from app.rag.data_loader import enrich_metadata
+        meta = enrich_metadata("诊治指南.pdf", "Ⅰ级推荐 A级证据 静脉溶栓", "指南")
+        self.assertEqual(meta["evidence_level"], "A")
+
+    def test_evidence_level_grade_takes_precedence(self):
+        # "Ⅰ级推荐,B级证据" 并存时以证据等级 B 为准, 不被推荐等级干扰
+        from app.rag.data_loader import enrich_metadata
+        meta = enrich_metadata("诊治指南.pdf", "Ⅰ级推荐 B级证据 静脉溶栓", "指南")
+        self.assertEqual(meta["evidence_level"], "B")
+
+    def test_time_window(self):
+        from app.rag.data_loader import enrich_metadata
+        meta = enrich_metadata("诊治指南.pdf", "4.5小时内静脉溶栓", "指南")
+        self.assertIn("0-4.5h", meta["time_window"])
+
+    def test_time_window_no_substring_false_positive(self):
+        # "13小时" 不应误中 "3小时"; "14.5h" 不应误中 "4.5h"
+        from app.rag.data_loader import enrich_metadata, time_window_hit
+        meta = enrich_metadata("诊治指南.pdf", "发病13小时 影像学评估", "指南")
+        self.assertNotIn("0-3h", meta["time_window"])
+        self.assertFalse(time_window_hit("14.5h", ["4.5h"]))
+        self.assertTrue(time_window_hit("4.5h", ["4.5h"]))
+
+
+class TestPicoQuery(unittest.TestCase):
+    """PICO 结构化查询生成。"""
+
+    def test_build_pico(self):
+        from app.agents.services.query_translator import build_pico_query
+        q = build_pico_query("NIHSS18 房颤卒中 3小时 是否溶栓", "treatment")
+        # P 组(人群/疾病) + I 组(干预) + 时间窗 + clinical_question
+        self.assertIn("thrombolysis", q)
+        self.assertIn("alteplase", q)
+        self.assertIn("3小时", q)
+        self.assertIn("eligibility", q)
+        self.assertTrue(q.count(" AND ") >= 3)
+
+    def test_build_pico_contraindication(self):
+        from app.agents.services.query_translator import build_pico_query
+        q = build_pico_query("急性缺血性卒中 溶栓禁忌证", "treatment")
+        self.assertIn("contraindication", q)
+
+    def test_translate_query_includes_pico_first(self):
+        from app.agents.services.query_translator import translate_query
+        variants = translate_query("急性缺血性卒中 静脉溶栓", "treatment")
+        self.assertTrue(variants)
+        self.assertIn("thrombolysis", variants[0])
 
 
 if __name__ == "__main__":

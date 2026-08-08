@@ -31,14 +31,14 @@ SYNONYM_MAP: Dict[str, List[str]] = {
     "neglect": ["hemineglect", "单侧忽略", "忽视"],
     "ataxia": ["共济失调", "incoordination"],
     # 卒中类型
-    "ischemic stroke": ["acute ischemic stroke", "ais", "脑梗死", "缺血性卒中", "cerebral infarction"],
+    "ischemic stroke": ["acute ischemic stroke", "ais", "脑梗死", "缺血性卒中", "脑卒中", "cerebral infarction", "卒中"],
     "intracerebral hemorrhage": ["ich", "脑出血", "intracranial hemorrhage"],
     "tia": ["transient ischemic attack", "短暂性脑缺血发作"],
     "large vessel occlusion": ["lvo", "大血管闭塞", "proximal occlusion"],
     "cardioembolism": ["心源性栓塞", "cardioembolic stroke", "atrial fibrillation stroke"],
     "small vessel occlusion": ["lacunar stroke", "腔隙性梗死", "小动脉闭塞"],
     # 治疗
-    "thrombolysis": ["alteplase", "rt-pa", "rtpa", "tissue plasminogen activator", "静脉溶栓", "阿替普酶", "tpa"],
+    "thrombolysis": ["alteplase", "rt-pa", "rtpa", "tissue plasminogen activator", "静脉溶栓", "溶栓", "阿替普酶", "tpa"],
     "thrombectomy": ["evt", "mechanical thrombectomy", "取栓", "血管内治疗", "endovascular treatment"],
     "antiplatelet": ["aspirin", "clopidogrel", "双抗", "抗血小板", "阿司匹林", "氯吡格雷"],
     "anticoagulation": ["warfarin", "novac", "doac", "抗凝", "华法林", "利伐沙班"],
@@ -259,6 +259,84 @@ def abstract_patient_variables(query: str) -> str:
     return abstracted
 
 
+# ---- PICO 结构化查询 ----
+# SYNONYM_MAP 中属于"干预(I)"的概念(其余视为"人群/疾病(P)")
+PICO_INTERVENTION_TERMS = {"thrombolysis", "thrombectomy", "antiplatelet", "anticoagulation"}
+
+# clinical_question:查询语气 → 证据问题类型
+CLINICAL_QUESTION_RULES = [
+    ("eligibility", ["是否", "可不可以", "能否", "能不能", "适用", "eligible", "indication", "适应证", "适应症"]),
+    ("contraindication", ["禁忌", "不能", "不可", "contraindication", "禁忌证", "禁忌症"]),
+]
+
+
+def extract_time_window(query: str) -> str | None:
+    """从查询中提取时间窗标签(如 0-4.5h), 无则 None。"""
+    from app.rag.data_loader import TIME_WINDOW_RULES, time_window_hit
+    lower = query.lower()
+    for label, kws in TIME_WINDOW_RULES:
+        if time_window_hit(lower, kws):
+            return label
+    return None
+
+
+def build_pico_query(query: str, evidence_type: str | None = None) -> str:
+    """
+    PICO 结构化查询生成:
+        (P 人群/疾病) AND (I 干预) AND (时间窗) AND (clinical_question)
+
+    例: "NIHSS18 房颤卒中 3小时 是否溶栓"
+      → ("acute ischemic stroke" OR "atrial fibrillation" OR ...)
+        AND ("thrombolysis" OR "alteplase" OR "静脉溶栓" OR ...)
+        AND ("3小时" OR "3h") AND ("eligibility")
+
+    相比纯概念 OR-AND 组合, PICO 明确区分人群/干预/时限/临床问题,
+    使检索式更贴近"临床决策 → 证据空间"的映射。
+    """
+    concepts = extract_medical_concepts(query)
+    if not concepts:
+        return ""
+
+    p_terms, i_terms = [], []
+    used: set = set()
+    for term, synonyms in concepts.items():
+        core = [term] + list(synonyms)[:3]
+        target = i_terms if term in PICO_INTERVENTION_TERMS else p_terms
+        for c in core:
+            key = str(c).casefold()
+            if key not in used:
+                used.add(key)
+                target.append(f'"{c}"')
+
+    if not p_terms:
+        return ""
+
+    clauses = ["(" + " OR ".join(p_terms) + ")"]
+    if i_terms:
+        clauses.append("(" + " OR ".join(i_terms) + ")")
+
+    # 时间窗(如 "3小时" OR "3h")
+    tw = extract_time_window(query)
+    if tw:
+        from app.rag.data_loader import TIME_WINDOW_RULES
+        kws = dict(TIME_WINDOW_RULES).get(tw, [])
+        if kws:
+            clauses.append("(" + " OR ".join(f'"{k}"' for k in kws[:2]) + ")")
+
+    # clinical_question(eligibility/contraindication)
+    lower = query.lower()
+    cqs = [label for label, kws in CLINICAL_QUESTION_RULES
+           if any(str(kw).lower() in lower for kw in kws)]
+    if cqs:
+        clauses.append("(" + " OR ".join(f'"{c}"' for c in cqs) + ")")
+
+    pico = " AND ".join(clauses)
+    # 证据类型关键词注入
+    if evidence_type:
+        pico = inject_evidence_keywords(pico, evidence_type)
+    return pico
+
+
 def translate_query(query: str, evidence_type: str | None = None) -> List[str]:
     """
     完整转换:Medical Concept Normalizer(概念抽取+OR组合) + 同义词扩展 + 证据源关键词。
@@ -292,6 +370,10 @@ def translate_query(query: str, evidence_type: str | None = None) -> List[str]:
 
     # 4. 同义词替换变体
     variants = []
+    # 4.5 PICO 结构化查询(最贴近临床决策 → 证据映射, 优先检索)
+    pico = build_pico_query(query, evidence_type)
+    if pico:
+        variants.append(pico)
     if abstracted_enriched and abstracted_enriched.strip().casefold() != enriched.strip().casefold():
         variants.append(abstracted_enriched)  # 抽象后查询优先
     if or_and:

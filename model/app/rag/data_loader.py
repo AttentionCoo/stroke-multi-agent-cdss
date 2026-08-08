@@ -75,6 +75,51 @@ INTERVENTION_RULES = [
     ("neuroprotectant", ["神经保护", "依达拉奉", "neuroprotect"]),
 ]
 
+# 决策节点(decision_node)关键词 → 标签: 对齐 Decision Planner 的决策类型
+# 例如 "IV thrombolysis" 决策应优先召回 decision_node=iv_thrombolysis 的 chunk
+DECISION_NODE_RULES = [
+    ("iv_thrombolysis", ["静脉溶栓", "阿替普酶", "rt-pa", "rtpa", "alteplase", "组织型纤溶酶原激活剂", "溶栓治疗", "tpa"]),
+    ("mechanical_thrombectomy", ["取栓", "机械取栓", "血管内治疗", "thrombectomy", "evt", "支架取栓", "抽吸取栓"]),
+    ("bp_management", ["血压管理", "降压治疗", "收缩压", "舒张压", "血压控制", "antihypertens"]),
+    ("anticoagulation", ["抗凝治疗", "华法林", "利伐沙班", "达比加群", "低分子肝素", "anticoagulation", "doac", "novac"]),
+    ("antiplatelet", ["抗血小板", "阿司匹林", "氯吡格雷", "替格瑞洛", "双抗", "antiplatelet", "aspirin", "clopidogrel"]),
+    ("lipid_management", ["他汀", "降脂", "血脂管理", "阿托伐他汀", "瑞舒伐他汀", "statin", "lipid"]),
+    ("secondary_prevention", ["二级预防", "卒中复发", "复发预防", "secondary prevention"]),
+    ("lvo_detection", ["大血管闭塞", "cta", "ctp", "lvo", "血管成像", "闭塞评估", "large vessel"]),
+    ("imaging_diagnosis", ["影像学", "头颅ct", "mri", "dwi", "aspects", "灌注", "imaging", "ct平扫"]),
+    ("stroke_identification", ["卒中识别", "急性缺血性卒中", "脑梗死", "脑出血", "脑卒中", "ischemic stroke", "intracerebral hemorrhage"]),
+]
+
+# 证据等级(evidence_level)关键词: 仅证据等级形态(如 "A级证据"/"Level A")。
+# 注意: 推荐等级(Ⅰ级推荐/Ⅱ级推荐/Class I)与证据等级(A/B/C级证据)是不同维度,
+# 不可混入同一字段 —— "Ⅰ级推荐,B级证据" 应以 "B级证据" 为准。
+EVIDENCE_LEVEL_RULES = [
+    ("A", ["a级证据", "证据等级a", "a类证据", "level a"]),
+    ("B", ["b级证据", "证据等级b", "b类证据", "level b"]),
+    ("C", ["c级证据", "证据等级c", "c类证据", "level c"]),
+]
+
+# 时间窗(time_window)关键词: 溶栓/取栓时间窗等治疗时限
+TIME_WINDOW_RULES = [
+    ("0-4.5h", ["4.5小时", "4.5h", "4.5 小时", "4小时30分", "4.5 hours", "4.5-hour"]),
+    ("0-3h", ["3小时", "3h", "3 小时", "三小时", "3 hours", "3-hour"]),
+    ("0-6h", ["6小时", "6h", "6 小时", "六小时", "6 hours", "6-hour"]),
+    ("0-24h", ["24小时", "24h", "24 小时", "二十四小时", "24 hours", "24-hour"]),
+]
+
+
+def time_window_hit(lower_text: str, kws) -> bool:
+    """时间窗关键词匹配: 数字型关键词(3h/3小时/4.5h)加数字边界,
+    避免 "13小时" 误中 "3小时"、"14.5h" 误中 "4.5h"。"""
+    for kw in kws:
+        kw_l = str(kw).lower()
+        if re.search(r"[0-9]", kw_l):
+            if re.search(r"(?<![0-9.])" + re.escape(kw_l) + r"(?![0-9.])", lower_text):
+                return True
+        elif kw_l in lower_text:
+            return True
+    return False
+
 
 def _extract_year(filename: str) -> int | None:
     """从文件名提取年份(如 2023/2024)。"""
@@ -112,6 +157,33 @@ def enrich_metadata(filename: str, page_text: str, category: str) -> Dict:
             if any(kw.lower() in lower_file for kw in kws):
                 interventions.append(label)
 
+    # decision_node:临床决策节点(内容关键词命中, 取前 2)
+    decision_nodes = []
+    for label, kws in DECISION_NODE_RULES:
+        if any(kw.lower() in lower_text for kw in kws):
+            decision_nodes.append(label)
+    if not decision_nodes:
+        for label, kws in DECISION_NODE_RULES:
+            if any(kw.lower() in lower_file for kw in kws):
+                decision_nodes.append(label)
+
+    # evidence_level:证据等级(内容关键词命中, 取第一个; 默认 "NA")
+    evidence_level = "NA"
+    for label, kws in EVIDENCE_LEVEL_RULES:
+        if any(kw.lower() in lower_text for kw in kws):
+            evidence_level = label
+            break
+
+    # time_window:治疗时间窗(内容关键词命中, 取前 2; 数字边界防子串误判)
+    time_windows = []
+    for label, kws in TIME_WINDOW_RULES:
+        if time_window_hit(lower_text, kws):
+            time_windows.append(label)
+    if not time_windows:
+        for label, kws in TIME_WINDOW_RULES:
+            if time_window_hit(lower_file, kws):
+                time_windows.append(label)
+
     # phase
     phase = "general"
     for p, kws in PHASE_RULES:
@@ -142,6 +214,12 @@ def enrich_metadata(filename: str, page_text: str, category: str) -> Dict:
         "subtopic": ",".join(subtopics[:2]),
         # 具体干预(药物/操作), 用于干预级临床匹配
         "intervention": ",".join(interventions[:2]),
+        # 临床决策节点(对齐 Decision Planner 决策类型)
+        "decision_node": ",".join(decision_nodes[:2]),
+        # 证据等级(A/B/C, 无则 NA)
+        "evidence_level": evidence_level,
+        # 治疗时间窗(如 0-4.5h), 用于时限约束匹配
+        "time_window": ",".join(time_windows[:2]),
         "phase": phase,
         # Chroma metadata 不接受 None → 无年份时用 0
         "year": _extract_year(filename) or 0,
