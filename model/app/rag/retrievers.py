@@ -250,6 +250,17 @@ def build_or_load_vectorstore(chunks, persist_dir: str, enable_qa: bool = False)
     return vectordb
 
 
+# 按证据类型路由到的目标类别(与 EVIDENCE_CATEGORY_ROUTING 一致, 供 Multi-Collection 使用)
+EVIDENCE_TYPE_TO_CATEGORY = {
+    "treatment": ["指南", "专家共识", "规范"],
+    "diagnosis": ["指南", "专家共识", "规范"],
+    "etiology": ["指南", "专家共识"],
+    "anatomy": ["教材"],
+    "prognosis": ["指南", "专家共识"],
+    "prevention": ["指南", "专家共识", "规范"],
+}
+
+
 class HybridRetriever:
     def __init__(self, vectordb, documents, k=20):
         self.vector_retriever = vectordb.as_retriever(search_kwargs={"k": k})
