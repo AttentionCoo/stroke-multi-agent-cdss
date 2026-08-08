@@ -89,7 +89,8 @@ class BGEReranker:
         self.model = "gte-rerank"
         self.enabled = bool(self.api_key)  # 根据API密钥是否存在决定是否启用
 
-    def rerank(self, query: str, docs: List[Document], top_k: int = None) -> List[Document]:
+    def rerank(self, query: str, docs: List[Document], top_k: int = None,
+               evidence_type: str = None) -> List[Document]:
         if not docs:
             return []
 
@@ -116,14 +117,97 @@ class BGEReranker:
                     original_doc = docs[item.index]
                     original_doc.metadata["relevance_score"] = item.relevance_score
                     reranked.append(original_doc)
+                # Medical Evidence Score:语义分 + 证据类型匹配 + 指南权威 + 时效 + 人群
+                reranked = self._apply_medical_score(reranked, query, evidence_type)
                 logger.info(f"✅ Rerank 完成，{len(docs)} → {len(reranked)} 条")
-                return reranked
+                return reranked[:actual_top_k]
             else:
                 logger.warning(f"⚠️  Rerank API 失败 ({resp.code}): {resp.message}，使用原始结果")
                 return docs[:actual_top_k]
         except Exception as e:
             logger.warning(f"⚠️  Rerank 异常: {type(e).__name__} - {str(e)}，使用原始结果")
             return docs[:actual_top_k]
+
+    def _apply_medical_score(self, docs: List[Document], query: str,
+                             evidence_type: str | None) -> List[Document]:
+        """
+        Medical Evidence Score 重排(医学化):
+
+        Final Score = 0.35 语义相似度
+                    + 0.25 证据类型匹配
+                    + 0.20 指南权威
+                    + 0.10 时效性
+                    + 0.10 人群/主题匹配
+
+        依据 chunk 的 metadata(evidence_type/subtopic/authority/year) 加权,
+        淘汰血脂/二级预防等与决策类型不匹配的内容。
+        """
+        if not docs:
+            return docs
+
+        query_lower = query.lower()
+        expected_type = (evidence_type or "").strip().lower()
+
+        # 证据类型 → 期望的 metadata evidence_type
+        type_map = {
+            "treatment": {"guideline", "consensus", "rct", "meta-analysis"},
+            "diagnosis": {"guideline", "review", "criteria"},
+            "etiology": {"guideline", "review", "criteria"},
+            "anatomy": {"textbook"},
+            "prognosis": {"guideline", "review"},
+            "prevention": {"guideline", "consensus"},
+        }
+        expected_types = type_map.get(expected_type, set())
+
+        for doc in docs:
+            meta = doc.metadata or {}
+            score = 0.0
+            reasons = []
+
+            # 1. 语义相似度(0.35, 来自 rerank relevance_score 或 RRF)
+            semantic = float(meta.get("relevance_score", 0.0) or 0.0)
+            score += 0.35 * min(1.0, semantic)
+
+            # 2. 证据类型匹配(0.25)
+            ev_type = str(meta.get("evidence_type", "") or "").lower()
+            if expected_types and ev_type in expected_types:
+                score += 0.25
+            elif not expected_types:
+                score += 0.15  # 无期望类型时给基础分
+
+            # 3. 指南权威(0.20, authority 3-5 → 0-1)
+            authority = int(meta.get("authority", 3) or 3)
+            score += 0.20 * min(1.0, (authority - 2) / 3.0)
+
+            # 4. 时效性(0.10, 年份越新越高)
+            year = meta.get("year")
+            if isinstance(year, int) and year >= 2015:
+                score += 0.10 * min(1.0, (year - 2015) / 10.0)
+            else:
+                score += 0.03
+
+            # 5. 人群/主题匹配(0.10):查询关键词命中 chunk 的 subtopic
+            subtopics = meta.get("subtopic", [])
+            if isinstance(subtopics, list) and subtopics:
+                matched = sum(1 for s in subtopics if str(s).lower() in query_lower)
+                score += 0.10 * min(1.0, matched / 2.0)
+
+            # 淘汰惩罚:与决策类型不匹配的 subtopic 减分
+            excluded = {
+                "treatment": ["secondary_prevention", "lipid_management"],
+                "anatomy": ["secondary_prevention", "lipid_management", "antiplatelet", "anticoagulation"],
+                "etiology": ["secondary_prevention", "lipid_management"],
+                "diagnosis": ["secondary_prevention", "lipid_management"],
+            }.get(expected_type, [])
+            if isinstance(subtopics, list) and any(s in excluded for s in subtopics):
+                score -= 0.3
+
+            doc.metadata["medical_score"] = round(score, 4)
+            doc.metadata["score_reasons"] = reasons
+
+        # 按 Medical Evidence Score 降序
+        docs.sort(key=lambda d: float(d.metadata.get("medical_score", 0.0)), reverse=True)
+        return docs
 
 
 def build_or_load_vectorstore(chunks, persist_dir: str, enable_qa: bool = False):
@@ -200,7 +284,8 @@ class HybridRetriever:
             result.append(doc)
         return result
 
-    def search(self, query: str, top_k_final: int = 3, category_filter: List[str] = None) -> List[Document]:
+    def search(self, query: str, top_k_final: int = 3, category_filter: List[str] = None,
+               evidence_type: str = None) -> List[Document]:
         """检索。
 
         Args:
@@ -209,8 +294,9 @@ class HybridRetriever:
             category_filter: Evidence Router 的类别过滤
                 - 提供允许类别列表(如 ['指南']):只检索这些类别的文档
                 - 提供排除类别(以 '!' 开头,如 ['!教材']):排除这些类别
+            evidence_type: 决策类型(treatment/anatomy/...),用于 Medical Evidence Score
         """
-        cache_key = hashlib.md5(f"{query}_{top_k_final}_{category_filter}".encode("utf-8")).hexdigest()
+        cache_key = hashlib.md5(f"{query}_{top_k_final}_{category_filter}_{evidence_type}".encode("utf-8")).hexdigest()
         if cache_key in self._cache:
             result, ts = self._cache[cache_key]
             if time.time() - ts < self._cache_ttl:
@@ -250,7 +336,8 @@ class HybridRetriever:
 
         logger.info(f"🔍 RRF 融合 {len(candidates)} 条，开始 rerank...")
 
-        result = self.reranker.rerank(query, candidates, top_k=top_k_final)
+        result = self.reranker.rerank(query, candidates, top_k=top_k_final,
+                                      evidence_type=evidence_type)
 
         self._cache[cache_key] = (result, time.time())
         return result
@@ -292,10 +379,12 @@ class UnifiedSearchEngine:
         )
 
 
-    def search(self, query: str, top_k_final: int = 3, category_filter: List[str] = None) -> List[Document]:
+    def search(self, query: str, top_k_final: int = 3, category_filter: List[str] = None,
+               evidence_type: str = None) -> List[Document]:
         try:
             logger.info(f"🔍 执行检索: {query[:60]}... filter={category_filter}")
-            docs = self.retriever.search(query, top_k_final=top_k_final, category_filter=category_filter)
+            docs = self.retriever.search(query, top_k_final=top_k_final,
+                                         category_filter=category_filter, evidence_type=evidence_type)
             logger.info(f"🏆 检索完成，命中 {len(docs)} 条")
             return docs
         except Exception as e:

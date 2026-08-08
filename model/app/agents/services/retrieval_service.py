@@ -54,8 +54,9 @@ class EvidenceRetrievalService:
         if category_filter is None and evidence_type:
             category_filter = route_category_filter(evidence_type)
 
-        # 过滤检索
-        docs = self.retriever.search(query, self.top_k, category_filter=category_filter)
+        # 过滤检索(含 evidence_type 供 Medical Evidence Score)
+        docs = self.retriever.search(query, self.top_k, category_filter=category_filter,
+                                     evidence_type=evidence_type)
 
         # P2: Retrieval Failure Recovery — 0 结果时多级恢复
         if not docs:
@@ -146,7 +147,8 @@ class EvidenceRetrievalService:
         # 级别1:去掉类别过滤(Evidence Router 过严时)
         if category_filter:
             logger.info(f"⚠️ [Recovery-1] 类别过滤 {category_filter} 无结果, 回退无过滤检索")
-            docs = self.retriever.search(query, self.top_k, category_filter=None)
+            docs = self.retriever.search(query, self.top_k, category_filter=None,
+                                         evidence_type=evidence_type)
             if docs:
                 return docs
 
@@ -159,7 +161,8 @@ class EvidenceRetrievalService:
             if variant.strip().casefold() == query.strip().casefold():
                 continue
             logger.info(f"⚠️ [Recovery-2] 同义词扩展检索: {variant[:60]}...")
-            docs = self.retriever.search(variant, self.top_k, category_filter=None)
+            docs = self.retriever.search(variant, self.top_k, category_filter=None,
+                                         evidence_type=evidence_type)
             if docs:
                 return docs
 
@@ -168,7 +171,8 @@ class EvidenceRetrievalService:
             subset = dict(list(concepts.items())[:2])
             subset_query = build_or_and_query(subset)
             logger.info(f"⚠️ [Recovery-3] 降低限定检索: {subset_query[:60]}...")
-            docs = self.retriever.search(subset_query, self.top_k, category_filter=None)
+            docs = self.retriever.search(subset_query, self.top_k, category_filter=None,
+                                         evidence_type=evidence_type)
             if docs:
                 return docs
 
