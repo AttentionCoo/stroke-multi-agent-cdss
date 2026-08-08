@@ -89,7 +89,8 @@ def main():
             meta = meta or {}
             old = str(meta.get("intervention", "") or "")
             new = extract_interventions(doc, meta.get("source", ""))
-            if old != new:
+            # 只补漏: 已存在的 intervention(页面级继承)不因 chunk 文本未命中关键词而清空
+            if new and old != new:
                 update_ids.append(doc_id)
                 update_metas.append({"intervention": new})
 
