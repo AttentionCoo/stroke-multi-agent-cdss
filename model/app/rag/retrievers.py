@@ -302,6 +302,23 @@ class BGEReranker:
                         break
                 score += 0.05 * matched_window
 
+            # 10. 临床意图匹配(evidence_type → 期望 clinical_intent)
+            #     LLM 语义标签: 高压氧(treatment)在 etiology 查询时应减分;
+            #     "general"(泛化意图)不惩罚, 避免有标签 chunk 系统性吃亏
+            intent = str(meta.get("clinical_intent", "") or "").strip().lower()
+            if intent and intent != "general":
+                expected_intents = {
+                    "treatment": {"treatment", "management", "intervention", "rehabilitation"},
+                    "etiology": {"classification", "etiology", "diagnosis"},
+                    "anatomy": {"localization", "anatomy"},
+                    "prevention": {"prevention", "secondary_prevention"},
+                    "diagnosis": {"diagnosis", "assessment", "classification"},
+                }.get(expected_type, set())
+                if expected_intents and intent in expected_intents:
+                    score += 0.10
+                elif expected_intents:
+                    score -= 0.10
+
             # 淘汰惩罚:仅当 chunk 的所有 subtopic 均为不匹配主题时减分
             # (避免 "thrombolysis,lipid_management" 这类含相关主题的 chunk 被误杀)
             excluded = {
@@ -460,6 +477,17 @@ ETIOLOGY_SUBTOPICS = {"toast_classification", "lvo_assessment", "imaging"}
 # 文档类别 → collection(优先级最高)
 CATEGORY_TO_COLLECTION = {"教材": "anatomy"}
 
+# LLM 语义 domain → collection(规则无法置信的 chunk 由 LLM 分类决定归属)
+# diagnosis 归 etiology(影像/分型内容), rehabilitation 归 treatment(治疗/康复)
+DOMAIN_TO_COLLECTION = {
+    "etiology": "etiology",
+    "treatment": "treatment",
+    "prevention": "prevention",
+    "anatomy": "anatomy",
+    "diagnosis": "etiology",
+    "rehabilitation": "treatment",
+}
+
 
 def _extract_subtopics(metadata: dict, content: str = None) -> List[str]:
     """从 metadata.subtopic(逗号分隔字符串)提取主题标签;缺失时从内容关键词提取。
@@ -484,8 +512,9 @@ def _extract_subtopics(metadata: dict, content: str = None) -> List[str]:
 def route_collection(metadata: dict, content: str = None) -> str:
     """按 metadata/content 将 chunk 归属到 collection(物理隔离规则)。
 
-    优先级: 教材 → anatomy; 治疗主题 → treatment; 病因主题 → etiology;
-    预防主题 → prevention; 其余(无主题/宽泛主题) → guideline。
+    优先级: 教材 → anatomy; LLM 语义 domain(如有) → 对应 collection;
+    治疗主题 → treatment; 病因主题 → etiology; 预防主题 → prevention;
+    其余(无主题/宽泛主题) → guideline。
     病因(etiology)优先于预防(prevention): 避免 TOAST 分型等病因内容
     被同 chunk 的二级预防标签抢归到 prevention_collection。
     """
@@ -493,6 +522,11 @@ def route_collection(metadata: dict, content: str = None) -> str:
     category = str(meta.get("category", "") or "")
     if category in CATEGORY_TO_COLLECTION:
         return CATEGORY_TO_COLLECTION[category]
+
+    # LLM 语义标签优先(仅对 LLM 标注过的 chunk 生效)
+    domain = str(meta.get("domain", "") or "").strip().lower()
+    if domain in DOMAIN_TO_COLLECTION:
+        return DOMAIN_TO_COLLECTION[domain]
 
     subtopics = _extract_subtopics(meta, content)
     for label in subtopics:

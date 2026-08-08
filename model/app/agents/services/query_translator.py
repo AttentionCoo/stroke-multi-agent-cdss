@@ -286,21 +286,28 @@ def build_pico_query(query: str, evidence_type: str | None = None) -> str:
         (P 人群/疾病) AND (I 干预) AND (时间窗) AND (clinical_question)
 
     例: "NIHSS18 房颤卒中 3小时 是否溶栓"
-      → ("acute ischemic stroke" OR "atrial fibrillation" OR ...)
-        AND ("thrombolysis" OR "alteplase" OR "静脉溶栓" OR ...)
+      → ("急性缺血性卒中" OR "ischemic stroke" OR "房颤" OR "atrial fibrillation" ...)
+        AND ("静脉溶栓" OR "thrombolysis" OR "阿替普酶" OR "alteplase" ...)
         AND ("3小时" OR "3h") AND ("eligibility")
 
-    相比纯概念 OR-AND 组合, PICO 明确区分人群/干预/时限/临床问题,
-    使检索式更贴近"临床决策 → 证据空间"的映射。
+    概念组中英双语保留: 纯英文 OR 组会使 embedding/BM25 系统性偏向英文文档
+    (如 guidelines_ais_2019.pdf), 压制中文指南召回。
     """
     concepts = extract_medical_concepts(query)
     if not concepts:
         return ""
 
+    def _core_terms(term: str, synonyms) -> list:
+        """term + 首个中文同义词 + 首个英文同义词(中英双语保留, 排除 term 自身)。"""
+        zh = [s for s in synonyms if re.search(r"[\u4e00-\u9fff]", s)]
+        en = [s for s in synonyms
+              if not re.search(r"[\u4e00-\u9fff]", s) and s != term]
+        return [term] + zh[:1] + en[:1]
+
     p_terms, i_terms = [], []
     used: set = set()
     for term, synonyms in concepts.items():
-        core = [term] + list(synonyms)[:3]
+        core = _core_terms(term, synonyms)
         target = i_terms if term in PICO_INTERVENTION_TERMS else p_terms
         for c in core:
             key = str(c).casefold()
@@ -370,16 +377,28 @@ def translate_query(query: str, evidence_type: str | None = None) -> List[str]:
 
     # 4. 同义词替换变体
     variants = []
-    # 4.5 PICO 结构化查询(最贴近临床决策 → 证据映射, 优先检索)
+    # 中文查询: 原始中文 enriched 优先(中英混合 PICO 会偏向英文文档压制中文召回);
+    # 英文查询: PICO 结构化查询优先(最贴近临床决策 → 证据映射)
+    has_chinese = bool(re.search(r"[\u4e00-\u9fff]", query))
     pico = build_pico_query(query, evidence_type)
-    if pico:
-        variants.append(pico)
-    if abstracted_enriched and abstracted_enriched.strip().casefold() != enriched.strip().casefold():
-        variants.append(abstracted_enriched)  # 抽象后查询优先
-    if or_and:
-        variants.append(or_and)
-    if enriched not in variants:
-        variants.append(enriched)
+    if has_chinese:
+        if enriched not in variants:
+            variants.append(enriched)
+        if abstracted_enriched and abstracted_enriched.strip().casefold() != enriched.strip().casefold():
+            variants.append(abstracted_enriched)  # 抽象后查询优先
+        if or_and:
+            variants.append(or_and)
+        if pico:
+            variants.append(pico)
+    else:
+        if pico:
+            variants.append(pico)
+        if enriched not in variants:
+            variants.append(enriched)
+        if abstracted_enriched and abstracted_enriched.strip().casefold() != enriched.strip().casefold():
+            variants.append(abstracted_enriched)
+        if or_and:
+            variants.append(or_and)
 
     for v in expand_synonyms(enriched):
         if v not in variants:

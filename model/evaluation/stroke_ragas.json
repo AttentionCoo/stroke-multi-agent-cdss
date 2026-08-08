@@ -1,0 +1,212 @@
+[
+  {
+    "id": "anat-01",
+    "question": "大脑中动脉(MCA)闭塞的典型临床表现有哪些？",
+    "evidence_type": "anatomy",
+    "expected_source": ["neuroanatomy_clinical_cases.pdf"],
+    "ground_truth": "MCA 主干闭塞常致对侧偏瘫、偏身感觉障碍、同向性偏盲；优势半球受累出现失语（Broca/Wernicke），非优势半球出现偏侧忽略；大面积梗死可有意识障碍、凝视麻痹。"
+  },
+  {
+    "id": "anat-02",
+    "question": "大脑前动脉(ACA)供血区梗死的主要表现？",
+    "evidence_type": "anatomy",
+    "expected_source": ["neuroanatomy_clinical_cases.pdf"],
+    "ground_truth": "ACA 梗死导致对侧下肢为主的偏瘫与感觉障碍，可伴尿失禁、额叶症状（淡漠、抓握反射）、运动性失语（优势半球辅助运动区受累）。"
+  },
+  {
+    "id": "anat-03",
+    "question": "Broca 区位于哪个脑回，损伤后表现是什么？",
+    "evidence_type": "anatomy",
+    "expected_source": ["neuroanatomy_clinical_cases.pdf"],
+    "ground_truth": "Broca 区位于优势半球额下回后部（Brodmann 44/45 区），损伤后出现运动性失语：言语不流利、电报式表达，理解相对保留。"
+  },
+  {
+    "id": "anat-04",
+    "question": "大脑后动脉(PCA)综合征的临床特征？",
+    "evidence_type": "anatomy",
+    "expected_source": ["neuroanatomy_clinical_cases.pdf"],
+    "ground_truth": "PCA 梗死表现对侧同向性偏盲（枕叶）、丘脑综合征（对侧感觉障碍、自发性疼痛）、记忆障碍（颞叶内侧受累）、动眼神经麻痹（中脑受累）。"
+  },
+  {
+    "id": "anat-05",
+    "question": "内囊后肢损伤的定位体征是什么？",
+    "evidence_type": "anatomy",
+    "expected_source": ["neuroanatomy_clinical_cases.pdf"],
+    "ground_truth": "内囊后肢含皮质脊髓束与丘脑皮质束，损伤致对侧均等性偏瘫、偏身感觉障碍，即经典三偏综合征（偏瘫、偏身感觉障碍、偏盲）。"
+  },
+  {
+    "id": "etio-01",
+    "question": "急性缺血性卒中的 TOAST 病因分型包括哪几类？",
+    "evidence_type": "etiology",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "TOAST 分型五类：大动脉粥样硬化型、心源性栓塞型、小动脉闭塞型、其他明确病因型、不明原因型（含隐源性）。"
+  },
+  {
+    "id": "etio-02",
+    "question": "什么是 ESUS（不明原因栓塞性卒中）？",
+    "evidence_type": "etiology",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "ESUS 指经过标准评估（头CT/MRI、血管影像、心脏超声、心电图等）仍无法明确病因的非腔隙性缺血性卒中，常与隐匿性房颤、卵圆孔未闭等相关。"
+  },
+  {
+    "id": "etio-03",
+    "question": "房颤导致缺血性卒中的主要机制是什么？",
+    "evidence_type": "etiology",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "房颤时左心房（尤其左心耳）血流淤滞易形成血栓，血栓脱落随血流栓塞脑血管引起心源性栓塞性卒中，以 MCA 区多见，梗死面积常较大。"
+  },
+  {
+    "id": "etio-04",
+    "question": "大动脉粥样硬化型卒中的发病机制有哪些？",
+    "evidence_type": "etiology",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "大动脉粥样硬化型卒中机制包括：动脉-动脉栓塞、低灌注/血流动力学障碍、斑块原位血栓形成闭塞、穿支动脉闭塞等。"
+  },
+  {
+    "id": "etio-05",
+    "question": "小动脉闭塞型（腔隙性）卒中的特征？",
+    "evidence_type": "etiology",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "小动脉闭塞型卒中由穿支小动脉病变（脂质透明变性、微粥样瘤）引起，梗死灶直径<1.5cm，常与高血压相关，表现为腔隙综合征（纯运动性偏瘫等）。"
+  },
+  {
+    "id": "tx-01",
+    "question": "急性缺血性卒中静脉溶栓的时间窗是多少？",
+    "evidence_type": "treatment",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "发病 4.5 小时内可予阿替普酶静脉溶栓（0.9mg/kg，最大90mg）；3小时内获益最大。4.5~9小时或醒后卒中可依据多模影像（灌注/磁共振）筛选后溶栓。"
+  },
+  {
+    "id": "tx-02",
+    "question": "阿替普酶静脉溶栓的主要禁忌证有哪些？",
+    "evidence_type": "treatment",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "主要禁忌证：活动性内出血、近期颅内出血史、颅内肿瘤/动静脉畸形、近3月脑梗死或头部外伤、血压持续>185/110mmHg、血小板<100×10⁹/L、INR>1.7、血糖异常等。"
+  },
+  {
+    "id": "tx-03",
+    "question": "急性大血管闭塞机械取栓的适应证？",
+    "evidence_type": "treatment",
+    "expected_source": ["急性缺血性卒中血管内治疗中国 指南2023.pdf", "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf"],
+    "ground_truth": "前循环大血管闭塞：发病 6 小时内、NIHSS≥6、ASPECTS≥6 推荐取栓；6~24 小时需多模影像（灌注）筛选（DAWN/DEFUSE-3 标准）。后循环：24 小时内谨慎评估。"
+  },
+  {
+    "id": "tx-04",
+    "question": "急性缺血性卒中溶栓前的血压控制目标？",
+    "evidence_type": "treatment",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "拟溶栓患者血压需控制在 185/110mmHg 以下；溶栓后 24 小时内维持在 180/105mmHg 以下。不溶栓患者急性期一般不紧急降压（除外合并特殊情况）。"
+  },
+  {
+    "id": "tx-05",
+    "question": "房颤相关缺血性卒中急性期抗凝何时启动？",
+    "evidence_type": "treatment",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "房颤卒中急性期抗凝启动时机需权衡复发与出血转化风险：轻型卒中（NIHSS<8）约 3~14 天启动，中重度（NIHSS≥8）约 14 天后启动；依据梗死面积与出血转化风险个体化决策。"
+  },
+  {
+    "id": "tx-06",
+    "question": "替奈普酶与阿替普酶静脉溶栓的比较？",
+    "evidence_type": "treatment",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "替奈普酶（0.25mg/kg 单次静脉推注）溶栓效果与阿替普酶相当，给药更便捷（单次推注），适用于转运前溶栓场景；中国指南推荐其可作为替代选择。"
+  },
+  {
+    "id": "tx-07",
+    "question": "轻型卒中（NIHSS≤5）急性期双抗治疗的适应证？",
+    "evidence_type": "treatment",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "未溶栓的轻型非心源性缺血性卒中（NIHSS≤5）且发病 72 小时内，可予氯吡格雷+阿司匹林双抗 21 天（CHANCE/POINT 研究），降低 90 天卒中复发风险，注意出血风险监测。"
+  },
+  {
+    "id": "tx-08",
+    "question": "桥接治疗（溶栓后取栓）的适用情况？",
+    "evidence_type": "treatment",
+    "expected_source": ["急性缺血性卒中血管内治疗中国 指南2023.pdf"],
+    "ground_truth": "符合取栓适应证的大血管闭塞患者，若在溶栓时间窗内且无禁忌，推荐先静脉溶栓再桥接机械取栓（直接取栓不劣于桥接）；需协调流程避免延误。"
+  },
+  {
+    "id": "tx-09",
+    "question": "溶栓后症状性出血转化的处理原则？",
+    "evidence_type": "treatment",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf", "中国重症卒中管理指南2024.pdf"],
+    "ground_truth": "立即停用抗栓药、急查头颅CT；血压严格控制在目标范围；可给予冷沉淀/纤维蛋白原、血小板（若曾用抗血小板）等逆转治疗；神经外科评估手术指征。"
+  },
+  {
+    "id": "tx-10",
+    "question": "急性缺血性卒中血管内取栓的影像筛选（ASPECTS/灌注）标准？",
+    "evidence_type": "treatment",
+    "expected_source": ["中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf"],
+    "ground_truth": "发病 6 小时内取栓要求 ASPECTS≥6；6~24 小时需灌注影像筛选（梗死核心-缺血半暗带不匹配，如核心<70ml 等 DAWN/DEFUSE-3 标准）。ASPECTS 3~5 分或核心 50~100ml 可个体化评估。"
+  },
+  {
+    "id": "prev-01",
+    "question": "房颤患者卒中后二级预防抗凝药物如何选择？",
+    "evidence_type": "prevention",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "非瓣膜性房颤卒中后，无禁忌推荐新型口服抗凝药（利伐沙班、达比加群、艾多沙班等）优于华法林；瓣膜性房颤（机械瓣、中重度二尖瓣狭窄）用华法林（INR 2~3）。"
+  },
+  {
+    "id": "prev-02",
+    "question": "非心源性缺血性卒中二级预防抗血小板策略？",
+    "evidence_type": "prevention",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "非心源性缺血性卒中/TIA 二级预防首选单抗血小板（阿司匹林或氯吡格雷）；轻型卒中 21 天双抗后转为单抗长期维持；高复发风险者可考虑氯吡格雷+阿司匹林短程双抗。"
+  },
+  {
+    "id": "prev-03",
+    "question": "缺血性卒中后高血压的二级预防管理目标？",
+    "evidence_type": "prevention",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "卒中急性期后平稳降压，长期目标一般 <140/90mmHg（可耐受者 <130/80）；起始或加用 ACEI/ARB 类降压药，长期规律服药监测。"
+  },
+  {
+    "id": "prev-04",
+    "question": "缺血性卒中后血脂管理的他汀治疗目标？",
+    "evidence_type": "prevention",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "动脉粥样硬化性缺血性卒中/TIA 患者推荐高强度他汀（阿托伐他汀 40~80mg 或瑞舒伐他汀 20mg），LDL-C 目标 <1.8mmol/L 或较基线降幅≥50%。"
+  },
+  {
+    "id": "prev-05",
+    "question": "卒中后复发的危险因素管理包括哪些？",
+    "evidence_type": "prevention",
+    "expected_source": ["脑血管病防治指南（2024年版）.pdf"],
+    "ground_truth": "卒中二级预防危险因素管理：血压、血脂（他汀）、血糖（糖尿病管理）、戒烟限酒、控制体重、规律运动、房颤抗凝、颈动脉狭窄评估与干预等综合管理。"
+  },
+  {
+    "id": "diag-01",
+    "question": "NIHSS 评分的评估内容包括哪些？",
+    "evidence_type": "diagnosis",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "NIHSS 评估 11 项：意识水平、凝视、视野、面瘫、上下肢运动、共济失调、感觉、语言、构音、忽视，总分 0~42 分，评分越高神经功能缺损越重。"
+  },
+  {
+    "id": "diag-02",
+    "question": "ASPECTS 评分的意义与判断标准？",
+    "evidence_type": "diagnosis",
+    "expected_source": ["中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf"],
+    "ground_truth": "ASPECTS 评估早期缺血性卒中 CT 平扫梗死范围，共 10 分（MCA 供血区 10 个区域各扣 1 分）；≥6 分通常提示适合血管内治疗，分值越低梗死范围越大。"
+  },
+  {
+    "id": "diag-03",
+    "question": "疑似大血管闭塞时 CTA 的价值？",
+    "evidence_type": "diagnosis",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "CTA 可快速显示颅内/颈部大血管闭塞部位与程度，是 LVO 筛查的关键影像；拟取栓患者应尽早行 CTA 明确闭塞血管，同时评估侧支循环。"
+  },
+  {
+    "id": "diag-04",
+    "question": "MRI-DWI 在急性缺血性卒中诊断中的作用？",
+    "evidence_type": "diagnosis",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "DWI 在发病数分钟内即可显示缺血灶（高信号），敏感性高于 CT，是确诊急性缺血性卒中的金标准影像；可区分新旧梗死灶（ADC 值变化）。"
+  },
+  {
+    "id": "diag-05",
+    "question": "急性脑出血与缺血性卒中的急诊影像鉴别？",
+    "evidence_type": "diagnosis",
+    "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
+    "ground_truth": "首选头颅 CT 平扫鉴别：脑出血表现为高密度灶，缺血性卒中早期 CT 可阴性或仅见早期缺血征象；CT 阴性不能排除缺血性卒中，需进一步 MRI 或复查。"
+  }
+]

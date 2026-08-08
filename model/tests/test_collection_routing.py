@@ -22,10 +22,11 @@ from app.rag.retrievers import (
 from app.agents.services.retrieval_service import route_collections
 
 
-def make_doc(content: str, category: str = "指南", subtopic: str = "") -> Document:
+def make_doc(content: str, category: str = "指南", subtopic: str = "", **extra) -> Document:
     meta = {"source": "test.pdf", "category": category}
     if subtopic:
         meta["subtopic"] = subtopic
+    meta.update(extra)
     return Document(page_content=content, metadata=meta)
 
 
@@ -262,12 +263,49 @@ class TestPicoQuery(unittest.TestCase):
         self.assertTrue(variants)
         self.assertIn("thrombolysis", variants[0])
 
+    def test_translate_query_chinese_first_not_pico(self):
+        """中文查询: 变体首位是原始中文 enriched(中英混合 PICO 会偏向英文文档)。"""
+        from app.agents.services.query_translator import translate_query
+        variants = translate_query("急性缺血性卒中 静脉溶栓 时间窗", "treatment")
+        self.assertIn("溶栓", variants[0])
+        self.assertNotIn('("', variants[0])
+
+    def test_translate_query_english_pico_first(self):
+        """英文查询: PICO 结构化查询优先。"""
+        from app.agents.services.query_translator import translate_query
+        variants = translate_query("IV alteplase acute ischemic stroke", "treatment")
+        self.assertIn("thrombolysis", variants[0])
+
     def test_route_collection_etiology_over_prevention(self):
         """含病因标签的 chunk 优先归 etiology(不被同 chunk 的预防标签抢走)。"""
         from app.rag.retrievers import route_collection
         doc = make_doc("TOAST 病因分型与二级预防", category="指南",
                        subtopic="secondary_prevention,toast_classification")
         self.assertEqual(route_collection(doc.metadata, doc.page_content), "etiology")
+
+    def test_route_collection_llm_domain_priority(self):
+        """LLM 语义 domain 优先于规则 subtopic(高压氧类修正)。"""
+        from app.rag.retrievers import route_collection
+        # 规则弱命中 imaging, 但 LLM 判定为 treatment
+        doc = make_doc("高压氧治疗脑卒中研究", category="指南",
+                       subtopic="imaging",
+                       domain="treatment", clinical_intent="treatment")
+        self.assertEqual(route_collection(doc.metadata, doc.page_content), "treatment")
+
+    def test_medical_score_intent_match(self):
+        """clinical_intent 匹配加分/不匹配减分。"""
+        from app.rag.retrievers import BGEReranker
+        r = BGEReranker(top_k=3)
+        matched = make_doc("静脉溶栓治疗", category="指南", subtopic="thrombolysis",
+                           clinical_intent="treatment", intervention="alteplase",
+                           evidence_type="guideline", authority=5, year=2023)
+        mismatched = make_doc("高压氧治疗", category="指南", subtopic="imaging",
+                              clinical_intent="treatment", intervention="",
+                              evidence_type="guideline", authority=5, year=2023)
+        m = r._apply_medical_score([matched], "溶栓治疗", "treatment")[0].metadata["medical_score"]
+        mm = r._apply_medical_score([mismatched], "TOAST 病因分型", "etiology")[0].metadata["medical_score"]
+        # 匹配 case 分数应明显高于不匹配 case(不匹配有 -0.10 且无干预分)
+        self.assertGreater(m, mm)
 
 
 class TestChunkQualityFilter(unittest.TestCase):

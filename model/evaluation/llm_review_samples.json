@@ -1,0 +1,1542 @@
+[
+  {
+    "collection": "anatomy",
+    "id": "505d035e-8e44-4d24-9543-f0322af8339c",
+    "text": "er.HavingworkedontwoeditionswithSinauer,Ihaveanever-deepeningappreciationofthesuccessofthisgroupinproducingexcellentbooks.AdditionalAcknowledgmentsforThirdEditionAsourjourneycontinues,Iagainthankmyfam",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "",
+      "confidence": 0.05
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "384d6e18-a5f9-4ea6-85ba-4d2e4217e4d5",
+    "text": "surgery,andneu-roradiologyseekingexamplesof“typical”casesofneurologicdisorders.Allrelevantclinicaldetailsareincluded,whileidentifiershavebeenremovedtomaintainprivacyandconfidentiality.Becauseeachcasei",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurologic disorders",
+      "confidence": 0.3
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "6936f2eb-c493-466c-bf29-2c14bb0bc26f",
+    "text": "seases(e.g.,multiplesclerosis);neoplasticdiseases(e.g.,glioblastomamultiforme)DEG/DEVDegenerativedisorders(e.g.,Alzheimer’sdisease);developmentaldisorders(e.g.,tuberoussclerosis)REFERREDLeftarmparasth",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurological differential diagnosis",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "ae833c63-de8a-4ba0-bc84-d4c902b9528b",
+    "text": "hvalvulardiseaseorendocardi-tis.Aorticstenosiscanproducesyncope,andsevereheartfailureresultsincerebralhypoperfusion.•Abdomen.HepatomegalymaybepalpatedinWilson’sdiseaseandothermetabolicdisordersthatinv",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurological examination findings in systemic disease",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "3297966e-2529-49a5-b827-9054b7426456",
+    "text": "ffunctions.Oneistomediaterapidcommunicationbetweenneuronsthroughfastexcitatoryorinhibitoryelectricaleventsknownasexcitatorypostsynapticpotentials(EPSPs)andinhibitorypostsynapticpotentials(IPSPs).FastE",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neuroscience_foundation",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "6cf53726-de0d-47b5-b535-09203d4cb672",
+    "text": "itis,palpatethemusclestoseeifthereistenderness.Inmusculardystrophiesmusclesmayhavearubberytextureduetopseudohypertrophy.MUSCLETONETESTINGNext,testmuscletone.Askthepatienttorelax,andthenpassivelymoveea",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurological examination",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "37e05104-8e1f-430e-a5e7-560c56f00328",
+    "text": "king”theirdisorderandwouldgreatlyprefernottohavethesesymptoms.Theyusuallysufferdistressandfunctionalimpairmentequaltoorevenworsethanthatofpatientswithidentifiablelesions.Thesepatientsandfamiliesoftenb",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurologic and psychogenic symptom differentiation",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "63827164-fc54-4a6e-a9ba-1ef34ff4dee7",
+    "text": "ebacterialmeningitisinimmunocompetentadultsisusuallycausedbyStreptococcuspneumoniaeorNeisseriameningitidis,butitcanalsobecausedbyListeriamonocytogenes(seeTable5.8).Thepurplishskinlesionsaresuggestiveo",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "diagnosis",
+      "condition": "bacterial meningitis",
+      "confidence": 0.3
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "662c324c-861c-43a1-9bc4-9d6bbab6ff24",
+    "text": "iveplaqueslocatedinthewhitematter.Theplaquestendtoextendintothewhitematterfromperiventricularlocations(resultingin“Dawson’sfingers”),andtheyoccurinbothsupra-tentorialandinfratentorialstructures.Acutep",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "diagnosis",
+      "condition": "multiple sclerosis",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "dd4f79fe-9ead-4b6a-a73d-fe9c549f7728",
+    "text": "X-linkedtransmission.Initialsymptomsareusuallyweaknessorclumsiness,whichoftenbeginsfocallyandthenspreadstoadjacentmusclegroups.Painfulmusclecrampingandfasciculationsarealsocommon.Somepatientsinitially",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "ALS",
+      "confidence": 0.3
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "261a05a4-8f44-45a6-b3bc-ca1fabbe13c5",
+    "text": "SomatosensoryPathways287althoughoftenwithoutvoluntarycontrol.Earlytreatmentofacutetraumaticspinalcordinjurywithhigh-dosesteroidswaspreviouslycommon,buttherisk-to-benefitratioofthistreatmentisnowuncert",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "spinal cord injury | spinal cord compression",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "4fd7b90a-9132-45c2-b9a1-eb1293c1c5a0",
+    "text": "nesteraseinhibitor(edrophonium),wasadministeredatbedsidewhileobservingclinicaleffectsoninvolvedmuscles.Commercialmanufactureofthisagenthasbeeninconsistent,however,makingfutureavailabilityofthistestunc",
+    "llm": {
+      "domain": "diagnosis",
+      "subtopic": "stroke_identification",
+      "clinical_intent": "diagnosis",
+      "medical_entity": "edrophonium | neostigmine | compound motor action potential | repetitive nerve stimulation | single-fiber EMG",
+      "question_type": "diagnosis",
+      "condition": "myasthenia gravis",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "a0abb637-da8f-4a2c-924b-0d6c80d568e0",
+    "text": "ardystrophy.Myosotisisanimmune-mediatedinflammatorymyopathy.Thefourmostcommonformsofmyositisarespo-radicinclusionbodymyositis,dermatomyositis,polymyositis,andnecrotiz-ingmyopathy.Thebloodcreatininepho",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "myositis | muscular dystrophy",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "03d7d73b-7d5c-4474-8e0b-b731d61a5a01",
+    "text": "glecttoevaluatebowel,bladder,andsexualfunctioninpatientswithbackpain,sothatirreversiblelossoffunctioncanbeprevented(seeKCC7.2andKCC8.4).Severalclarifyingdefinitionsfordegenerativedisorderofthespineare",
+    "llm": {
+      "domain": "diagnosis",
+      "subtopic": "stroke_identification",
+      "clinical_intent": "diagnosis",
+      "medical_entity": "",
+      "question_type": "differential_diagnosis",
+      "condition": "back_pain",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "2942bd0d-8247-41c6-8f52-643f63ef198c",
+    "text": "bytrauma.DischerniationasacauseofradiculopathyiscommonfortheC6,C7,L5,andS1nerverootsandlesscommonatotherlevels.Lum-bosacralradiculopathiesareabouttwotothreetimesascommonascervicalradiculopathies.Thora",
+    "llm": {
+      "domain": "diagnosis",
+      "subtopic": "stroke_identification",
+      "clinical_intent": "diagnosis",
+      "medical_entity": "",
+      "question_type": "diagnosis",
+      "condition": "radiculopathy",
+      "confidence": 0.3
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "cc87aa7e-5ddc-4b4c-9775-5c6f8efac37a",
+    "text": "thy).Thestraight-legraisingtestcanbehelpfulinthediagnosisofmechanicalnerverootcompressioninthelumbosacralregion(Figure8.5A).Inthistestthepatientliessupineandtheexaminerslowlyelevatesthepatient’slegata",
+    "llm": {
+      "domain": "diagnosis",
+      "subtopic": "stroke_identification",
+      "clinical_intent": "diagnosis",
+      "medical_entity": "",
+      "question_type": "diagnosis",
+      "condition": "ischemic stroke",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "6146fbaa-9788-4f0a-a592-a05f27f2294f",
+    "text": "on,soprompttreatmentiscritical.Lymedisease,atick-borneill-nesscausedbythespirocheteBorreliaburgdorferi,cancauseradiculopathies.Blumenfeld,Neuroanatomy3eDragon/f_lyMediaGroupBLUM3e_08.05.aiDate12-10-20",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "radiculopathy",
+      "confidence": 0.3
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "d63e78b9-22b8-4e81-b2b6-475658eab02f",
+    "text": "L4root(H)CASE8.10LOWBACKPAINRADIATINGTOTHEBIGTOEMinicaseA57-year-oldmanwithlowbackpainforover20yearstrippedoveradoorledgeandhadasuddenincreaseinright-sidedlowbackpainradiatingdownhislegtotherightbigto",
+    "llm": {
+      "domain": "diagnosis",
+      "subtopic": "stroke_identification",
+      "clinical_intent": "localization",
+      "medical_entity": "",
+      "question_type": "localization",
+      "condition": "neurological deficit localization (non-stroke lumbar radiculopathy)",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "2b0b59c2-0d36-4d37-84e3-e03347029e4f",
+    "text": "lateralThighPain,Weakness,andNumbnessinaDiabetic3759.9TinglingandParalysisoftheFootafteraFall3759.10ALegInjuryResultinginFootDrop3779.11LateralThighPainandNumbnessafterPregnancy3799.12Dysarthria,Ptosi",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "f76dd3ce-56d8-437b-81c8-dffd05aa8c68",
+    "text": "strengthenshouldermusclesandsurgicaldecompressionforwell-documentedrefractorycases.Treatmentforequivocalcaseshasbeenasourceofcontroversy.InPancoast’ssyndrome,anapicallungtumor(usuallynon–smallcellcar-",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurological disorders involving brachial plexus and peripheral nerves",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "d836750c-f6d2-4dd6-9c19-778e2c1e5901",
+    "text": "romtherecordingelectrode(incentimeters)andthelatencytoCMAPonset(inmilliseconds)areindicatedtotheleft.Conductionvelocitiesbetweenadjacentstimulationsites(inmeterspersecond)werecalculatedbydividingthedi",
+    "llm": {
+      "domain": "diagnosis",
+      "subtopic": "imaging",
+      "clinical_intent": "assessment",
+      "medical_entity": "",
+      "question_type": "assessment",
+      "condition": "neurological assessment in stroke evaluation",
+      "confidence": 0.45
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "89882181-07dd-4a42-8bbc-ef50184f5f14",
+    "text": "avesevereburningpain.Pastmedicalhistorywasnotableforrighteyesurgeryfol-lowinganassaultwithabaseballbat20yearsago.PhysicalExaminationVitalsigns:T=99.4°F,P=110,BP=130/80.Neck:Supple;notenderness.Lungs:C",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.3
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "78133558-e38e-458b-9ce5-e4a640da77ec",
+    "text": "sis.Notethattheabductorpollicis09_Blumenfeld3E_Ch09.indd37109_Blumenfeld3E_Ch09.indd3711/13/2112:11PM1/13/2112:11PM372Chapter9brevisisusuallyaffectedincarpaltunnelsyndrome(seeKCC9.1)butwasnotspecifica",
+    "llm": {
+      "domain": "diagnosis",
+      "subtopic": "stroke_identification",
+      "clinical_intent": "diagnosis",
+      "medical_entity": "",
+      "question_type": "diagnosis",
+      "condition": "peripheral nerve injury",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "b1cf2425-6a61-4e6b-a909-f1a94dda877c",
+    "text": "llowingsurgery,herdysarthriaandfatigueresolvedcompletely,andshehadanormalneurologicexam,includingnodysarthriaandnoptosis,evenafterprolongedupgaze.CASE9.13GENERALIZEDWEAKNESSANDAREFLEXIAChiefComplaintA",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurological emergency evaluation",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "394d5245-fb5b-456c-94b6-86b68541a939",
+    "text": "tmentofBell’spalsyhasbeencontroversial,butrecentevidencesuggeststhata10-daycourseoforalsteroidsstartedsoonafteronsetimproveschancesforfullrecovery.ThepossibleroleofantiviralagentsintreatingBell’spalsy",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "Bell's palsy",
+      "confidence": 0.3
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "63086b52-7902-40c2-be62-7045adef292c",
+    "text": "completeleftfacialparalysisthatresolvedoverthecourseofseveralmonths,andshesubsequentlydidwell.CASE12.6HOARSEVOICEFOLLOWINGCERVICALDISCSURGERYMinicaseA38-year-oldsaleswomandevelopedleftneckandshoulderp",
+    "llm": {
+      "domain": "diagnosis",
+      "subtopic": "stroke_identification",
+      "clinical_intent": "diagnosis",
+      "medical_entity": "",
+      "question_type": "diagnosis",
+      "condition": "ischemic stroke",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "7ffd59eb-b55c-49ae-b71d-b48d00f0dc41",
+    "text": "stemarousalsystemsaswellastothecerebralcortex,promotingtheawakestate.Adenosineisanotherputativeneurotransmitterthatmaybeimportantinmechanismsofalertness.Adenos-inereceptorsarefoundinboththethalamusand",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "4c464c30-d321-4f3a-aa07-c4a56574c077",
+    "text": "tivelyfastactivity),whiletheEEGofstageN3non-REMsleepmorecloselyresemblescoma(high-voltageslowactivity).ItisalsoeasiertoawakenanindividualfromREMsleepthanfromstageN3ofnon-REMsleep.Sleepisnot,aswasoncet",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurophysiology of sleep",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "1313c480-442d-44ff-a7a8-7d4a41c61201",
+    "text": "scendingactivatingsys-temsthatprojecttotheforebrain(seeFigure14.15A).AroundthetimeofWorldWarI,therewasauniqueepidemicof“encepha-litislethargica”inwhichpatientssleptforlongperiods,sometimesleading*Thep",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurology",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "518b3b0d-b5d1-48d2-b9e2-fca50edcdbf9",
+    "text": "tsisthoughttocontrolREMsleep(Figure14.15B).SeveralclassesofREM-oncellsarelocatedinthepontinereticularformation.DuringREMsleep,activityinthesepontineGABAergicREM-oncellstogetherwithneuronsintheVLPOinhi",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.15
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "8909ea0f-1ec1-42b0-9a2f-026e4f1fbd33",
+    "text": "states,occurbecauseofa“flip-flopswitch.”Thisterm,borrowedfromelectroniccircuits,describestwosystemsthatinhibiteachotherandthereforetendtoswitchstronglyfromoneonandtheotheroff,totheoppositestate.Exampl",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "6cbbc535-b83d-4eff-af9f-9bb3e4f072fe",
+    "text": "neurons(Glu),andtuberomam-millarynucleushistaminergicneurons(His);brainstemmonoaminessuchasserotonin(5-HT),norepinephrine(NE),anddopamine(DA),aswellasbrainstemcholinergics(Ach).Certainregionsofthemedu",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurophysiology of sleep",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "e59c1eb7-6877-4d97-bb9c-40b7c5621555",
+    "text": "ingmemoryproblemssuchasdifficultyrememberingtelephonenumbers.Hewasforcedtoleavehisjob,andoverthesubsequentyearshissymptomsprogressedveryslowly.FamilyHistoryThepatientwassingle.Hehadthreesiblings(onema",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.3
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "9939848b-78da-485a-b7c8-bcafdfc82961",
+    "text": "familymembers?3.Giventheslowprogressionandfamilyhistory,whatisthemostlikelytypeofdisorderaffectingthispatientandhisfamily(seeKCC15.3)?Blumenfeld3eNeuroanatomythroughClinicalCasesOUP/SinauerAssociates0",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "classification",
+      "medical_entity": "",
+      "question_type": "classification",
+      "condition": "hereditary neurological disorder",
+      "confidence": 0.45
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "c877a884-5c25-45bf-9663-6e71aa48db8f",
+    "text": "BasalGanglia767levodopatodopamineinperipheraltissues,makingmorelevodopaavailableforconversiontodopamineinthecentralnervoussystemwhereitisneeded.Themostcommonperipheralsideeffectsofdopaminearegastroint",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "Parkinson's disease",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "5ec359c5-fcfa-43cc-b646-1ba35857a0e5",
+    "text": "ientsmayincreasinglyexperienceon–offphenomena,inwhichtheyfluctuatebetweendyskinesiasandimmobility,withverylittletimeduringwhichtheyarefunctional.Thesefluctuations,whichoccurinsomepatientswhohaveadvanc",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "Parkinson's disease",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "58681a1a-f6e2-452e-9513-16cc89915623",
+    "text": "uclearpalsy(Steele–Richardson–Olszewskisyndrome)DementiawithLewybodiesCorticobasaldegenerationMachado–Josephdisease(SCA-3)aDentatorubropallidoluysianatrophyJuvenile-onsetHuntington’sdiseaseWilson’sdis",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "classification",
+      "condition": "parkinsonism-differential-diagnosis",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "2f689661-b735-4147-931f-98ce057fa8c0",
+    "text": "countforthetremorseeninParkinson’sdisease.OtherCausesofParkinsonismAntipsychoticandanti-emeticdopaminergicantagonistssuchashaloperidol(Haldol)andprochlorperazine(Compazine)commonlycauseparkinsoniansig",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "parkinsonism",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "4fd0ee02-1be4-4944-a5b0-84ea150e19e4",
+    "text": "ereisapositivefamilyhistory.Inheritanceisautosomaldominantwithcompletepenetrance.However,inmanycasesthefamilyhistoryissketchyortheremaybeonlysug-gestiveleads,suchasaparentwhodiedyoungorwasinstitutiona",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "Huntington's disease",
+      "confidence": 0.3
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "603b1069-b4fe-4804-b831-f8554da86934",
+    "text": "hanpreviously.Hiswifefeltsomethingwaswrongandurgedhimtoseekmedicalattention,andhisrefusalledtobitterarguments.FamilyHistoryThewife’sfamilyhistorywasunremarkable.Thehusbandhadnosiblings.Hisfatherhaddie",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "f68e6c9a-80c0-4cf1-a70d-2efc07894d0e",
+    "text": "dhersymptomssomewhat.However,shewashavingmoreandmoreproblemswithfluctuations,frombeing“on”aftertakingadoseofmedicationto“off”justbeforeadose.When“off,”shehadmoretroublewalking,occasionallyhavingtotalb",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "parkinsonism-related motor fluctuations",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "ca7f1c13-9044-49ea-a387-f847f08934d4",
+    "text": ",shufflinggaitwithretropulsion.Therewasnoevidenceofautonomicdysfunction,ataxia,ordementia.Althoughsaccadeswereslowintheverticaldirection,therewasnosignificantlimitationofup-ordowngaze.LocalizationandD",
+    "llm": {
+      "domain": "diagnosis",
+      "subtopic": "stroke_identification",
+      "clinical_intent": "diagnosis",
+      "medical_entity": "",
+      "question_type": "diagnosis",
+      "condition": "parkinsonism_differential",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "bf7d1eeb-cc47-4dc7-98df-bf9fc5bd5e09",
+    "text": "tisolinthebloodstream.ChronicadministrationofexogenoussteroidscansuppressACTHproductiontothepointthattheadrenalsatrophyandareunabletoprovidesufficientcortisoltosupportlifeiftheexogenoussteroidsareabru",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "8dfac2b3-6329-4227-811e-1327a73cc669",
+    "text": "nesandothertissues.Prolactincausesthemammillaryglandstoproducemilk.LHandFSHregulateovarianhormonesresponsibleforthemenstrualcycleandoogenesisinfemales,andtheyregulatetesticularhormonesandspermatogenes",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "endocrine physiology",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "23b3070a-683e-4714-a328-07219a7775f0",
+    "text": "onotrespondadequatelytomedicaltherapy.Usually,atranssphenoidalap-proachistaken,inwhich,undergeneralanesthesia,thefloorofthepituitaryfossaisenteredthroughtheroofofthesphenoidsinus(seeFigure12.1),within",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "e8dfe822-976c-4fb0-8932-2722c31a5e0b",
+    "text": "o1millimeterindiameterthroughindirectef-fectsonpituitaryshape,althoughsmallertumorsmaynotbevisualizeddespitesignificantendocrineabnormalities.Hypothalamiclesionscanalsosometimescauseelevatedprolactinl",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "diagnosis",
+      "condition": "pituitary adenoma",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "a2a2ebba-032a-4e97-8848-fdf8a2844627",
+    "text": "eabletodrinkconsumelargeamountsofwatertomaintainfluidbalance.Patientswhocannotdrinkadequatelybecomedehydratedrapidlyanddieifnottreated.ThediagnosisofDIisestablishedifapatientwithpolyuriahasrelativelyl",
+    "llm": {
+      "domain": "diagnosis",
+      "subtopic": "stroke_identification",
+      "clinical_intent": "diagnosis",
+      "medical_entity": "urine osmolality | plasma osmolality | vasopressin",
+      "question_type": "diagnosis",
+      "condition": "diabetes insipidus",
+      "confidence": 0.45
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "4e4463f0-792a-4ff9-8140-14b7da410896",
+    "text": "808Chapter17riseinneurogenicbutnotinnephrogenicDI.CommoncausesofneurogenicDIincludeneurosurgery,headtrauma,andinfiltrativeorneoplasticlesionsinthepituitary–hypothalamicregion(seeKCC17.1)orinthethirdve",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurogenic diabetes insipidus",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "fbaf3b79-35a8-44e6-861e-378606525289",
+    "text": "ienthaddecreasedhearingwithasensorineu-ralpattern(seeKCC12.5),especiallyontherightside,decreasedvisualacuity,headache,andphotophobia.LaboratoryTestResultsTESTNAMERESULTNORMALRANGEUNITSaSodium152135–14",
+    "llm": {
+      "domain": "diagnosis",
+      "subtopic": "stroke_identification",
+      "clinical_intent": "diagnosis",
+      "medical_entity": "",
+      "question_type": "diagnosis",
+      "condition": "ischemic stroke",
+      "confidence": 0.45
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "73ecf224-d7bb-47a8-bd1a-8dd63640aac6",
+    "text": "ncludingstereotacticradiosurgery(seeKCC16.4)andconven-tionalsurgeryforthehamartoma.Hedidnotdevelopprecociouspuberty,acommonendocrinologicalabnormalityseenwithhypothalamichamartomas,buthediddevelophypo",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "hypothalamic hamartoma",
+      "confidence": 0.3
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "ae0be0f7-b0be-442f-b583-fcb58f37b92a",
+    "text": "thhormone(GH),prolactin,thyroid-stimulatinghormone(TSH),lutein-izinghormone(LH),andfollicle-stimulatinghormone(FSH).7.Theposteriorpituitaryiscomposedofneuraltissueextendingfromthehypothalamusandreleas",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.15
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "6d81fe8c-a67b-4c6c-8cea-0535084910ce",
+    "text": "ctorybulbtothesamestruc-tureonthecontralateralside.Theposteriorpartoftheanteriorcommissureinterconnectsthebilateralamygdalasandanteriortemporallobes.KEYCLINICALCONCEPT18.2SeizuresandEpilepsyDefinition",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "definition",
+      "condition": "epilepsy",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "aa0731ea-b167-4c0a-ab91-74c0e76e15d8",
+    "text": "cortexcanproducemoreelaboratelyformedTABLE18.8InternationalClassificationofEpilepticSeizuresI.FocalOnsetSeizuresA.Focalawareseizuresª1.Withmotoronset2.WithnonmotoronsetB.Focalimpairedawarenessseizures",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "classification",
+      "condition": "epileptic seizures",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "8a9914eb-5213-41d9-8bc2-6200e353a10e",
+    "text": "gbreezeinancientGreek,wasusedbyGalen’steacherPelopstodescribethesensationfeltinthelegofoneofhispatientspriortoalargeseizure.Inreality,aurasarefocalawareseizuresofanytypethatareexperiencedbyapatientwit",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "epilepsy",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "0e674be3-765e-484a-878c-4ee06c92bb79",
+    "text": "nicseizuresbeginunilaterallyandthenpropagatetobothhemispheres.Onceinitiatedhowever,bothseizurestypesinvolvedramaticbilateralconvulsions,formerlycalledgrandmalseizures.Thus,forthesetwoseizuretypes,once",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "description",
+      "condition": "epileptic seizure",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "ad29c37c-1872-4b89-9765-703bd0a0d00f",
+    "text": "ithanincreasedriskofepilepsy.However,thereisanincreasedriskofsubsequentepilepsyinchildrenwithcomplexorcomplicatedfebrileseizures,definedasseizureslastingmorethan15minutesoroccurringmorethanoncein24hou",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "prognosis",
+      "condition": "febrile seizures",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "2b993ae1-f5a1-4b81-80db-3f3cd3b7650f",
+    "text": "portantaswellinthepathogenesisofschizophrenia,includingglutamate,gamma-aminobutyricacid(GABA),serotonin,andnor-epinephrine.Acompletepathophysiologicalunderstandingofschizophreniaiscomplicatedbythefact",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "schizophrenia | obsessive-compulsive disorder",
+      "confidence": 0.15
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "abf1d7ab-aafb-409e-bdaf-d0e52f199ef2",
+    "text": "resentationsforbothsidesofthebodyforminginthesingleremaininghemisphere.Inadditiontomedicationsandsurgicalapproaches,othertreatmentsforepilepsycanbebeneficialinspecificsituations.Somechildrenwithrefrac",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "epilepsy",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "1e009080-5b0f-4a43-9991-6662390e8d4f",
+    "text": ",theremaybesomeoverlap,sinceobsessive-compulsivedisorderispresentinabouthalfofpatientswithTourette’ssyndromeandcanalsooccurinHuntington’sdisease,Sydenham’schorea,andotherbasalgangliadisorders.AnxietyA",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neuropsychiatric disorders",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "47e21f88-bea4-41a9-b6e0-de3ea1fddfd3",
+    "text": "factiveinvestigation,butthereisconvergingevidenceofalterationsintheventralprefrontalandmesialtemporalstructures.Neuroendocrinechangesoccurindepressionaswell,includinganincreasedreleaseofcorti-solinabo",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "depression",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "457bc6c6-5b1e-4d7b-94ce-d6c640d4a65e",
+    "text": "guedandsomewhatconfusedbuthadnootherdeficits.Theseepisodesoccurredtwoorthreetimesperweek,occasionallyuptothreetimesperday.Shealsohadocca-sionalisolatedauras,withoutprogressiontofull-blownepisodes.Herl",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "epilepsy",
+      "confidence": 0.15
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "3f19af32-0b2c-4ea8-8dcd-cfe904ab89fd",
+    "text": "lwithdrawal,headtrauma,infection,andseizures.Chronicmentalstatuschanges,typifiedbyAlzheimer’sdiseaseandothergraduallyprogressivedementias(seeKCC19.16),usuallydevelopovermonthstoyears,donottendtofluctu",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "encephalopathy | global confusional states",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "f00e51ff-1a2c-4ab4-a733-d9cff6f3c44e",
+    "text": "lyfrontoparietalratherthanfrontotemporalatro-phy.Intherelateddisordercorticobasaldegeneration,thereisasymmetricalonsetofamovementdisordersuchasdystoniaorparkinsonism(seeKCC16.2),accompaniedbycorticalf",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurodegenerative disorders",
+      "confidence": 0.3
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "37dd1a06-6201-447b-9126-228e679c9530",
+    "text": "nthreedifferentlocationsthatcancauseearly-onsetdisease:(1)theAPPgenelocatedonchromosome21,(2)thepresenilin1geneonchromosome14,and(3)thepresenilin2geneonchromosome1.Thesefindingsareveryinterestingbecau",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "Alzheimer's disease",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "cc33f7e8-778b-4cc6-9c4c-5c51767a4058",
+    "text": "derlypopulation.TheprevalenceofAlzheimer’sdiseaseincreasesrapidlywithage,from1%belowtheageof65to40%overtheageof85years.Asidefromage,thestrongestriskfactorispresenceoftheApoE4allele,asalreadydiscussed.",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "Alzheimer's disease",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "fb5b0e9e-1833-4891-ab6f-268612b4ddcc",
+    "text": "Higher-OrderCerebralFunction945oscillationssuchasthealpharhythm.Followingtheconsciousevent,anumberofconsequencesofconsciousnesscanoccur(seeFigure19.18).Theseincludeso-calledpost-perceptualprocessing,e",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "4b069f1a-0283-4ad1-9855-7e65816be68d",
+    "text": "achthemedialtemporalmemorycircuits.Thus,memorysystemsmustbeen-gagedduringortowardtheendoftheconsciousevent(seeFigure19.18).Thegreenboxorconsciouseventisthusatthenexusortemporaltransi-tionbetweenattent",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "ee8235c3-a5d1-4484-aaa6-c55f9a302925",
+    "text": "snessinpurple,whiletheneuralmechanismsoftheconsciouseventitselfareshowningreen.19_Blumenfeld3E_Ch19.indd94519_Blumenfeld3E_Ch19.indd9451/14/215:13PM1/14/215:13PM946Chapter19Detect,Pulse,Switch,andWave",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.1
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "227657d2-95a8-4bb3-8c49-6c206089060d",
+    "text": "rcluestounderstandingthemechanismsofconsciousness.Itseemsplausiblethatthemindarisesfromtheintegratedactionsofallthecomponentswehavejustdiscussed.Thus,themindinvolvesmanyparal-lelpathwaysofsensory–moto",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.1
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "b076f879-2bef-4212-998a-6f8a4a3783d6",
+    "text": "ecreased,10.8,12.5decreasedunilaterally,14.1,14.4unilateral,5.2Corticalsensoryloss,7.1Cortisolhigh,17.1low,17.2Coupcontrecoupinjury,5.2Cramping,6.6Cushing’ssyndrome,17.1Cysticerocosis,5.7,19.10Cysts,5",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.15
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "35371d63-6ed6-49cb-8d9c-a90c56084668",
+    "text": "guageFootdrop,9.10Foramenovale,schwannoma,12.3Foramenrotundummeningioma,12.2ForaminaofMonro,obstruction,5.8Fourthventriclecompression,15.3Frontallobesastrocytoma,19.7compression,19.7hemorrhage,19.3Fru",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurological examination findings",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "7ad30015-1506-4f3c-8b0a-2c51c6fc7ae1",
+    "text": ".6,10.12,12.8,14.1,14.2,14.4,14.7,15.1,15.2,15.3,15.4,15.5,16.1wide-based,14.4,15.5Gazepreference,10.11downward,13.3left,10.8,13.3,14.6right,10.10,10.13,13.4,13.7,19.6Glioblastomamultiformae,18.4Glomu",
+    "llm": {
+      "domain": "diagnosis",
+      "subtopic": "stroke_identification",
+      "clinical_intent": "diagnosis",
+      "medical_entity": "",
+      "question_type": "diagnosis",
+      "condition": "ischemic stroke",
+      "confidence": 0.45
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "6569cf1f-e6a4-437d-88fd-479a3d50933d",
+    "text": "nts,18.5tics,16.2Multiplesclerosis,11.2,13.8Muscleendurancedecreased,17.2Muscletone.SeealsoWeaknessdecreasedinarm,9.2decreasedinfoot,9.9diminishedinfoot,9.9increaseinarm,10.6increaseinlowerextremities",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurological disorders",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "10fd9207-54c0-4ddb-ba7d-e203cd65351b",
+    "text": "4leftglomusjugulare,12.7lung,9.1lymphoma,17.2,18.2meningiomas,7.4,11.3,12.1,12.2,12.8,19.7metastatic,8.2,15.2,15.4,19.5pineoblastoma,5.7pineocytoma,13.9pituitarymicroadenomas,17.1righthemisphere,5.4sc",
+    "llm": {
+      "domain": "diagnosis",
+      "subtopic": "stroke_identification",
+      "clinical_intent": "diagnosis",
+      "medical_entity": "",
+      "question_type": "diagnosis",
+      "condition": "ischemic stroke",
+      "confidence": 0.45
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "2ab0d1ce-94e6-4a3d-bcbf-1747e259285c",
+    "text": "inereceptors,20t,237,632t,635inmyastheniagravis,327,328,380–381Achillestendonreflex,67t,333tAchromatopsia,44,923Acousticneuroma,528–529,531,550–551,553fAcromegaly,805Actionpotential,19,366f,366–367com",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general neurology",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "f03c7576-6100-476e-96f5-666f2f9d207e",
+    "text": "isease,326Cheiralgiaparesthetica,363Chemicalsynapses,19Chemotactictriggerzone,138,138f,650Chemotherapyinbraintumors,158Cheyne–Stokesrespiration,648–649Chiefcomplaint,5Chieftrigeminalsensorynucleus,503",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.15
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "940c7d6f-26a6-4356-9ad7-92861ed5e648",
+    "text": "ymoma,158,158t,159Epiduralabscess,162,288Epiduralfat,132,304f,319,320fEpiduralhematoma,148,176t,180–183CTimage,148,150f,184f–185fEpiduralmetastases,radiculopathyin,331,335,337fEpiduralspace,126f,131,1",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "ef294b45-b205-4638-86e6-18778e2f9dca",
+    "text": "ngiform,167limbicpredominantage-relatedTDP-43(LATE),938static,934,938traumatic,769,939Endarterectomy,carotid,407,408Endocarditis,404Endocrinesystemamygdalain,850–851hypothalamusin,796,819,820pituitary",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurological disorders",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "adf11271-8a40-443e-9d43-caf531f4e071",
+    "text": "e,769inhydrocephalus,157,590intorsion,568,569,569f,570,570t,576inlocked-insyndrome,627inoculomotorpalsy,574–576inParkinson’sdisease,766inprogressivesupranuclearpalsy,589,768inpseudocoma,80reflex,587,5",
+    "llm": {
+      "domain": "anatomy",
+      "subtopic": "anatomy",
+      "clinical_intent": "localization",
+      "medical_entity": "",
+      "question_type": "localization",
+      "condition": "neurological disorders",
+      "confidence": 0.35
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "08c73cfa-1679-4505-b9f0-26925691b9a4",
+    "text": "dopa,761,765,766–767Lewybodies,765,765fdementiawith,768,937,979Lexicon,895Lhermitte’ssign,286Ligamentumflavun,168f,319,320fLight–neardissociation,584,590Lightresponseofpupils,582t,582–583consensual,59",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurology",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "d18f7d07-f8db-4ff3-b62b-0d72a77dc678",
+    "text": "redominant,162–163,163t,164,168mentalstatuschangesin,939neoplasticorcarcinomatous,169signsandsymptomsin,160,160tviral,160,161t,164Meningoencephalitis,herpessimplex,161t,164,165Meningovascularsyphilis,",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "neurological disorders",
+      "confidence": 0.3
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "e98e25b9-c925-4dde-9d41-3f708029913d",
+    "text": "unit,367andspinalnerveroots,322,323t–325tstrengthtesting,64–65,65t–66t,80stretchreflex,37f,37–38toneof,63t,64,239,239t,721weaknessindisordersof,246,247Musclespecificreceptortyrosinekinaseantibodies,32",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "999e38cd-a892-4284-b8e8-e1030b594edc",
+    "text": ",73,909,909t,910–912neurologicexamin,56,73sensory,56,73,909t,909–912Neighborhoodeffects,14Neisseriameningitidismeningitis,161tNeocortex,827,828tcelllayersof,29t,29–30,30f,882inmemory,84522_BLUM3e_Subj",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "4454b7d4-fa84-42ed-abe6-b69860e05941",
+    "text": "terhaircells,521,522fOvalwindow,521,522fOvariancancer,160Overflowincontinence,294f,295Overshootinataxicmovements,68,69,719Oxytocin,796,801,803,819,820deficiencyof,808functionsof,803f,804PPainanterolat",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.1
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "15d2d867-64b7-4b01-a3f8-d820817cf745",
+    "text": "y,897Prosopagnosia,44,923,979Protein,CSF,161t,168,169,327Proverbstestofabstraction,919,919tPseudobulbaraffect,252,539,557–558,560f–561f,650Pseudobulbarpalsy,539Pseudocoma,80,646Pseudodementia,932,935,",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.15
+    }
+  },
+  {
+    "collection": "anatomy",
+    "id": "ee5d0fce-dc59-41bf-9bd1-bc7d78968942",
+    "text": "jectsystems,632t,632–638Wiesel,Torsten,468,469,470Wilson’sdisease,759–760,769dementiain,939tremorsin,760,764,769WindowparameterinCT,89WisconsinCardSortingTest,916Witzelsucht,917Wordgenerationtasksinfr",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.1
+    }
+  },
+  {
+    "collection": "guideline",
+    "id": "64042161-b391-4317-84a3-a6ef136acec5",
+    "text": "ĩĴĮ：１０．３７６０／ňŒņ．ŏ．ŎŘŘœ．１００６-７８７６．２０１７．０３．００４๙ྐቔᆀ：ڂ，２１０００２ଽ॓，ĪŒņŎő：ŝŋőŎŚ２＠śŎŕ．１６３．ňŔŒ；௰Ԯ఼，１００８５３ࣘ，फሹ၄ჽപଽ॓，ĪŒņŎő：ŕŚňŖ３０１２８＠ŘŎœņ．ňœ·്·ೆᇍਏ്߶ٳೆླྀቔቆᇁඵᇁҗѨၹᆭ၂，ྟоೖ൞ಌ࿓ྟଷቁᇏѨ౦࿸ᇗ、࿰྘，߶ք［１］。４．５ōઝႋႨᇗቆቆᆮ྘༸ಷ࠴ࠃࠗ（ŗŊňŔŒŇŎœ",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "guideline",
+    "id": "2d506bd0-b509-4dd6-ae3e-aeedd9c0c6ab",
+    "text": "。ᆀ，ྛᆐĩĸĦ࿼༂，֌սࡎ。Ⴎ࿼༂ᇍਏൈ，ᄀྛĩĸĦ֥。ਸ਼ຓ，ି႕ཞܙ，ࠎԤഈิԛਔ“ਢԵᆡሑ-႕ཞ҂௄஥”ࠣ“ྏ-ᇿಌ෥҂௄஥”［１８-１９］，ࠆ֥Գ。ࠏྛਔ૭ඍ，ٚم［２０］，؍ࢨ࣮，ႋ၂҄ૼಒ。֥ࡱ，൭ඌӱ྽。ೆᇏྏ，Ӯඃॖྛ。ᆌ。ਸ਼ຓླ൞，ઝ-ᇍਏ，ླᄝ൩，ӱᇏົӻŗř-ĵĦઝЬೆ，ઝಷඝིࠏ。ଽඌᇏҠቔੀӱඌᇏ๭２。๭̿ඌᇏҠቔੀӱ၂、ൔഒჽଽ࿼༂、ᄝඌᇏൌൈႪ൝，॥ᇅఴࡄ，ն［２１］",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.15
+    }
+  },
+  {
+    "collection": "guideline",
+    "id": "9a1f7802-03f9-45d3-8351-595f826b3e74",
+    "text": "。၄ਏ่նҵљ，๷ཋᇅ，ն。ऎุੀӱ，໓ᇏݔࢲ࣮，౦ঃ，ٓܿ，ၛ௹ູਢԵҕॉ。ଽሙСೆᇍਏඌభ๭１。๭̾ԩ৘ੀӱ၂、ઝಷඝ《ྟಌ࿓ྟଷቁᇏᆐᇍᆷଲ２０１４》［１２］ᇏൡႋᆣ、ඪૼ，ᄝՎ҂ᄜሕඍ。൞：（１）ቔᇏ，ྟಌ࿓ྟଷቁᇏ，ઝࡗ；（２）оೖྟቁᇏҵ，ೆҠቔᇏ҂ь，ྟಌ࿓مٚ。ਢԵඔऌ，ೆᇍਏཌྷб，ࢤਏིႪ൝［１３］，౏࿼ॖି。ઝಷඝ҄ᇧ，ᆀೆᇍਏ。౼ഉᄝषᅚᆭᇏ。ؽ、ೆᇍਏݔުᆡ，оᇗေ。ӱ҂ႋ",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.15
+    }
+  },
+  {
+    "collection": "guideline",
+    "id": "26a45c28-088c-4996-8205-95f0c6ebd633",
+    "text": "。ബരॉ੮ઽ、ŗř-ĵĦಷඝူ໾。３．оೖ：׮ྟᇏ-ߑ֥ᆀ，ࠢ؟、ત，ඝሰౢԢࢆ，ളᄜоೖ［３８-３９］。ਸ਼ຓ，ܵ൭ඌଆൔᇏ，ႮႿॆ࿓ཬϰቔႨٳ，ᇁоೖ。ଢൔ，ॖॉઝ／ϢⅡŇ／Ⅲņ࠴。４．ᆡ：֥ԩ৘ॖҕॉ《ೆᆐਏᆷଲ２０１５》［４０］。ଽ٠ު·５７１·॓ᄖᆽ２０１７୍３ֻ５０ֻ３௹ĨōŎœįĳŊŚŗŔő，Ĳņŗňō２０１７，ĻŔő．５０，ĳŔ．３万方数据",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.1
+    }
+  },
+  {
+    "collection": "guideline",
+    "id": "e835daf6-fa15-466d-87c2-d2849a394ff6",
+    "text": "๭３。ĨĹĦ：ĨĹᄯ႕，ĲķĦ：܋ᄯ႕๭̀ྟಌ࿓ྟଷቁᇏᄪ௹޹ࡓުੀӱቁҳ。ު２４ōଽᇀഒཛളଁุᆘ，ྛĳĮĭĸĸٳ，౦ঃ，ෛൈሙСԩࡱ。ު２４ōଽྛ႕ཞҰၛૼಒႵ໭੔ଽԛ࿓。ൔҕॉ《ᇏྟಌ࿓ྟଷቁᇏᆐᇍᆷଲ２０１４》［１２］。ᇏྏ，٠，ඌު１ᄅ、３ࠣ１ᆀ，֥ķņœŐŎœބĳĮĭĸĸି௟ܙ，ೂႵсေ，౦ঃ",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "guideline",
+    "id": "b80104a8-4d20-4249-986a-2c20536b5bcc",
+    "text": "ჽ）、໓（උ၄ჽ）、ဗౢ໳（೘फ၄ն࿐ྍూ၄ჽ）、ၺ౗（ሹ၄ჽ）、ᄃ᧓᧕（၄॓ն࿐ሹ၄ჽ）、ᄎ（၄ჽ）、ᅦಥਅ（ࣘሹ၄ჽ）、ᅦ්ૼ（උ၄ჽ）、ᅦཫ੃（೶၄ჽ）、ᅦႧ（նඋ၄ჽ）、ѯ（༆၄ჽ）、ת޿（೘फ၄ն࿐ն௙၄ჽ）、ᇛᆽૼ（උᓶᨢ೶၄ჽ）、ᇫ໳ള（ሹ၄ჽ）ҕॉ໓ང［１］ĿōŔŚĲ，ļņœŌĭ，ĿōŚį，Ŋřņő．ĨņŚŘŊ-ŘŕŊňŎŋŎňŒŔŗřņőŎřŞŋŔŗ２４０ňņŚŘŊŘŎœĨōŎœ",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.15
+    }
+  },
+  {
+    "collection": "guideline",
+    "id": "791f18b1-5370-4d7d-b109-b9ab4b3dbae5",
+    "text": "３６（１２）６０７３８-７．［４］ŉŊıŔŘķíŔŘőņķŔŘņī，İōŔŚŗŞį，İŎŘŘŊőņħĲ，Ŋřņő．ĪőŎŌŎŇŎőŎřŞŋŔŗĮœřŗņśŊœŔŚŘķŊňŔŒŇŎœņœřĹŎŘŘŚŊ-ĹŞŕŊĵőņŘŒŎœŔŌŊœĦňřŎśņřŔŗļŎřōŎœņĵŔŕŚőņřŎŔœ：ĹōŊĪŋŋŊňřŔŋřōŊĪŚŗŔŕŊņœĨŔŔŕŊŗņřŎśŊĦňŚřŊĸřŗŔŐŊĸřŚŉŞ（ĪĨĦĸĸ）ĮĮ",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "guideline",
+    "id": "bc144a9b-f332-4d83-b439-4d42a9b73932",
+    "text": "œŘřŗŔŐŊ［į］．ĳĪœŌőįĲŊŉ，２０１５，３７２（２４）：２２８５-２２９５．ĩĴĮ：１０．１０５６／ĳĪįĲŔņ１４１５０６１．［１１］߶ٳ，࿓ೆླྀቔቆ，ೆᆐਏᆷଲለཿቆ．ᇏೆᆐਏᆷଲ［į］．പ॓ᄖᆽ，２０１５，４８（５）：３５６-３６１．ĩĴĮ：１０．３７６０／ňŒņ．ŏ．ŎŘŘœ．１００６-７８７６．２０１５．０５．００２．［１２］߶ٳ，ܵ·６７１·॓ᄖᆽ２０１７୍３ֻ５０ֻ３௹Ĩ",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.1
+    }
+  },
+  {
+    "collection": "guideline",
+    "id": "0788a62a-f42c-4895-b732-bb96f6f8c2dd",
+    "text": "AHA/ASANoneNoneNoneNoneNoneNoneNoneOpeoluM.AdeoyeUniversityofCincinnatiNoneNoneNoneNoneNoneNoneNoneNicholasC.BambakidisUniversityHospitals,ClevelandMedicalCenterNoneNoneNoneNoneNoneNoneNoneKyraBeckerU",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.1
+    }
+  },
+  {
+    "collection": "guideline",
+    "id": "59630566-468b-4204-95e1-2e53bde71ac3",
+    "text": "iganStateUniversityCollegeofHumanMedicine,EmergencyMedicineNoneNoneNone2018Defense,Sandberg,Phoenix&VonGontard*;2018Defense,Kamykowski,Gavin&Smith*NoneNoneCochrane(senioreditor)†BartM.DemaerschalkMayo",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.15
+    }
+  },
+  {
+    "collection": "guideline",
+    "id": "1c0e9c86-3923-4c3f-b633-ccb140962875",
+    "text": "ncome;or(b)thepersonowns5%ormoreofthevotingstockorshareoftheentityorowns$10000ormoreofthefairmarketvalueoftheentity.Arelationshipisconsideredtobe“modest”ifitislessthan“significant”undertheprecedingdef",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.1
+    }
+  },
+  {
+    "collection": "guideline",
+    "id": "a3ff9055-4512-4274-a16b-00d0ef7c2196",
+    "text": "I,StrokeTrial)†;Biogen(PIStrokeTrial)†;Hyperfine(PI,ImagingTrialincludingstrokepatients)†;Zoll(DSMBchair)*NoneNoneNoneAlvaHealth*Biogen*NoneAndrewM.SoutherlandUniversityofVirginiaDiffusionPharmaceutic",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "guideline",
+    "id": "ad1aec18-c896-4c15-9376-21c201b780c1",
+    "text": "t”if(a)thepersonreceives$10000ormoreduringany12-monthperiod,or5%ormoreoftheperson’sgrossincome;or(b)thepersonowns5%ormoreofthevotingstockorshareoftheentity,orowns$10000ormoreofthefairmarketvalueofthee",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.1
+    }
+  },
+  {
+    "collection": "guideline",
+    "id": "4b1a5204-abf2-45f9-b9ad-56fc912f0a48",
+    "text": "、俞晓飞（上海中医药大学附属曙光医院）、袁军（内蒙古自治区人民医院）、倪小佳（广东省中医院/广州中医药大学第二附属医院）、高雪亮（河北省中医院）、郭友华（广东省中医院/广州中医药大学第二附属医院）、郭建文（广东省中医院/广州中医药大学第二附属医院）、黄凡（广东省第二中医院）、黄立安（暨南大学附属第一医院）、龚帆（上海中医药",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.1
+    }
+  },
+  {
+    "collection": "guideline",
+    "id": "8216f31b-6b1d-4b1a-bce4-4248870d91dc",
+    "text": "fmx_T3RoZXJNaXJyb3Jz中华神经科杂志2022年6月第55卷第6期ChinJNeurol,June2022,Vol.55,No.6武医院）、柯开富（南通大学附属医院）、李刚（同济大学附属东方医院）、李敬伟（南京大学医学院附属鼓楼医院）、李新（天津医科大学第二医院）、李永坤（福建省立医院）、李子孝（首都医科大学附属北京天坛医院）、林敏（福建省第二人民医院）、林毅（福建医科大学附属第一",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.1
+    }
+  },
+  {
+    "collection": "guideline",
+    "id": "d80a18ee-b6a2-4a90-9037-065f167a887b",
+    "text": "学附属第三医院）、骆翔（华中科技大学同济医学院附属同济医院）、吕秋石（东部战区总医院）、马敏敏（东部战区总医院）、马宁（首都医科大学附属北京天坛医院）、马欣（首都医科大学宣武医院）、孟强（云南省第一人民医院）、牛国忠（杭州市第一人民医院）、彭斌（中国医学科学院北京协和医院）、蒲传强（解放军总医院第一医学中心）、秦超（广西医科大学第一附属医院）、邱峰（解放军总医院第六医学中心）、石进（空军特色医学中",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.1
+    }
+  },
+  {
+    "collection": "etiology",
+    "id": "9236c44b-dd70-4d4d-a89a-a995957e082b",
+    "text": "or)*;DiffusionPharmaceuticals(PHAST-TSCDSMBmember)*NoneNonePlaintiffanddefense*NoneBiogen*NoneChelseaS.KidwellUniversityofArizonaNoneNoneNoneNoneNoneNoneNoneThabeleM.Leslie-MazwiMassachusettsGeneralHo",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.1
+    }
+  },
+  {
+    "collection": "etiology",
+    "id": "cb7546c4-e148-4dbb-ad5a-cf8f8d515282",
+    "text": ";CoulterTranslationalResearchFoundation(BrainandNeurologicalDeficitIdentificationTool[BANDIT]Study)*NoneNonePlaintiffanddefensecasesfocusedonquestionsrelatedtostroke*iTREATProject,USPatentApplicationN",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.15
+    }
+  },
+  {
+    "collection": "etiology",
+    "id": "9e2e0fea-8ef5-4d4c-9ebe-413733f0a6ad",
+    "text": "e58StrokeTBD2019ColinP.DerdeynUniversityofIowaNoneNoneNoneNonePulsetherapeutics*Penumbra*NoneMarcFisherBethIsraelDeaconessMedicalCenterNoneNoneNoneNoneNoneNoneAmericanHeartAssociation†KarenL.FurieRhod",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "etiology",
+    "id": "9735a29c-2540-4c4e-931c-eb4aa3f3e810",
+    "text": "esearchSupportSpeakers’Bureau/HonorariaExpertWitnessOwnershipInterestConsultant/AdvisoryBoardOtherDownloadedfromhttp://ahajournals.orgbyonOctober30,2019",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.1
+    }
+  },
+  {
+    "collection": "etiology",
+    "id": "3d195842-b9c6-4706-ad75-d1c32026fe97",
+    "text": "ewoftheKeyResultsfromtheSwedishObeseSubjects(Sos)Trial-aProspectiveControlledInterventionStudyofBariatricSurgery[J].JInternMed,2013,273(3):219-234.[197]ECKELRH,JAKICICJM,ARDJD,etal.2013Aha/AccGuidelin",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  },
+  {
+    "collection": "etiology",
+    "id": "ceb88caf-1005-40ec-b24c-4508e22db0ee",
+    "text": "AISpublishedbetweenNovember2018andApril2019werereviewedbythewritinggroup.ModificationsofSection3.5.6.,Recommendation1,Section3.6.,Recommendation4,andSection3.7.4.,Recommendation5resulted.ToallowtheseD",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "ischemic stroke",
+      "confidence": 0.3
+    }
+  },
+  {
+    "collection": "etiology",
+    "id": "bb79b6de-8f35-48a6-981c-c9ffadbe313e",
+    "text": ",andXVinonlineDataSupplement1.1.7.OrganizationandIntegrationofComponents(Continued)CORLOENew,Revised,orUnchangedDownloadedfromhttp://ahajournals.orgbyonOctober30,2019",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "",
+      "confidence": 0.1
+    }
+  },
+  {
+    "collection": "etiology",
+    "id": "d76b8b62-71d3-4cad-8835-4277280e17fe",
+    "text": ")、吴伟(山东大学齐鲁医院)、武剑(北京清华长庚医院)、谢鹏(重庆医科大学第一附属医院)、徐恩(广州医科大学第二附属医院)、许予明(郑卅I大学第一附属医院)、徐运(南京大学医学院附属鼓楼医院)、焉传祝(山东大学齐鲁医院)、杨清武(陆军军医大学新桥医院)、杨弋(吉林大学第一医院)、殷小平(南昌大学第二附属医院)、曾进胜(中山大学附属第一医院)、张杰文(河南省人民医院)、张苏明(华中科技大学同济医学院",
+    "llm": {
+      "domain": "general",
+      "subtopic": "general",
+      "clinical_intent": "general",
+      "medical_entity": "",
+      "question_type": "general",
+      "condition": "general",
+      "confidence": 0.2
+    }
+  }
+]
