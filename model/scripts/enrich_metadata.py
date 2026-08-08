@@ -3,7 +3,7 @@
 为 5 个 collection 的既有 chunk 补充结构化证据元数据:
 - intervention  具体药物/操作
 - decision_node 临床决策节点(IV thrombolysis 等)
-- evidence_level 推荐等级(A/B/C)
+- evidence_level 证据等级(A/B/C)
 - time_window   治疗时间窗(0-4.5h 等)
 
 关键点:
