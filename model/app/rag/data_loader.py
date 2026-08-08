@@ -56,6 +56,25 @@ AUTHORITY_BY_SOURCE = {
     "教材": 3, "textbook": 3,
 }
 
+# 干预(intervention)关键词 → 标签: 具体药物/操作, 用于干预级临床匹配
+# 例如查询 "rt-PA 静脉溶栓" 应优先召回 intervention=alteplase 的 chunk
+INTERVENTION_RULES = [
+    ("alteplase", ["阿替普酶", "rt-pa", "rtpa", "alteplase", "组织型纤溶酶原激活剂", "tpa"]),
+    ("tenecteplase", ["替奈普酶", "tnk", "tenecteplase"]),
+    ("urokinase", ["尿激酶", "urokinase"]),
+    ("mechanical_thrombectomy", ["取栓", "血管内治疗", "thrombectomy", "机械取栓", "evt", "支架取栓", "抽吸取栓"]),
+    ("aspirin", ["阿司匹林", "aspirin"]),
+    ("clopidogrel", ["氯吡格雷", "clopidogrel"]),
+    ("ticagrelor", ["替格瑞洛", "ticagrelor"]),
+    ("warfarin", ["华法林", "warfarin"]),
+    ("rivaroxaban", ["利伐沙班", "rivaroxaban"]),
+    ("dabigatran", ["达比加群", "dabigatran"]),
+    ("heparin", ["肝素", "低分子肝素", "heparin", "enoxaparin", "依诺肝素"]),
+    ("statin", ["他汀", "阿托伐他汀", "瑞舒伐他汀", "statin", "atorvastatin", "rosuvastatin", "ldl"]),
+    ("bp_lowering", ["降压", "血压管理", "氨氯地平", "收缩压", "舒张压", "降压药物", "antihypertens"]),
+    ("neuroprotectant", ["神经保护", "依达拉奉", "neuroprotect"]),
+]
+
 
 def _extract_year(filename: str) -> int | None:
     """从文件名提取年份(如 2023/2024)。"""
@@ -82,6 +101,16 @@ def enrich_metadata(filename: str, page_text: str, category: str) -> Dict:
         for label, kws in SUBTOPIC_RULES:
             if any(kw.lower() in lower_file for kw in kws):
                 subtopics.append(label)
+
+    # intervention:具体药物/操作(内容关键词命中, 取前 2)
+    interventions = []
+    for label, kws in INTERVENTION_RULES:
+        if any(kw.lower() in lower_text for kw in kws):
+            interventions.append(label)
+    if not interventions:
+        for label, kws in INTERVENTION_RULES:
+            if any(kw.lower() in lower_file for kw in kws):
+                interventions.append(label)
 
     # phase
     phase = "general"
@@ -111,6 +140,8 @@ def enrich_metadata(filename: str, page_text: str, category: str) -> Dict:
         "evidence_type": evidence_type,
         # Chroma metadata 不支持 list → 逗号分隔字符串(读取时拆分)
         "subtopic": ",".join(subtopics[:2]),
+        # 具体干预(药物/操作), 用于干预级临床匹配
+        "intervention": ",".join(interventions[:2]),
         "phase": phase,
         # Chroma metadata 不接受 None → 无年份时用 0
         "year": _extract_year(filename) or 0,

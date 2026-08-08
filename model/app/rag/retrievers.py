@@ -89,6 +89,33 @@ class BGEReranker:
         self.model = "gte-rerank"
         self.enabled = bool(self.api_key)  # 根据API密钥是否存在决定是否启用
 
+    @staticmethod
+    def _normalize_rrf_to_relevance(docs: List[Document]) -> List[Document]:
+        """Rerank API 不可用时的回退: 将 RRF score 归一化为 relevance_score(0-1)。
+
+        使 _apply_medical_score 的语义分项在无 API 时仍然有区分度。
+        """
+        scores = [float(d.metadata.get("rrf_score", 0.0) or 0.0) for d in docs]
+        max_s = max(scores) if scores else 1.0
+        if max_s <= 0:
+            max_s = 1.0
+        for d, s in zip(docs, scores):
+            d.metadata["relevance_score"] = round(s / max_s, 4)
+        return docs
+
+    def _fallback_medical_rank(self, docs: List[Document], query: str,
+                               evidence_type: str | None,
+                               actual_top_k: int) -> List[Document]:
+        """Rerank 不可用时的回退: RRF 归一化 + Medical Evidence Score 规则排序。
+
+        Medical Evidence Score 是纯规则加权(证据类型/权威/时效/主题/干预匹配),
+        不依赖外部 API, 保证即使 gte-rerank 失败, 排序也不退化为纯 embedding 相似度。
+        """
+        self._normalize_rrf_to_relevance(docs)
+        reranked = self._apply_medical_score(docs, query, evidence_type)
+        logger.info(f"⚠️ 使用规则回退排序(无 Rerank API): {len(docs)} → {len(reranked)} 条")
+        return reranked[:actual_top_k]
+
     def rerank(self, query: str, docs: List[Document], top_k: int = None,
                evidence_type: str = None) -> List[Document]:
         if not docs:
@@ -96,10 +123,10 @@ class BGEReranker:
 
         actual_top_k = top_k if top_k is not None else self.top_k
 
-        # 如果Rerank未启用或API密钥无效，直接返回原始结果
+        # 如果Rerank未启用或API密钥无效，用规则回退排序(而非原始顺序)
         if not self.enabled:
-            logger.info(f"ℹ️  Rerank 功能已禁用，直接返回原始结果")
-            return docs[:actual_top_k]
+            logger.info(f"ℹ️  Rerank 功能已禁用，使用规则回退排序")
+            return self._fallback_medical_rank(docs, query, evidence_type, actual_top_k)
 
         try:
             doc_contents = [doc.page_content for doc in docs]
@@ -121,26 +148,56 @@ class BGEReranker:
                 reranked = self._apply_medical_score(reranked, query, evidence_type)
                 logger.info(f"✅ Rerank 完成，{len(docs)} → {len(reranked)} 条")
                 return reranked[:actual_top_k]
+            elif resp.code == "Throttling.RateQuota":
+                # 限流: 退避重试一次(并行检索打爆配额时常见)
+                logger.warning(f"⚠️  Rerank 限流 ({resp.message})，1s 后重试一次")
+                time.sleep(1)
+                try:
+                    resp = dashscope.TextReRank.call(
+                        model=self.model,
+                        query=query,
+                        documents=doc_contents,
+                        top_n=actual_top_k,
+                        return_documents=True,
+                        api_key=self.api_key,
+                    )
+                    if resp.status_code == HTTPStatus.OK:
+                        reranked = []
+                        for item in resp.output.results:
+                            original_doc = docs[item.index]
+                            original_doc.metadata["relevance_score"] = item.relevance_score
+                            reranked.append(original_doc)
+                        reranked = self._apply_medical_score(reranked, query, evidence_type)
+                        logger.info(f"✅ Rerank 重试成功，{len(docs)} → {len(reranked)} 条")
+                        return reranked[:actual_top_k]
+                except Exception as e2:
+                    logger.warning(f"⚠️  Rerank 重试异常: {type(e2).__name__} - {e2}")
+                logger.warning(f"⚠️  Rerank 限流重试仍失败，使用规则回退排序")
+                return self._fallback_medical_rank(docs, query, evidence_type, actual_top_k)
             else:
-                logger.warning(f"⚠️  Rerank API 失败 ({resp.code}): {resp.message}，使用原始结果")
-                return docs[:actual_top_k]
+                logger.warning(f"⚠️  Rerank API 失败 ({resp.code}): {resp.message}，使用规则回退排序")
+                return self._fallback_medical_rank(docs, query, evidence_type, actual_top_k)
         except Exception as e:
-            logger.warning(f"⚠️  Rerank 异常: {type(e).__name__} - {str(e)}，使用原始结果")
-            return docs[:actual_top_k]
+            logger.warning(f"⚠️  Rerank 异常: {type(e).__name__} - {str(e)}，使用规则回退排序")
+            return self._fallback_medical_rank(docs, query, evidence_type, actual_top_k)
 
     def _apply_medical_score(self, docs: List[Document], query: str,
                              evidence_type: str | None) -> List[Document]:
         """
         Medical Evidence Score 重排(医学化):
 
-        Final Score = 0.35 语义相似度
-                    + 0.25 证据类型匹配
-                    + 0.20 指南权威
+        Final Score = 0.30 语义相似度
+                    + 0.20 证据类型匹配
+                    + 0.15 指南权威
                     + 0.10 时效性
-                    + 0.10 人群/主题匹配
+                    + 0.10 主题(subtopic)匹配
+                    + 0.15 干预(intervention)匹配
+                    − 0.30 不匹配 subtopic 惩罚
 
-        依据 chunk 的 metadata(evidence_type/subtopic/authority/year) 加权,
-        淘汰血脂/二级预防等与决策类型不匹配的内容。
+        依据 chunk 的 metadata(evidence_type/subtopic/intervention/authority/year)
+        加权, 淘汰血脂/二级预防等与决策类型不匹配的内容。
+        干预匹配保证"rt-PA 溶栓"查询优先召回 intervention=alteplase 的 chunk,
+        而非仅 embedding 相似的其他指南段落。
         """
         if not docs:
             return docs
@@ -159,25 +216,29 @@ class BGEReranker:
         }
         expected_types = type_map.get(expected_type, set())
 
+        # intervention 标签 → 关键词(别名匹配, 如 query "rt-pa" 命中标签 alteplase)
+        from app.rag.data_loader import INTERVENTION_RULES
+        intervention_kws = {label: kws for label, kws in INTERVENTION_RULES}
+
         for doc in docs:
             meta = doc.metadata or {}
             score = 0.0
             reasons = []
 
-            # 1. 语义相似度(0.35, 来自 rerank relevance_score 或 RRF)
+            # 1. 语义相似度(0.30, 来自 rerank relevance_score 或 RRF 归一化)
             semantic = float(meta.get("relevance_score", 0.0) or 0.0)
-            score += 0.35 * min(1.0, semantic)
+            score += 0.30 * min(1.0, semantic)
 
-            # 2. 证据类型匹配(0.25)
+            # 2. 证据类型匹配(0.20)
             ev_type = str(meta.get("evidence_type", "") or "").lower()
             if expected_types and ev_type in expected_types:
-                score += 0.25
+                score += 0.20
             elif not expected_types:
-                score += 0.15  # 无期望类型时给基础分
+                score += 0.12  # 无期望类型时给基础分
 
-            # 3. 指南权威(0.20, authority 3-5 → 0-1)
+            # 3. 指南权威(0.15, authority 3-5 → 0-1)
             authority = int(meta.get("authority", 3) or 3)
-            score += 0.20 * min(1.0, (authority - 2) / 3.0)
+            score += 0.15 * min(1.0, (authority - 2) / 3.0)
 
             # 4. 时效性(0.10, 年份越新越高)
             year = meta.get("year")
@@ -186,7 +247,7 @@ class BGEReranker:
             else:
                 score += 0.03
 
-            # 5. 人群/主题匹配(0.10):查询关键词命中 chunk 的 subtopic
+            # 5. 主题匹配(0.10):查询关键词命中 chunk 的 subtopic
             subtopics_raw = meta.get("subtopic", "")
             if isinstance(subtopics_raw, str):
                 subtopics = [s.strip() for s in subtopics_raw.split(",") if s.strip()]
@@ -198,14 +259,33 @@ class BGEReranker:
                 matched_kw = sum(1 for s in subtopics if str(s).lower() in query_lower)
                 score += 0.10 * min(1.0, matched_kw / 2.0)
 
-            # 淘汰惩罚:与决策类型不匹配的 subtopic 减分
+            # 6. 干预匹配(0.15):查询命中 chunk 的具体干预标签或其别名关键词
+            interventions_raw = meta.get("intervention", "")
+            if isinstance(interventions_raw, str):
+                interventions = [s.strip() for s in interventions_raw.split(",") if s.strip()]
+            elif isinstance(interventions_raw, list):
+                interventions = interventions_raw
+            else:
+                interventions = []
+            if interventions:
+                matched_int = 0
+                for it in interventions:
+                    label = str(it).lower()
+                    if label in query_lower:
+                        matched_int += 1
+                    elif any(kw.lower() in query_lower for kw in intervention_kws.get(label, [])):
+                        matched_int += 1
+                score += 0.15 * min(1.0, matched_int)
+
+            # 淘汰惩罚:仅当 chunk 的所有 subtopic 均为不匹配主题时减分
+            # (避免 "thrombolysis,lipid_management" 这类含相关主题的 chunk 被误杀)
             excluded = {
                 "treatment": ["secondary_prevention", "lipid_management"],
                 "anatomy": ["secondary_prevention", "lipid_management", "antiplatelet", "anticoagulation"],
                 "etiology": ["secondary_prevention", "lipid_management"],
                 "diagnosis": ["secondary_prevention", "lipid_management"],
             }.get(expected_type, [])
-            if any(s in excluded for s in subtopics):
+            if subtopics and excluded and all(s in excluded for s in subtopics):
                 score -= 0.3
 
             doc.metadata["medical_score"] = round(score, 4)

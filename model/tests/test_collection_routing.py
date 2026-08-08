@@ -107,5 +107,86 @@ class TestEvidenceTypeRouting(unittest.TestCase):
         self.assertNotIn("prevention", route_collections("anatomy"))
 
 
+class TestMedicalEvidenceScore(unittest.TestCase):
+    """Medical Evidence Score 规则评分测试(不依赖 rerank API)。"""
+
+    @classmethod
+    def setUpClass(cls):
+        from app.rag.retrievers import BGEReranker
+        cls.reranker = BGEReranker(top_k=3)
+
+    def _doc(self, content, meta):
+        return Document(page_content=content, metadata=meta)
+
+    def test_fallback_rank_puts_intervention_match_first(self):
+        """无 rerank API 时, 规则回退应把干预匹配的 chunk 排第一(而非 embedding 顺序)。"""
+        docs = [
+            self._doc("MCA 供血区解剖", {"evidence_type": "textbook", "subtopic": "imaging",
+                                       "intervention": "", "authority": 3, "year": 2018,
+                                       "rrf_score": 0.030}),
+            self._doc("二级预防抗凝治疗", {"evidence_type": "guideline", "subtopic": "anticoagulation,secondary_prevention",
+                                       "intervention": "warfarin", "authority": 5, "year": 2022,
+                                       "rrf_score": 0.028}),
+            self._doc("rt-PA 静脉溶栓 4.5 小时时间窗", {"evidence_type": "guideline", "subtopic": "thrombolysis",
+                                                    "intervention": "alteplase", "authority": 5, "year": 2023,
+                                                    "rrf_score": 0.032}),
+        ]
+        result = self.reranker._fallback_medical_rank(
+            docs, "IV alteplase 急性缺血性卒中静脉溶栓", "treatment", 3)
+        self.assertEqual(result[0].metadata["intervention"], "alteplase")
+        self.assertTrue(result[0].metadata["medical_score"] > 0.5)
+
+    def test_intervention_boost_scores(self):
+        """干预匹配 + 权威 + 时效 → 高医学分。"""
+        doc = self._doc("rt-PA 静脉溶栓", {"evidence_type": "guideline", "subtopic": "thrombolysis",
+                                          "intervention": "alteplase", "authority": 5, "year": 2023})
+        out = self.reranker._apply_medical_score([doc], "alteplase 溶栓", "treatment")
+        self.assertGreater(out[0].metadata["medical_score"], 0.5)
+
+    def test_prevention_penalty_for_treatment(self):
+        """treatment 查询中纯 prevention subtopic 被惩罚(-0.3)。"""
+        doc = self._doc("二级预防血脂管理", {"evidence_type": "guideline",
+                                            "subtopic": "secondary_prevention,lipid_management",
+                                            "intervention": "statin", "authority": 5, "year": 2022})
+        out = self.reranker._apply_medical_score([doc], "alteplase 溶栓", "treatment")
+        self.assertLess(out[0].metadata["medical_score"], 0.3)
+
+    def test_mixed_subtopic_not_penalized(self):
+        """含相关主题的混合 subtopic(如 thrombolysis,lipid_management)不惩罚。"""
+        doc = self._doc("溶栓章节含血脂讨论", {"evidence_type": "guideline",
+                                            "subtopic": "thrombolysis,lipid_management",
+                                            "intervention": "alteplase", "authority": 5, "year": 2023})
+        out = self.reranker._apply_medical_score([doc], "alteplase 溶栓", "treatment")
+        self.assertGreater(out[0].metadata["medical_score"], 0.5)
+
+    def test_intervention_alias_match(self):
+        """query 用别名(rt-pa)也应命中 intervention=alteplase 的 chunk。"""
+        doc = self._doc("阿替普酶静脉溶栓", {"evidence_type": "guideline", "subtopic": "thrombolysis",
+                                          "intervention": "alteplase", "authority": 5, "year": 2023})
+        out = self.reranker._apply_medical_score([doc], "rt-pa 溶栓", "treatment")
+        self.assertGreater(out[0].metadata["medical_score"], 0.5)
+
+
+class TestInterventionExtraction(unittest.TestCase):
+    """intervention 元数据提取(与 enrich_metadata 同规则)。"""
+
+    def test_extract_alteplase(self):
+        from app.rag.data_loader import enrich_metadata
+        meta = enrich_metadata("中国急性缺血性卒中诊治指南2023.pdf",
+                               "rt-PA 静脉溶栓的适应证, 阿替普酶 0.9mg/kg", "指南")
+        self.assertIn("alteplase", meta["intervention"])
+
+    def test_extract_thrombectomy(self):
+        from app.rag.data_loader import enrich_metadata
+        meta = enrich_metadata("急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+                               "机械取栓 支架取栓 血管内治疗", "专家共识")
+        self.assertIn("mechanical_thrombectomy", meta["intervention"])
+
+    def test_no_intervention(self):
+        from app.rag.data_loader import enrich_metadata
+        meta = enrich_metadata("指南总论.pdf", "本指南适用范围与编写说明", "指南")
+        self.assertEqual(meta["intervention"], "")
+
+
 if __name__ == "__main__":
     unittest.main()
