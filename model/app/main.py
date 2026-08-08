@@ -20,7 +20,7 @@ from app.services.pubmed_service import PubMedService
 from app.agents.orchestrators.qwen_agent import QwenAgent
 from app.utils.error_codes import build_error_event, format_error_log
 from app.utils.naming_model import NamingModel
-from app.rag.retrieve import UnifiedSearchEngine, CONFIG
+from app.rag.retrievers import UnifiedSearchEngine, CONFIG
 from app.config.config_loader import (
     get_prompt_manager, 
     get_report_manager,
