@@ -3,7 +3,7 @@
 为规则无法置信的 chunk 补充语义标签, 修复规则错标(如高压氧 chunk 标 imaging
 但内容属于治疗):
 
-  Layer 1  规则高置信: 命中多个不同关键词(subtopic/decision_node) → confidence=0.95, 跳过 LLM
+  Layer 1  规则高置信: 命中多个不同关键词(subtopic/decision_node) → 跳过 LLM(不写 confidence)
   Layer 2  LLM 分类:   无命中或仅单个关键词弱命中 → qwen-plus 输出
            {domain, subtopic, clinical_intent, medical_entity, question_type,
             condition, confidence}
@@ -106,7 +106,10 @@ def classify_with_llm(llm, text: str) -> dict | None:
             v = data.get(f)
             data[f] = str(v).strip() if v is not None else ""
         conf = data.get("confidence")
-        data["confidence"] = round(float(conf), 2) if isinstance(conf, (int, float)) else 0.5
+        try:
+            data["confidence"] = round(float(conf), 2)
+        except (TypeError, ValueError):
+            data["confidence"] = 0.5
         return data
     except Exception as e:
         logger.warning(f"LLM 分类失败: {e}")
