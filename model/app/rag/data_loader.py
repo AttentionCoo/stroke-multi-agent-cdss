@@ -109,7 +109,8 @@ def enrich_metadata(filename: str, page_text: str, category: str) -> Dict:
         "source": filename,
         "category": category,
         "evidence_type": evidence_type,
-        "subtopic": subtopics[:2],
+        # Chroma metadata 不支持 list → 逗号分隔字符串(读取时拆分)
+        "subtopic": ",".join(subtopics[:2]),
         "phase": phase,
         "year": _extract_year(filename),
         "authority": authority,

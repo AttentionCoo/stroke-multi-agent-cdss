@@ -112,8 +112,15 @@ class EvidenceRetrievalService:
             cat = d.metadata.get("category", "?")
             # Evidence Metadata 过滤:淘汰与决策类型不匹配的 subtopic
             excluded = EXCLUDED_SUBTOPIC_BY_TYPE.get((evidence_type or "").strip().lower(), [])
-            sub = d.metadata.get("subtopic", [])
-            if isinstance(sub, list) and any(s in excluded for s in sub):
+            sub = d.metadata.get("subtopic", "")
+            # Chroma 存储为逗号分隔字符串 → 拆分为列表
+            if isinstance(sub, str):
+                sub_list = [s.strip() for s in sub.split(",") if s.strip()]
+            elif isinstance(sub, list):
+                sub_list = sub
+            else:
+                sub_list = []
+            if any(s in excluded for s in sub_list):
                 unmatched.append(d)
                 continue
             if exclude and cat in exclude:

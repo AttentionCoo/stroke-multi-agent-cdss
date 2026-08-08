@@ -187,10 +187,16 @@ class BGEReranker:
                 score += 0.03
 
             # 5. 人群/主题匹配(0.10):查询关键词命中 chunk 的 subtopic
-            subtopics = meta.get("subtopic", [])
-            if isinstance(subtopics, list) and subtopics:
-                matched = sum(1 for s in subtopics if str(s).lower() in query_lower)
-                score += 0.10 * min(1.0, matched / 2.0)
+            subtopics_raw = meta.get("subtopic", "")
+            if isinstance(subtopics_raw, str):
+                subtopics = [s.strip() for s in subtopics_raw.split(",") if s.strip()]
+            elif isinstance(subtopics_raw, list):
+                subtopics = subtopics_raw
+            else:
+                subtopics = []
+            if subtopics:
+                matched_kw = sum(1 for s in subtopics if str(s).lower() in query_lower)
+                score += 0.10 * min(1.0, matched_kw / 2.0)
 
             # 淘汰惩罚:与决策类型不匹配的 subtopic 减分
             excluded = {
@@ -199,7 +205,7 @@ class BGEReranker:
                 "etiology": ["secondary_prevention", "lipid_management"],
                 "diagnosis": ["secondary_prevention", "lipid_management"],
             }.get(expected_type, [])
-            if isinstance(subtopics, list) and any(s in excluded for s in subtopics):
+            if any(s in excluded for s in subtopics):
                 score -= 0.3
 
             doc.metadata["medical_score"] = round(score, 4)
