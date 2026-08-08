@@ -54,12 +54,23 @@ class QAGenerator:
             # 使用集合去重这批 chunk 的来源与页码信息
             sources = list(set([c.metadata.get("source", "未知") for c in batch_chunks]))
             pages = list(set([str(c.metadata.get("page", "")) for c in batch_chunks]))
-            
+
+            # 汇总批次内 chunk 的 subtopic(去重取前 3), 供 Multi-Collection 归属使用
+            subtopics = []
+            for c in batch_chunks:
+                raw = c.metadata.get("subtopic", "")
+                if isinstance(raw, str):
+                    subtopics.extend(s.strip() for s in raw.split(",") if s.strip())
+                elif isinstance(raw, list):
+                    subtopics.extend(str(s).strip() for s in raw if str(s).strip())
+            merged_subtopics = list(dict.fromkeys(subtopics))[:3]
+
             merged_meta = {
                 "source": ", ".join(sources),
                 "page": ", ".join(pages),
                 "doc_type": "qa_generated_batch",
-                "original_chunk_count": len(batch_chunks)
+                "original_chunk_count": len(batch_chunks),
+                "subtopic": ",".join(merged_subtopics),
             }
             
             try:

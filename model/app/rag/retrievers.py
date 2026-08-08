@@ -3,7 +3,7 @@ import os
 import sys
 import hashlib
 import time
-from typing import List
+from typing import List, Dict
 from dotenv import load_dotenv
 from langchain_core.embeddings import Embeddings
 from http import HTTPStatus
@@ -216,12 +216,36 @@ class BGEReranker:
         return docs
 
 
-def build_or_load_vectorstore(chunks, persist_dir: str, enable_qa: bool = False):
-    logger.info(f"🔌 [VectorStore] 连接: {persist_dir}")
+def _add_docs_in_batches(vectordb, docs_to_insert, batch_size: int = 32):
+    """批量写入文档到 collection(清理 None metadata, 打印进度)。"""
+    total_docs = len(docs_to_insert)
+    for i in range(0, total_docs, batch_size):
+        batch = docs_to_insert[i:i + batch_size]
+        try:
+            # 清理 metadata 中的 None 值(Chroma 不接受)
+            for doc in batch:
+                if doc.metadata:
+                    doc.metadata = {
+                        k: (v if v is not None else "")
+                        for k, v in doc.metadata.items()
+                    }
+            vectordb.add_documents(documents=batch)
+            current_processed = min(i + batch_size, total_docs)
+            # 每 5 个批次或是最后一批时打印进度
+            if (i // batch_size + 1) % 5 == 0 or current_processed == total_docs:
+                logger.info(f"  ⏳ 正在写入向量库... 已完成: {current_processed} / {total_docs} 条")
+        except Exception as e:
+            logger.error(f"❌ 批次写入失败 (起始索引 {i}): {e}")
+
+
+def build_or_load_vectorstore(chunks, persist_dir: str, enable_qa: bool = False,
+                              collection_name: str = "langchain"):
+    logger.info(f"🔌 [VectorStore] 连接: {persist_dir} collection={collection_name}")
     embeddings = DashScopeEmbeddings(model="text-embedding-v2")
     vectordb = Chroma(
         persist_directory=persist_dir,
         embedding_function=embeddings,
+        collection_name=collection_name,
     )
     try:
         count = vectordb._collection.count()
@@ -236,31 +260,54 @@ def build_or_load_vectorstore(chunks, persist_dir: str, enable_qa: bool = False)
             else:
                 logger.info(f"⚠️ 向量库为空，写入 {len(chunks)} 条...")
 
-            batch_size = 32
-            total_docs = len(docs_to_insert)
-            for i in range(0, total_docs, batch_size):
-                batch = docs_to_insert[i:i + batch_size]
-                try:
-                    # 清理 metadata 中的 None 值(Chroma 不接受)
-                    for doc in batch:
-                        if doc.metadata:
-                            doc.metadata = {
-                                k: (v if v is not None else "")
-                                for k, v in doc.metadata.items()
-                            }
-                    vectordb.add_documents(documents=batch)
-                    current_processed = min(i + batch_size, total_docs)
-                    # 每 5 个批次或是最后一批时打印进度
-                    if (i // batch_size + 1) % 5 == 0 or current_processed == total_docs:
-                        logger.info(f"  ⏳ 正在写入向量库... 已完成: {current_processed} / {total_docs} 条")
-                except Exception as e:
-                    logger.error(f"❌ 批次写入失败 (起始索引 {i}): {e}")
+            _add_docs_in_batches(vectordb, docs_to_insert)
             logger.info("✅ 向量库写入完成")
         else:
             logger.info(f"✅ 向量库已有 {count} 条数据")
     except Exception as e:
         logger.warning(f"⚠️ 检查向量库状态异常: {e}")
     return vectordb
+
+
+def build_multi_collection_vectorstores(chunks, persist_dir: str, enable_qa: bool = False):
+    """构建/加载 5 个主题隔离的 collection(Multi-Collection 架构)。
+
+    chunks 按 route_collection 分桶;每个 collection 独立判断是否为空,
+    为空则写入对应桶(可为桶内 chunks 生成 QA 对,QA 对继承桶内 subtopic)。
+    返回 {collection_key: Chroma}。
+    """
+    embeddings = DashScopeEmbeddings(model="text-embedding-v2")
+    buckets = bucket_chunks_by_collection(chunks)
+    stores = {}
+    for key in COLLECTION_KEYS:
+        docs = buckets.get(key, [])
+        name = COLLECTION_NAMES[key]
+        logger.info(f"🔌 [VectorStore] 连接: {persist_dir} collection={name} (待入库 {len(docs)} 条)")
+        vectordb = Chroma(
+            persist_directory=persist_dir,
+            embedding_function=embeddings,
+            collection_name=name,
+        )
+        try:
+            count = vectordb._collection.count()
+        except Exception as e:
+            logger.warning(f"⚠️ 检查 collection {name} 状态异常: {e}")
+            count = 0
+        if count == 0 and docs:
+            docs_to_insert = docs
+            if enable_qa:
+                logger.info(f"  ⚠️ {name} 为空, 为 {len(docs)} 条切片生成扩展QA对...")
+                qa_docs = QAGenerator().generate_qa_for_chunks(docs)
+                docs_to_insert = docs + qa_docs
+                logger.info(f"  📦 {name} 入库总计: {len(docs)}条原文 + {len(qa_docs)}条QA对 = {len(docs_to_insert)}条")
+            else:
+                logger.info(f"  ⚠️ {name} 为空, 写入 {len(docs)} 条...")
+            _add_docs_in_batches(vectordb, docs_to_insert)
+            logger.info(f"  ✅ {name} 写入完成")
+        else:
+            logger.info(f"  ✅ {name} 已有 {count} 条数据")
+        stores[key] = vectordb
+    return stores
 
 
 # 按证据类型路由到的目标类别(与 EVIDENCE_CATEGORY_ROUTING 一致, 供 Multi-Collection 使用)
@@ -272,6 +319,81 @@ EVIDENCE_TYPE_TO_CATEGORY = {
     "prognosis": ["指南", "专家共识"],
     "prevention": ["指南", "专家共识", "规范"],
 }
+
+# ============ Multi-Collection 设计 ============
+# 将单一 Chroma collection(langchain) 拆分为 5 个主题隔离的 collection:
+#   anatomy_collection     解剖教材(Neuroanatomy / MCA syndrome 等)
+#   guideline_collection   无明确主题的指南/共识/规范内容(总论、通用诊疗原则等)
+#   etiology_collection    病因相关(TOAST 分型 / 影像评估 / LVO)
+#   treatment_collection   急性期治疗(溶栓 / 取栓 / 血压管理)
+#   prevention_collection  二级预防(抗凝 / 抗血小板 / 血脂 / 复发预防)
+# Router(evidence_type) 决定检索哪些 collection,物理隔离避免"血脂指南"等
+# 无关内容进入 anatomy/treatment 等检索。
+COLLECTION_KEYS = ["anatomy", "guideline", "etiology", "treatment", "prevention"]
+COLLECTION_NAMES = {k: f"{k}_collection" for k in COLLECTION_KEYS}
+
+# subtopic 标签 → collection 归属(命中即归;类内按标签顺序取首个)
+TREATMENT_SUBTOPICS = {"thrombolysis", "thrombectomy", "blood_pressure"}
+PREVENTION_SUBTOPICS = {"anticoagulation", "antiplatelet", "lipid_management", "secondary_prevention"}
+ETIOLOGY_SUBTOPICS = {"toast_classification", "lvo_assessment", "imaging"}
+# 注意:stroke_identification / nihss_assessment 过于宽泛(指南几乎每页都命中),
+# 不作为分桶依据,避免所有指南内容都涌入 etiology_collection。
+
+# 文档类别 → collection(优先级最高)
+CATEGORY_TO_COLLECTION = {"教材": "anatomy"}
+
+
+def _extract_subtopics(metadata: dict, content: str = None) -> List[str]:
+    """从 metadata.subtopic(逗号分隔字符串)提取主题标签;缺失时从内容关键词提取。
+
+    用于 QA 对等缺少结构化标签的文档,保证迁移与重建归属一致。
+    """
+    from app.rag.data_loader import SUBTOPIC_RULES
+    subtopics = []
+    raw = (metadata or {}).get("subtopic", "")
+    if isinstance(raw, str):
+        subtopics = [s.strip() for s in raw.split(",") if s.strip()]
+    elif isinstance(raw, list):
+        subtopics = [str(s).strip() for s in raw if str(s).strip()]
+    if not subtopics and content:
+        lower = content.lower()
+        for label, kws in SUBTOPIC_RULES:
+            if any(str(kw).lower() in lower for kw in kws):
+                subtopics.append(label)
+    return subtopics
+
+
+def route_collection(metadata: dict, content: str = None) -> str:
+    """按 metadata/content 将 chunk 归属到 collection(物理隔离规则)。
+
+    优先级: 教材 → anatomy; 治疗主题 → treatment; 预防主题 → prevention;
+    病因主题 → etiology; 其余(无主题/宽泛主题) → guideline。
+    """
+    meta = metadata or {}
+    category = str(meta.get("category", "") or "")
+    if category in CATEGORY_TO_COLLECTION:
+        return CATEGORY_TO_COLLECTION[category]
+
+    subtopics = _extract_subtopics(meta, content)
+    for label in subtopics:
+        if label in TREATMENT_SUBTOPICS:
+            return "treatment"
+    for label in subtopics:
+        if label in PREVENTION_SUBTOPICS:
+            return "prevention"
+    for label in subtopics:
+        if label in ETIOLOGY_SUBTOPICS:
+            return "etiology"
+    return "guideline"
+
+
+def bucket_chunks_by_collection(chunks: List[Document]) -> Dict[str, List[Document]]:
+    """按归属规则将 chunks 分桶到各 collection(保留原始顺序)。"""
+    buckets = {key: [] for key in COLLECTION_KEYS}
+    for doc in chunks:
+        key = route_collection(doc.metadata or {}, doc.page_content)
+        buckets.setdefault(key, []).append(doc)
+    return buckets
 
 
 class HybridRetriever:
@@ -308,28 +430,14 @@ class HybridRetriever:
             result.append(doc)
         return result
 
-    def search(self, query: str, top_k_final: int = 3, category_filter: List[str] = None,
-               evidence_type: str = None) -> List[Document]:
-        """检索。
+    def _raw_candidates(self, query: str, k: int = None,
+                        category_filter: List[str] = None) -> List[Document]:
+        """单 collection 的原始候选: 向量 + BM25 双路检索, 按类别过滤后 RRF 融合。
 
-        Args:
-            query: 检索式
-            top_k_final: 返回条数
-            category_filter: Evidence Router 的类别过滤
-                - 提供允许类别列表(如 ['指南']):只检索这些类别的文档
-                - 提供排除类别(以 '!' 开头,如 ['!教材']):排除这些类别
-            evidence_type: 决策类型(treatment/anatomy/...),用于 Medical Evidence Score
+        k: 每路召回条数(默认用构造时的 k)。供跨 collection 汇总时复用。
         """
-        cache_key = hashlib.md5(f"{query}_{top_k_final}_{category_filter}_{evidence_type}".encode("utf-8")).hexdigest()
-        if cache_key in self._cache:
-            result, ts = self._cache[cache_key]
-            if time.time() - ts < self._cache_ttl:
-                logger.info(f"⚡ [Cache Hit] 跳过重复检索: {query[:50]}...")
-                return result
-            del self._cache[cache_key]
-
-        logger.info(f"🔍 [HybridRetriever] 检索: {query[:60]}... filter={category_filter}")
-
+        if k is None:
+            k = self.vector_retriever.search_kwargs.get("k", 20)
         v_docs = self.vector_retriever.invoke(query)
         b_docs = self.bm25.invoke(query) if self.bm25 else []
 
@@ -349,14 +457,41 @@ class HybridRetriever:
             ranked_lists.append(b_docs)
 
         candidates = HybridRetriever._rrf_merge(ranked_lists, k=60)
+        if k:
+            candidates = candidates[:k]
+        return candidates
+
+    def search(self, query: str, top_k_final: int = 3, category_filter: List[str] = None,
+               evidence_type: str = None, collections: List[str] = None) -> List[Document]:
+        """检索(单 collection 语义, 兼容旧接口)。
+
+        Args:
+            query: 检索式
+            top_k_final: 返回条数
+            category_filter: Evidence Router 的类别过滤
+                - 提供允许类别列表(如 ['指南']):只检索这些类别的文档
+                - 提供排除类别(以 '!' 开头,如 ['!教材']):排除这些类别
+            evidence_type: 决策类型(treatment/anatomy/...),用于 Medical Evidence Score
+            collections: Multi-Collection 路由参数; 本类为单 collection 检索器,
+                仅接受 None(本 collection)或包含本 collection key 的列表, 其他值忽略。
+        """
+        cache_key = hashlib.md5(f"{query}_{top_k_final}_{category_filter}_{evidence_type}".encode("utf-8")).hexdigest()
+        if cache_key in self._cache:
+            result, ts = self._cache[cache_key]
+            if time.time() - ts < self._cache_ttl:
+                logger.info(f"⚡ [Cache Hit] 跳过重复检索: {query[:50]}...")
+                return result
+            del self._cache[cache_key]
+
+        logger.info(f"🔍 [HybridRetriever] 检索: {query[:60]}... filter={category_filter}")
+
+        candidates = self._raw_candidates(query, k=top_k_final * 4,
+                                          category_filter=category_filter)
 
         if not candidates:
             logger.warning("⚠️ 检索结果为空")
             self._cache[cache_key] = ([], time.time())
             return []
-
-        rrf_top_k = min(len(candidates), top_k_final * 4)
-        candidates = candidates[:rrf_top_k]
 
         logger.info(f"🔍 RRF 融合 {len(candidates)} 条，开始 rerank...")
 
@@ -375,7 +510,7 @@ class HybridRetriever:
 
 class UnifiedSearchEngine:
     def __init__(self, persist_dir: str, top_k: int, docs_dir=None):
-        logger.info("🔧 初始化 UnifiedSearchEngine...")
+        logger.info("🔧 初始化 UnifiedSearchEngine (Multi-Collection)...")
 
         self.docs_dir = (
                 docs_dir
@@ -391,29 +526,83 @@ class UnifiedSearchEngine:
             raw_docs = []
 
         self.chunks = split_documents(raw_docs)
-        self.vectorstore = build_or_load_vectorstore(
+
+        # 构建/加载 5 个主题隔离的 collection
+        self.collections = build_multi_collection_vectorstores(
             self.chunks,
             persist_dir,
             enable_qa=bool(CONFIG.get("enable_qa_generation", False))
         )
-        self.retriever = HybridRetriever(
-            self.vectorstore,
-            raw_docs,
-            k=CONFIG.get("reranker_initial_k", 8)
-        )
 
+        # 每个 collection 一个 HybridRetriever(向量 + 对应桶的 BM25)
+        buckets = bucket_chunks_by_collection(self.chunks)
+        self.retrievers = {
+            key: HybridRetriever(
+                self.collections[key],
+                buckets.get(key, []),
+                k=CONFIG.get("reranker_initial_k", 8)
+            )
+            for key in COLLECTION_KEYS
+        }
+
+        # 跨 collection 汇总时的统一 reranker(无状态, 可共享)
+        self.reranker = BGEReranker(top_k=CONFIG.get("top_k_final", 3))
+        self._cache: dict = {}
+        self._cache_ttl = 300
 
     def search(self, query: str, top_k_final: int = 3, category_filter: List[str] = None,
-               evidence_type: str = None) -> List[Document]:
+               evidence_type: str = None, collections: List[str] = None) -> List[Document]:
+        """检索(支持 Multi-Collection 路由)。
+
+        Args:
+            query: 检索式
+            top_k_final: 返回条数
+            category_filter: Evidence Router 的类别过滤(collection 内后过滤)
+            evidence_type: 决策类型(treatment/anatomy/...),用于 Medical Evidence Score
+            collections: 限定检索的 collection key 列表(如 ['treatment']),
+                None=检索全部 collection。由 Router 决定,物理隔离无关内容。
+        """
+        keys = collections if collections else COLLECTION_KEYS
+        keys = [k for k in keys if k in self.retrievers]
+
+        cache_key = hashlib.md5(
+            f"{query}_{top_k_final}_{category_filter}_{evidence_type}_{sorted(keys)}".encode("utf-8")
+        ).hexdigest()
+        if cache_key in self._cache:
+            result, ts = self._cache[cache_key]
+            if time.time() - ts < self._cache_ttl:
+                logger.info(f"⚡ [Cache Hit] 跳过重复检索: {query[:50]}... collections={keys}")
+                return result
+            del self._cache[cache_key]
+
         try:
-            logger.info(f"🔍 执行检索: {query[:60]}... filter={category_filter}")
-            docs = self.retriever.search(query, top_k_final=top_k_final,
-                                         category_filter=category_filter, evidence_type=evidence_type)
-            logger.info(f"🏆 检索完成，命中 {len(docs)} 条")
-            return docs
+            logger.info(f"🔍 执行检索: {query[:60]}... filter={category_filter} collections={keys}")
+            # 每个选中的 collection 出候选(向量 + BM25 + 类别过滤), 跨 collection 统一 RRF 融合
+            ranked_lists = [
+                r._raw_candidates(query, k=top_k_final * 4, category_filter=category_filter)
+                for key in keys
+                for r in [self.retrievers[key]]
+            ]
+            candidates = HybridRetriever._rrf_merge(ranked_lists, k=60)
+            if not candidates:
+                logger.warning("⚠️ 检索结果为空")
+                self._cache[cache_key] = ([], time.time())
+                return []
+
+            candidates = candidates[:top_k_final * 4]
+            result = self.reranker.rerank(query, candidates, top_k=top_k_final,
+                                          evidence_type=evidence_type)
+            logger.info(f"🏆 检索完成，命中 {len(result)} 条 (collections={keys})")
+            self._cache[cache_key] = (result, time.time())
+            return result
         except Exception as e:
             logger.error(f"❌ 检索失败: {e}")
             return []
 
     def clear_cache(self):
-        self.retriever.clear_cache()
+        count = len(self._cache)
+        self._cache.clear()
+        for retriever in self.retrievers.values():
+            retriever.clear_cache()
+        if count > 0:
+            logger.info(f"🗑️ [UnifiedSearchEngine] 清空 {count} 条检索缓存")

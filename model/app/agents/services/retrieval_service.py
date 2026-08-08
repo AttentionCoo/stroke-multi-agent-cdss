@@ -27,6 +27,34 @@ EXCLUDED_SUBTOPIC_BY_TYPE = {
     "prognosis": ["secondary_prevention"],
 }
 
+# 决策类型 → 检索的 collection 集合(Multi-Collection 路由)
+# 物理隔离: 例如 anatomy 只查教材 collection,"血脂指南"等无关内容无机会进入。
+EVIDENCE_TYPE_COLLECTIONS = {
+    "treatment": ["treatment"],        # 溶栓/取栓/血压
+    "anatomy": ["anatomy"],            # 神经解剖教材
+    "etiology": ["etiology"],          # TOAST/影像/LVO
+    "prevention": ["prevention"],      # 抗凝/抗血小板/血脂/二级预防
+    "diagnosis": ["guideline", "etiology"],   # 诊断标准 + 影像鉴别
+    "prognosis": ["guideline", "prevention"], # 预后 + 复发预防
+}
+
+
+def route_collections(evidence_type: str) -> List[str] | None:
+    """按决策类型返回应检索的 collection key 列表(Multi-Collection Router)。
+
+    返回 None 表示不限 collection(检索全部)。
+    """
+    key = (evidence_type or "").strip().lower()
+    if not key:
+        return None
+    if key in EVIDENCE_TYPE_COLLECTIONS:
+        return EVIDENCE_TYPE_COLLECTIONS[key]
+    # 中文或部分匹配
+    for k, v in EVIDENCE_TYPE_COLLECTIONS.items():
+        if k in key or key in k:
+            return v
+    return None
+
 
 def route_category_filter(evidence_type: str) -> List[str] | None:
     """按证据类型返回类别过滤(Evidence Router)。"""
@@ -54,13 +82,21 @@ class EvidenceRetrievalService:
         if category_filter is None and evidence_type:
             category_filter = route_category_filter(evidence_type)
 
+        # Multi-Collection 路由: 决策类型 → collection 集合(物理隔离)
+        collections = route_collections(evidence_type)
+        if collections:
+            # 已按 collection 隔离时, 不再按 category 后过滤(collection 内 category
+            # 单一, 后过滤会误杀如 treatment_collection 中的"专家共识"内容)
+            category_filter = None
+            logger.info(f"🗂️  [Multi-Collection] {evidence_type} → collections={collections}")
+
         # 过滤检索(含 evidence_type 供 Medical Evidence Score)
         docs = self.retriever.search(query, self.top_k, category_filter=category_filter,
-                                     evidence_type=evidence_type)
+                                     evidence_type=evidence_type, collections=collections)
 
         # P2: Retrieval Failure Recovery — 0 结果时多级恢复
         if not docs:
-            recovery = self._recover_retrieval(query, evidence_type, category_filter)
+            recovery = self._recover_retrieval(query, evidence_type, category_filter, collections)
             if recovery:
                 docs = recovery
 
@@ -140,10 +176,11 @@ class EvidenceRetrievalService:
         return docs[:min(2, len(docs))]
 
     def _recover_retrieval(self, query: str, evidence_type: str | None,
-                           category_filter: List[str] | None):
+                           category_filter: List[str] | None,
+                           collections: List[str] | None = None):
         """
         Retrieval Failure Recovery:
-        1. 去掉类别过滤, 无过滤检索
+        1. 去掉类别过滤/扩大 collection 范围, 无过滤检索
         2. 扩展同义词(概念 OR 组)检索
         3. 降低限定(用核心概念子集)检索
         """
@@ -151,11 +188,17 @@ class EvidenceRetrievalService:
             extract_medical_concepts, build_or_and_query, expand_synonyms,
         )
 
-        # 级别1:去掉类别过滤(Evidence Router 过严时)
-        if category_filter:
+        # 级别1:去掉 collection 限制 + 类别过滤(路由过严时)
+        if collections:
+            logger.info(f"⚠️ [Recovery-1] collections {collections} 无结果, 回退全 collection 检索")
+            docs = self.retriever.search(query, self.top_k, category_filter=None,
+                                         evidence_type=evidence_type, collections=None)
+            if docs:
+                return docs
+        elif category_filter:
             logger.info(f"⚠️ [Recovery-1] 类别过滤 {category_filter} 无结果, 回退无过滤检索")
             docs = self.retriever.search(query, self.top_k, category_filter=None,
-                                         evidence_type=evidence_type)
+                                         evidence_type=evidence_type, collections=None)
             if docs:
                 return docs
 
@@ -169,7 +212,7 @@ class EvidenceRetrievalService:
                 continue
             logger.info(f"⚠️ [Recovery-2] 同义词扩展检索: {variant[:60]}...")
             docs = self.retriever.search(variant, self.top_k, category_filter=None,
-                                         evidence_type=evidence_type)
+                                         evidence_type=evidence_type, collections=None)
             if docs:
                 return docs
 
@@ -179,7 +222,7 @@ class EvidenceRetrievalService:
             subset_query = build_or_and_query(subset)
             logger.info(f"⚠️ [Recovery-3] 降低限定检索: {subset_query[:60]}...")
             docs = self.retriever.search(subset_query, self.top_k, category_filter=None,
-                                         evidence_type=evidence_type)
+                                         evidence_type=evidence_type, collections=None)
             if docs:
                 return docs
 

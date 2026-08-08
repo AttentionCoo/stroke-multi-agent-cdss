@@ -278,8 +278,24 @@ query
 
 ## 9. 知识库结构
 
-**向量库**：单 Chroma collection（`langchain`），5806 条
-（5278 原文 chunk + 528 QA 对）。
+**向量库**：Multi-Collection 架构 —— 5 个主题隔离的 Chroma collection，
+共 5806 条（5278 原文 chunk + 528 QA 对），按归属规则分桶：
+
+| collection | 内容 | 归属规则 | 条数 |
+|---|---|---|---|
+| `anatomy_collection` | 神经解剖教材 | `category=教材` | 3279 |
+| `guideline_collection` | 无明确主题的指南/共识/规范内容 | 其余(未命中主题标签) | 245 |
+| `etiology_collection` | TOAST 分型 / 影像评估 / LVO | subtopic∈{toast_classification, lvo_assessment, imaging} | 396 |
+| `treatment_collection` | 溶栓 / 取栓 / 血压管理 | subtopic∈{thrombolysis, thrombectomy, blood_pressure} | 1499 |
+| `prevention_collection` | 抗凝 / 抗血小板 / 血脂 / 二级预防 | subtopic∈{anticoagulation, antiplatelet, lipid_management, secondary_prevention} | 387 |
+
+- 归属规则：`retrievers.py` 的 `route_collection`（优先级：教材 > 治疗 > 预防 >
+  病因 > 默认 guideline），迁移脚本 `scripts/migrate_multi_collection.py` 与运行时
+  构建 `build_multi_collection_vectorstores` 共用同一规则。
+- **物理隔离**：Router 的 `evidence_type` 决定检索哪些 collection
+  （`retrieval_service.EVIDENCE_TYPE_COLLECTIONS`），例如 anatomy 查询只查
+  `anatomy_collection`，"血脂指南"（归 `prevention_collection`）无机会进入。
+- 旧单库 `langchain` 在迁移后保留，确认无误后可手动清理。
 
 **chunk 元数据**（`category` 分类）：
 
