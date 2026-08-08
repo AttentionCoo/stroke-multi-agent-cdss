@@ -248,9 +248,19 @@ def semantic_split(documents, break_percentile=SEMANTIC_BREAK_PERCENTILE):
         if cached:
             logger.info(f"💾 [语义分块] {source[:40]}... 命中缓存 {len(cached)} 块")
             for item in cached:
+                meta = dict(item.get("metadata", {"source": source, "category": "教材"}))
+                # 缓存可能缺新字段 → 用 enrich_metadata 补齐(基于 source 文件名+内容)
+                if "subtopic" not in meta or "authority" not in meta:
+                    enriched = enrich_metadata(
+                        str(meta.get("source", source)),
+                        str(item.get("page_content", "")),
+                        str(meta.get("category", "教材")),
+                    )
+                    for k, v in enriched.items():
+                        meta.setdefault(k, v)
                 result.append(Document(
                     page_content=item.get("page_content", ""),
-                    metadata=item.get("metadata", {"source": source, "category": "教材"}),
+                    metadata=meta,
                 ))
             continue
 
