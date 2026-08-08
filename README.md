@@ -850,6 +850,14 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 - ✅ **修复**：检索 0 结果根因（DASHSCOPE_API_KEY 加载时机、UnifiedSearchEngine 缺 category_filter 透传）；LangGraph 递归上限（recursion_limit 25→60）
 - ✅ **知识库**：重新分类（指南/共识/规范/教材+category 元数据）；教材语义分块（粗切+边界微调，缓存到磁盘，启动 264s→72s）
 
+### v2.6.0 (2026-08-08)
+
+- ✅ **Clinical Query Planner 升级**：决策节点新增 `decision_id` / `evidence_source` / `search_query`（1-2 条可直接检索的英文专业查询），检索任务优先用 search_query，回退 PICO
+- ✅ **Medical Evidence Reranker**：BGEReranker 融合医学评分（0.35 语义 + 0.25 证据类型 + 0.20 指南权威 + 0.10 时效 + 0.10 人群/主题 + 淘汰惩罚），血脂/二级预防 subtopic 被降权淘汰
+- ✅ **Evidence Metadata 增强**：chunk 自动生成结构化标签（`subtopic` 12 类 / `phase` / `year` / `authority`），检索按 subtopic 淘汰不匹配主题（如治疗查询剔除血脂/二级预防）
+- ✅ **Multi-Collection 轻量拆分**：证据类型→目标类别显式映射（treatment→指南/共识、anatomy→教材），配合 category 过滤/subtopic/Medical Reranker 等效多库路由
+- ✅ **向量库重建**：新元数据（subtopic/phase/authority）入库，语义分块缓存加速启动（72s）
+
 ### v2.3.0 (2026-07-31)
 
 - ✅ **Agentic RAG**：新增检索任务规划、医学查询扩展、HyDE、证据质量评估与最多两轮查询重写循环

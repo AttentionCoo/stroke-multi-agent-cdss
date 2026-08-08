@@ -157,6 +157,47 @@ NIHSS18分 ASPECTS10分 房颤 急性缺血性卒中 完全性失语 右侧偏�
 3. 原始查询 + 证据关键词
 4. 同义词替换变体
 
+### 4.6 Clinical Query Planner（PICO + search_query）
+
+决策节点升级为完整 Clinical Query Planner：
+
+```json
+{
+  "decision_id": "AIS_IVT_001",
+  "decision_name": "是否进行静脉溶栓",
+  "evidence_type": "treatment",
+  "evidence_source": ["AHA guideline", "ESO guideline", "RCT"],
+  "pico": {
+    "population": "急性缺血性卒中发病4.5小时内患者",
+    "intervention": "阿替普酶静脉溶栓(alteplase IV thrombolysis)",
+    "comparison": "不溶栓(no thrombolysis)",
+    "outcome": "功能独立/症状性颅内出血"
+  },
+  "search_query": [
+    "acute ischemic stroke intravenous alteplase within 4.5 hours guideline",
+    "AHA ASA guideline alteplase recommendation"
+  ]
+}
+```
+
+- `search_query`：1-2 条可直接检索的英文专业查询（含疾病实体+干预+时间窗/人群）
+- 检索任务优先取 search_query，回退用 PICO 拼检索式
+
+### 4.7 Medical Evidence Reranker（医学评分重排）
+
+BGEReranker 在语义 rerank 基础上融合医学评分：
+
+```
+Final Score = 0.35 语义相似度
+            + 0.25 证据类型匹配
+            + 0.20 指南权威（authority）
+            + 0.10 时效性（year）
+            + 0.10 人群/主题匹配（subtopic）
+            + 淘汰惩罚（决策类型不匹配的 subtopic -0.3）
+```
+
+**实测**：溶栓指南 0.81 > 血脂指南 0.3883（血脂被显著降权）。`evidence_type` 全链路透传。
+
 ---
 
 ## 5. HybridRetriever（混合检索）
@@ -251,6 +292,24 @@ query
 - 语义分块结果**缓存到磁盘**（`model_cache/semantic_chunks`），启动 264s → 72s
 - 分类规则：`data_loader.py` 的 `CATEGORY_RULES` 按文件名关键词归入
   指南/专家共识/规范/教材/其他
+
+**Evidence Metadata 增强**（`data_loader.enrich_metadata`）：
+每个 chunk 自动生成结构化标签（从文件名+内容关键词）：
+
+| 字段 | 示例 | 说明 |
+|---|---|---|
+| `evidence_type` | guideline/textbook/consensus | 由 category 映射 |
+| `subtopic` | `['thrombolysis']` / `['lipid_management','secondary_prevention']` | 12 类内容关键词命中 |
+| `phase` | acute / secondary / general | 临床阶段 |
+| `year` | 2023 / 2024 | 文件名提取 |
+| `authority` | 5(指南)/4(共识)/3(教材) | 来源权威评分 |
+
+**12 类 subtopic**：thrombolysis / thrombectomy / blood_pressure / antiplatelet /
+anticoagulation / lipid_management / secondary_prevention / toast_classification /
+lvo_assessment / imaging / nihss_assessment / stroke_identification
+
+检索时 `EXCLUDED_SUBTOPIC_BY_TYPE` 按决策类型淘汰不匹配主题
+（treatment 查询淘汰 lipid_management/secondary_prevention）。
 
 ---
 
