@@ -262,6 +262,70 @@ class TestPicoQuery(unittest.TestCase):
         self.assertTrue(variants)
         self.assertIn("thrombolysis", variants[0])
 
+    def test_route_collection_etiology_over_prevention(self):
+        """含病因标签的 chunk 优先归 etiology(不被同 chunk 的预防标签抢走)。"""
+        from app.rag.retrievers import route_collection
+        doc = make_doc("TOAST 病因分型与二级预防", category="指南",
+                       subtopic="secondary_prevention,toast_classification")
+        self.assertEqual(route_collection(doc.metadata, doc.page_content), "etiology")
+
+
+class TestChunkQualityFilter(unittest.TestCase):
+    """垃圾 chunk 过滤: 参考文献页(强特征) / 过短碎片。"""
+
+    def test_reference_chunk_detected(self):
+        from app.rag.data_loader import is_reference_chunk
+        ref = ("ZhuL,ZengJ,LiaoS,ZhangS,YuJ,etal.Pontineinfarctionwithpuremotorhemiparesis"
+               "Brain.1962Dec;85:741-774 SmithJ,etal.Lancet.2020;12(3):45-60 "
+               "WangY,etal.Stroke.2019;50(1):112-120 " * 3)
+        self.assertTrue(is_reference_chunk(ref))
+
+    def test_normal_text_not_filtered(self):
+        from app.rag.data_loader import is_reference_chunk
+        normal = "急性缺血性卒中患者应在发病4.5小时内评估静脉溶栓适应证，NIHSS评分不作为溶栓禁忌依据。" * 3
+        self.assertFalse(is_reference_chunk(normal))
+
+    def test_english_body_with_etal_not_filtered(self):
+        """英文正文零星 et al. 不应误删(需 et al./年份页码 ≥2 次引用标记)。"""
+        from app.rag.data_loader import is_reference_chunk
+        body = ("The middle cerebral artery syndrome was first described by Fisher et al. "
+                "and later refined in subsequent clinical series. The MCA territory "
+                "includes the lateral frontal, temporal and parietal lobes. " * 3)
+        self.assertFalse(is_reference_chunk(body))
+
+    def test_abbreviation_list_not_filtered(self):
+        """正文缩写列举(NIHSS,mRS,Barthel)不应被当作者列表误删。"""
+        from app.rag.data_loader import is_reference_chunk
+        text = "常用评估量表包括NIHSS,mRS,Barthel,ASPECTS,DWI,MRA,CTP,CTA 等。" * 3
+        self.assertFalse(is_reference_chunk(text))
+
+    def test_clean_bm25_query_keeps_or_odds_ratio(self):
+        """比值比 OR=1.5 不应被当布尔词清除。"""
+        from app.rag.retrievers import _clean_bm25_query
+        cleaned = _clean_bm25_query("alteplase AND OR=1.5 95%CI stroke")
+        self.assertIn("OR=1.5", cleaned)
+
+    def test_recompute_chunk_metadata(self):
+        """Chunk-level enrichment: 用 chunk 文本重算标签, 覆盖页面级继承。"""
+        from app.rag.data_loader import _recompute_chunk_metadata
+        # 模拟页面级误标: 整页含 TOAST, 但该 chunk 是高压氧内容
+        chunk = Document(page_content="高压氧治疗脑卒中的疗效研究，远隔缺血适应",
+                         metadata={"source": "中国急性缺血性卒中诊治指南2023.pdf",
+                                   "category": "指南",
+                                   "subtopic": "toast_classification,imaging"})
+        _recompute_chunk_metadata(chunk)
+        self.assertNotIn("toast_classification", chunk.metadata["subtopic"])
+
+    def test_clean_bm25_query(self):
+        """BM25 词袋清洗: 去除引号括号与布尔词。"""
+        from app.rag.retrievers import _clean_bm25_query
+        q = '("mca" OR "middle cerebral artery" OR "mca syndrome") localization 神经解剖'
+        cleaned = _clean_bm25_query(q)
+        self.assertNotIn("(", cleaned)
+        self.assertNotIn('"', cleaned)
+        self.assertIn("mca", cleaned)
+        self.assertIn("localization", cleaned)
+
 
 if __name__ == "__main__":
     unittest.main()

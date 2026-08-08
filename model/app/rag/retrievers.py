@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import re
 import hashlib
 import time
 from typing import List, Dict
@@ -320,6 +321,19 @@ class BGEReranker:
         return docs
 
 
+def _clean_bm25_query(query: str) -> str:
+    """BM25 词袋清洗: 去除布尔语法(引号/括号/独立 AND/OR/NOT), 保留医学词。
+
+    translate_query 生成的 PICO 式(如 ("mca" OR "middle cerebral artery"))对
+    embedding 有效, 但 BM25 会把引号括号当字面 token, 导致召回退化。
+    仅剥离前后有空白的 AND/OR/NOT(布尔连接词), 避免误删医学缩写
+    如比值比 "OR=1.5, 95%CI"。
+    """
+    cleaned = re.sub(r'["()]', ' ', query)
+    cleaned = re.sub(r'\s+(?:AND|OR|NOT)\s+', ' ', cleaned, flags=re.IGNORECASE)
+    return re.sub(r'\s+', ' ', cleaned).strip()
+
+
 def _add_docs_in_batches(vectordb, docs_to_insert, batch_size: int = 32):
     """批量写入文档到 collection(清理 None metadata, 打印进度)。"""
     total_docs = len(docs_to_insert)
@@ -470,8 +484,10 @@ def _extract_subtopics(metadata: dict, content: str = None) -> List[str]:
 def route_collection(metadata: dict, content: str = None) -> str:
     """按 metadata/content 将 chunk 归属到 collection(物理隔离规则)。
 
-    优先级: 教材 → anatomy; 治疗主题 → treatment; 预防主题 → prevention;
-    病因主题 → etiology; 其余(无主题/宽泛主题) → guideline。
+    优先级: 教材 → anatomy; 治疗主题 → treatment; 病因主题 → etiology;
+    预防主题 → prevention; 其余(无主题/宽泛主题) → guideline。
+    病因(etiology)优先于预防(prevention): 避免 TOAST 分型等病因内容
+    被同 chunk 的二级预防标签抢归到 prevention_collection。
     """
     meta = metadata or {}
     category = str(meta.get("category", "") or "")
@@ -483,11 +499,11 @@ def route_collection(metadata: dict, content: str = None) -> str:
         if label in TREATMENT_SUBTOPICS:
             return "treatment"
     for label in subtopics:
-        if label in PREVENTION_SUBTOPICS:
-            return "prevention"
-    for label in subtopics:
         if label in ETIOLOGY_SUBTOPICS:
             return "etiology"
+    for label in subtopics:
+        if label in PREVENTION_SUBTOPICS:
+            return "prevention"
     return "guideline"
 
 
@@ -543,7 +559,8 @@ class HybridRetriever:
         if k is None:
             k = self.vector_retriever.search_kwargs.get("k", 20)
         v_docs = self.vector_retriever.invoke(query)
-        b_docs = self.bm25.invoke(query) if self.bm25 else []
+        # BM25 不解析布尔语法(引号/括号/AND/OR), 用词袋形式检索
+        b_docs = self.bm25.invoke(_clean_bm25_query(query)) if self.bm25 else []
 
         # Evidence Router:按类别过滤(向量 + BM25 结果)
         if category_filter:

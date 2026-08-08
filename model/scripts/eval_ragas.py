@@ -35,12 +35,13 @@ from ragas.metrics import (  # noqa: E402
 )
 
 from app.agents.services.retrieval_service import route_collections  # noqa: E402
+from app.agents.services.query_translator import translate_query  # noqa: E402
 from app.rag.retrievers import (  # noqa: E402
     UnifiedSearchEngine,
     DashScopeEmbeddings,
 )
 
-logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger("eval_ragas")
 
 DASHSCOPE_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -105,6 +106,13 @@ def main():
     logger.info("初始化检索链路...")
     se = UnifiedSearchEngine(persist_dir="/app/chroma_db_unified", top_k=3,
                              docs_dir="/app/empty_docs")
+    # 防御: 确保向量库非空, 避免静默产出全空上下文
+    total_chunks = sum(c._collection.count() for c in se.collections.values())
+    if total_chunks == 0:
+        logger.error("❌ 向量库为空(collection 均 0 条), 评估结果无意义。"
+                     "请先构建向量库或检查 persist_dir 路径。")
+        sys.exit(2)
+    logger.info(f"向量库就绪: {total_chunks} 条 chunk")
 
     gen_llm = ChatOpenAI(model="qwen-plus", api_key=api_key,
                          base_url=DASHSCOPE_BASE, temperature=0.2)
@@ -113,8 +121,13 @@ def main():
     for i, case in enumerate(CASES, 1):
         q = case["question"]
         collections = route_collections(case["evidence_type"])
-        logger.info(f"[{i}/{len(CASES)}] 检索+生成: {q[:40]}... (collections={collections})")
-        docs = se.search(q, top_k_final=3, evidence_type=case["evidence_type"],
+        # 走真实链路: Query Translator 生成检索变体(PICO/同义词), 与系统一致
+        variants = translate_query(q, case["evidence_type"])
+        retrieval_query = variants[0] if variants else q
+        logger.info(f"[{i}/{len(CASES)}] 检索+生成: {q[:40]}... "
+                    f"(collections={collections}, query={retrieval_query[:60]})")
+        docs = se.search(retrieval_query, top_k_final=3,
+                         evidence_type=case["evidence_type"],
                          collections=collections)
         contexts = [d.page_content[:CONTEXT_MAX_CHARS] for d in docs]
         answer = _generate_answer(gen_llm, q, contexts)

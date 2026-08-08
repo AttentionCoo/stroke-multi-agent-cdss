@@ -463,6 +463,84 @@ def _recursive_split_docs(documents, chunk_size=512, chunk_overlap=128):
     return splitter.split_documents(documents)
 
 
+# ---- 垃圾 chunk 过滤(参考文献页/碎片) ----
+# 参考文献页特征: 密集的 [数字] / (年份) / Vol. / doi / PMID / 作者引用
+# 注意 clean_text 去空格后 "et al." 变为 "etal.", 需兼容无空格形态
+# 弱特征(正文也可能出现, 如 [12] 脚注引用) + 强特征(参考文献页专属, 正文几乎不出现)
+REFERENCE_WEAK_PATTERNS = [
+    r"\[\d{1,3}\]",               # [12]
+    r"\(\d{4}\)",                 # (2019)
+    r"\bvol\.?\s*\d+",            # Vol. 10
+    r"\bdoi\s*[:：]?\s*10\.",     # doi: 10.
+    r"\bpmid\s*[:：]?\s*\d+",     # PMID: 123
+]
+REFERENCE_STRONG_PATTERNS = [
+    r"\bet\s*al\.?|\betal\.?",                          # et al. / etal.
+    r"[A-Za-z]{2,}\s*,\s*[A-Za-z]{2,}\s*,\s*[A-Za-z]{2,}",  # 连续 ≥3 作者名
+    r"\b(?:19|20)\d{2}\s*[A-Za-z]{0,8}\s*[;:]",         # 期刊年份页码 "1962Dec;85" / "2020;12"
+]
+# 强特征命中数 ≥ 该值 → 参考文献页(正文不会出现 etal./作者列表/年份页码)
+REFERENCE_STRONG_MIN = 3
+# 其中"期刊年份页码"标记至少出现次数(参考文献页必备, 正文几乎不出现
+# "1962Dec;85" 形态), 避免把正文缩写列举("NIHSS,mRS,Barthel")
+# 或英文正文的零星 "et al." 当参考文献页
+REFERENCE_MARKER_MIN = 2
+# 弱特征密度阈值(仅当强特征不足时兜底)
+REFERENCE_DENSITY_THRESHOLD = 0.15
+# 最短有效 chunk(字符), 过短碎片无信息量
+MIN_CHUNK_CHARS = 100
+
+
+def is_reference_chunk(text: str,
+                       strong_min: int = REFERENCE_STRONG_MIN,
+                       marker_min: int = REFERENCE_MARKER_MIN,
+                       weak_threshold: float = REFERENCE_DENSITY_THRESHOLD) -> bool:
+    """参考文献页判定:
+
+    强特征组合计数: 总强特征(et al./作者列表/期刊年份页码)命中 ≥ strong_min,
+    且其中真正的"引用标记"(et al. 或 期刊年份页码) ≥ marker_min, 才判定垃圾。
+    这样正文缩写列举("NIHSS,mRS,Barthel")或英文正文零星 "et al." 不会被误删。
+    强特征不足时用弱特征(引用标注 [12] 等)密度兜底。
+    """
+    if not text:
+        return False
+    n_etal = len(re.findall(r"\bet\s*al\.?|\betal\.?", text, re.IGNORECASE))
+    n_authors = len(re.findall(r"[A-Za-z]{2,}\s*,\s*[A-Za-z]{2,}\s*,\s*[A-Za-z]{2,}",
+                               text, re.IGNORECASE))
+    n_year = len(re.findall(r"\b(?:19|20)\d{2}\s*[A-Za-z]{0,8}\s*[;:]",
+                            text, re.IGNORECASE))
+    # 参考文献页必备: 期刊年份页码标记 ≥2(正文几乎不出现 "1962Dec;85" 形态)
+    # 且总强特征(含 et al./作者列表/年份页码) ≥ strong_min,
+    # 避免英文正文零星 "et al."(无年份)或缩写列举被误删
+    strong_total = n_etal + n_authors + n_year
+    if strong_total >= strong_min and n_year >= marker_min:
+        return True
+    weak = sum(len(re.findall(p, text, re.IGNORECASE))
+               for p in REFERENCE_WEAK_PATTERNS)
+    if weak < 5:
+        return False
+    return (weak * 12) / max(len(text), 1) > weak_threshold
+
+
+def _recompute_chunk_metadata(chunk: Document) -> None:
+    """Chunk-level enrichment: 用 chunk 文本重算内容级标签。
+
+    替换页面级关键词提取的继承标签(避免"整页含TOAST → 所有chunk都标toast"的
+    误标传播); 保留 source/page/category 等页面级结构字段。
+    重算字段: subtopic/decision_node/intervention/time_window/evidence_level/phase。
+    """
+    meta = chunk.metadata
+    source = str(meta.get("source", "") or "")
+    category = str(meta.get("category", "") or "")
+    enriched = enrich_metadata(source, chunk.page_content, category)
+    for key in ("subtopic", "decision_node", "intervention",
+                "time_window", "evidence_level", "phase"):
+        meta[key] = enriched.get(key, meta.get(key, ""))
+    # year/authority 仍从文件名推导, 与页面级一致
+    meta["year"] = enriched.get("year", meta.get("year", 0))
+    meta["authority"] = enriched.get("authority", meta.get("authority", 3))
+
+
 def split_documents(documents):
     if not documents:
         return []
@@ -478,6 +556,23 @@ def split_documents(documents):
         logger.info(f"📚 教材类文档 {len(textbook_docs)} 页, 使用语义分块")
         chunks.extend(semantic_split(textbook_docs))
 
-    logger.info(f"✂️  分块完成: 指南类 {len(guideline_docs)} 页 → 固定分块; 教材类 {len(textbook_docs)} 页 → 语义分块; 总 chunks={len(chunks)}")
-    return chunks
+    # 垃圾过滤 + Chunk-level enrichment
+    kept = []
+    dropped_ref = dropped_short = 0
+    for chunk in chunks:
+        text = chunk.page_content.strip()
+        if len(text) < MIN_CHUNK_CHARS:
+            dropped_short += 1
+            continue
+        if is_reference_chunk(text):
+            dropped_ref += 1
+            continue
+        _recompute_chunk_metadata(chunk)
+        kept.append(chunk)
+
+    logger.info(f"✂️  分块完成: 指南类 {len(guideline_docs)} 页 → 固定分块; "
+                f"教材类 {len(textbook_docs)} 页 → 语义分块; "
+                f"总 chunks={len(chunks)} → 有效 {len(kept)} "
+                f"(丢弃: 引用页 {dropped_ref}, 过短 {dropped_short})")
+    return kept
 
