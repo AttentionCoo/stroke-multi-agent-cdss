@@ -114,11 +114,15 @@ docker compose up -d
 ### 🔎 2. 证据前置的深度定制 Hybrid RAG
 
 - **双路混合检索**：基于 ChromaDB（语义向量）+ BM25（医学术语精准匹配）的双路并发检索引擎，优先召回权威卒中指南与最新文献。
+- **Multi-Collection 主题隔离**：知识库拆分为 5 个主题隔离 collection（`anatomy` / `guideline` / `etiology` / `treatment` / `prevention`），Evidence Router 按决策类型路由检索，物理隔离无关内容（如"血脂指南"无机会进入解剖/溶栓检索）。
 - **RRF 融合排序**：使用倒数排序融合（Reciprocal Rank Fusion）合并双路检索结果，按 `RRF(d) = Σ 1 / (60 + rank(d))` 累加文档在各检索通道中的排名得分，在无需校准异构相关性分数的情况下兼顾语义召回与关键词命中。
+- **Chunk 级语义元数据**：分块后用 chunk 文本重算内容级标签（`subtopic` 12 类 / `decision_node` 决策节点 / `intervention` 药物与操作 / `time_window` 治疗时间窗 / `evidence_level` 证据等级），另有 LLM 语义分类器（qwen-plus）对规则难判定的 chunk 补充 `clinical_intent` / `domain` / `confidence` 标签；入库前过滤参考文献页与过短碎片。
+- **Medical Evidence Score 重排**：`gte-rerank` 语义打分后叠加 9 项医学加权（证据类型 / 指南权威 / 证据等级 / 时效 / 主题 / 决策节点 / 干预 / 时间窗 + 淘汰惩罚），Rerank API 不可用时自动回退规则重排；干预级匹配保证"rt-PA 溶栓"优先召回 `alteplase` 证据而非仅 embedding 相似段落。
 - **高级 QA 自建引擎**：系统精读医疗 PDF 并自动批量衍生提炼高质量 `Q:A` 对（附带原文页码标签），大幅提升急诊场景下的检索召回率。
-- **深度重排与溯源**：RRF 融合后的候选文档再由 `gte-rerank` 进行深度语境打分与证据压缩，在最终报告中强制进行**文献名称与精准页码**的明确溯源。
-- **Agentic RAG 检索循环**：临床检索规划器主动拆分任务，结合医学同义词扩展与 HyDE 描述生成查询；证据审查器按相关性、可信度、时效性和覆盖度评分，证据不足时自动改写查询并再次检索，默认最多两轮。
+- **深度重排与溯源**：RRF 融合后的候选文档再经语义重排与医学评分，在最终报告中强制进行**文献名称与精准页码**的明确溯源。
+- **Agentic RAG 检索循环**：临床检索规划器主动拆分任务，结合医学同义词扩展与 PICO 结构化查询（人群/干预/时间窗/临床问题四段式，中文查询优先原始语义）；证据审查器按相关性、可信度、时效性和覆盖度评分，证据不足时自动改写查询并再次检索，默认最多两轮。
 - **证据进入推理**：每条证据使用 `R{轮次}-Q{查询}-E{结果}` 编号，专家初始意见、交叉质询和最终共识均被要求引用真实证据编号，未覆盖的信息进入风险审查而不是被当作事实补全。
+- **RAGAS 可复现评测**：30 题临床 benchmark（`model/evaluation/stroke_ragas.json`）固化检索与生成指标（Recall@K / MRR / NDCG / faithfulness 等），回归报告自动生成，支撑检索质量持续追踪。
 
 ### ⚡ 3. 全栈响应式流式数据管道（Reactive Stream Pipeline）
 
@@ -370,7 +374,7 @@ stroke-multi-agent-system/
 │   │   │   │   ├── subtype.py             # TOAST 分型辅助
 │   │   │   │   └── registry.py            # 工具注册表与统一执行器
 │   │   │   ├── pipelines/                 # RAG 检索处理管道
-│   │   │   ├── services/                  # 业务服务 (查询、检索、综合)
+│   │   │   ├── services/                  # 业务服务 (查询翻译、检索路由、综合)
 │   │   │   ├── bailian/                   # 百炼模型集成 (健康风险分析)
 │   │   │   ├── infra/                     # 基础设施 (Reranker 重排器)
 │   │   │   ├── schemas/                   # 数据模型定义
@@ -381,20 +385,34 @@ stroke-multi-agent-system/
 │   │   │   ├── limits_config.yaml         # 参数限制与关键词配置
 │   │   │   ├── prompts.yaml               # 提示词模板 (~380 行)
 │   │   │   └── report_templates.yaml      # 报告模板 (5 种模式)
-│   │   ├── rag/                           # RAG 模块 (QA 自动生成、混合检索、RRF 融合与语义重排)
+│   │   ├── rag/                           # RAG 模块 (Multi-Collection 构建、混合检索、RRF 融合、医学重排)
+│   │   │   ├── data_loader.py             # PDF 加载、分块、chunk 级元数据与垃圾过滤
+│   │   │   ├── retrievers.py              # UnifiedSearchEngine / Medical Evidence Score / 路由
+│   │   │   ├── qa_generator.py            # QA 对自建引擎
+│   │   │   └── bge_reranker.py            # BGE/gte-rerank 重排器
 │   │   ├── services/                      # 外部服务 (PubMed 文献抓取、Vision 多模态识别)
 │   │   ├── evaluation/                    # 可复现离线规则评测运行器
 │   │   ├── utils/                         # 通用工具 (上下文摘要, 错误码, 命名模型)
 │   │   └── main.py                        # FastAPI 异步服务入口 (lifespan 资源管理)
+│   ├── evaluation/                        # ★ RAGAS benchmark 与回归报告
+│   │   ├── stroke_ragas.json              # 30 题临床 benchmark（含期望来源与参考答案）
+│   │   ├── regression_report.md           # 检索回归报告（Recall@K/MRR/NDCG 自动生成）
+│   │   └── llm_review_samples.json        # LLM 低置信标签抽检样本
+│   ├── scripts/                           # ★ 运维与评估脚本
+│   │   ├── migrate_multi_collection.py    # 单库 → 5 collection 迁移（复用原 embedding）
+│   │   ├── enrich_metadata.py             # 存量库 chunk 级标签重算 + 重分桶 + 垃圾删除
+│   │   ├── enrich_llm.py                  # LLM 语义分类器（clinical_intent/domain/confidence）
+│   │   ├── eval_ragas.py                  # RAGAS + 检索指标评估（30 题 benchmark）
+│   │   └── archive/                       # 一次性/历史脚本归档
 │   ├── data/
 │   │   └── documents/                     # 脑卒中临床指南 PDF 文档 (12 篇)
 │   ├── tests/                             # 自动化测试套件
+│   │   ├── test_collection_routing.py     # Multi-Collection 归属规则/医学评分/PICO 查询
 │   │   ├── test_rag.py                    # RAG 召回率验证
-│   │   ├── test_api_client.py             # API 客户端测试
-│   │   ├── test_analyze_api.py            # 分析 API 测试
-│   │   ├── test_quick_analyze.py          # 快速分析测试
-│   │   ├── test_new_architecture.py       # 新架构验证
-│   │   └── test_migration.py              # 迁移兼容性测试
+│   │   ├── test_decision_planner.py       # 决策规划节点测试
+│   │   ├── test_evidence_router.py        # 证据路由测试
+│   │   ├── test_medical_reranker.py       # 医学重排测试
+│   │   └── test_tool_use_integration.py   # 工具调用集成测试
 │   ├── requirements.txt                   # Python 依赖清单
 │   ├── start.bat                          # Windows 一键启动脚本
 │   └── start.sh                           # Linux/Mac 一键启动脚本
@@ -423,6 +441,30 @@ python -m app.evaluation.benchmark \
 ```
 
 当前仓库未包含可追溯的专家盲评原始记录、冻结预测全集或 RAGAS 结果文件，因此不声明诊断准确率、零漏报率或忠实度等精确临床指标。正式参赛数据应在病例脱敏、版本冻结和专家复核后放入 `model/app/evaluation/results/`，同时保留运行参数与哈希。
+
+### RAGAS 检索与生成基准（30 题）
+
+`model/evaluation/stroke_ragas.json` 固化 30 题临床 benchmark（解剖 5 / 病因 5 / 治疗 10 / 预防 5 / 诊断 5），每题含期望来源文档与参考答案，覆盖真实检索链路（Query Translator → Router → Multi-Collection → 医学重排）：
+
+```bash
+# 容器内先安装 ragas==0.2.15（不进 requirements，避免 huggingface-hub 冲突破坏 transformers）
+cd model
+python -m scripts.eval_ragas --top-k 20
+```
+
+自动输出检索指标（Recall@K / MRR / NDCG@10，按期望来源对齐）与 RAGAS 生成指标（faithfulness / answer_relevancy / context_precision / context_recall / answer_correctness），并写入 `model/evaluation/regression_report.md`。
+
+当前基准（2026-08-08）：
+
+| 指标 | 值 | 说明 |
+|---|---|---|
+| Recall@3 | 0.783 | 78% 的临床问题在 top3 命中期望来源 |
+| Recall@10 | 0.817 | |
+| MRR | 0.757 | 期望来源平均首命中位 ≈1.3 |
+| NDCG@10 | 0.763 | |
+| faithfulness | 0.71 | 答案对上下文的忠实度（qwen-plus 评分） |
+
+> 说明：RAGAS 生成指标受小样本与 LLM 评分噪声影响，检索指标（Recall/MRR/NDCG）为主要回归依据。
 
 ---
 
@@ -820,6 +862,17 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 ---
 
 ## 🔄 版本更新日志
+
+### v2.7.0 (2026-08-08)
+
+- ✅ **Multi-Collection 主题隔离**：单一 Chroma collection 拆分为 5 个主题隔离 collection（anatomy/guideline/etiology/treatment/prevention），Evidence Router 按决策类型路由检索，物理隔离无关内容；`scripts/migrate_multi_collection.py` 复用原 embedding 零成本迁移（5806 条）
+- ✅ **Chunk 级语义元数据**：分块后用 chunk 文本重算内容级标签（subtopic/decision_node/intervention/time_window/evidence_level），修复页面级关键词提取的误标传播；入库前过滤参考文献页与过短碎片
+- ✅ **存量库重分桶**：`scripts/enrich_metadata.py` 按 chunk 级标签跨桶移动文档（带原 embedding），TOAST 详情等归位正确 collection
+- ✅ **LLM 语义分类器**：`scripts/enrich_llm.py` 三层分类（规则高置信 → qwen-plus 困难 chunk → 低置信抽检），新增 clinical_intent/domain/confidence 标签（1433 条已标注），高压氧类错标修正归位
+- ✅ **Medical Evidence Score 升级**：9 项加权（语义/证据类型/权威/证据等级/时效/主题/决策节点/干预/时间窗），Rerank API 失败自动回退规则重排；BM25 词袋清洗（PICO 式不退化）
+- ✅ **Query Translator 双语修复**：PICO 概念组中英双语保留，中文查询优先原始语义（修复纯英文 PICO 压制中文指南召回）
+- ✅ **30 题 RAGAS benchmark**：`model/evaluation/stroke_ragas.json` + Recall@K/MRR/NDCG 检索指标 + `regression_report.md` 自动生成（基线 recall@3=0.783 / MRR=0.757）
+- ✅ **测试**：41 个单元测试（归属规则/医学评分/垃圾过滤/PICO 查询/双语变体顺序）
 
 ### v2.4.0 (2026-08-07)
 
