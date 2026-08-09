@@ -852,6 +852,7 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 | [docs/backend-technical-documentation.md](docs/backend-technical-documentation.md) | ★ **后端技术文档（完整版）** — 涵盖架构设计、数据库设计、SSE 通信、安全体系、限流熔断、部署架构等 15 个章节 |
 | [docs/tool-calling-design.md](docs/tool-calling-design.md) | ★ 脑卒中医疗工具集（Skill & Tool Calling）设计文档 — 工具清单、LangGraph 集成、API 规范、测试 |
 | [docs/retrieval-pipeline-design.md](docs/retrieval-pipeline-design.md) | ★ 循证检索流程设计文档 — 临床决策驱动检索、Evidence Router、Query Translator、混合检索、Mismatch Filter、失败恢复 |
+| [docs/rag-retrieval-enhancements.md](docs/rag-retrieval-enhancements.md) | ★ **RAG 检索提升方法总结** — Multi-Collection 隔离、chunk 级元数据、垃圾过滤、重分桶、Medical Evidence Score、PICO 双语查询、LLM 语义分类、RAGAS 基准与指标 |
 | [docs/Agentic-RAG与协作式多智能体架构.md](docs/Agentic-RAG与协作式多智能体架构.md) | Agentic RAG 检索循环、专家辩论共识与三级患者记忆设计 |
 | [docs/model-memory-and-context-storage.md](docs/model-memory-and-context-storage.md) | 模型记忆与上下文存储设计 |
 | [docs/全链路流式重构策略.md](docs/全链路流式重构策略.md) | 全链路流式数据管道设计策略 |
