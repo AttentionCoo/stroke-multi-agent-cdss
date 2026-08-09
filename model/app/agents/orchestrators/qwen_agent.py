@@ -257,14 +257,57 @@ class QwenAgent:
         return None
 
     def _node_done_event(self, node: str, output: dict) -> Dict:
-        """构造节点完成事件。"""
+        """构造节点完成事件(含完整输出, 供思考链全文展示)。"""
         return {
             "type": "node_done",
             "node": node,
             "label": _NODE_DISPLAY[node]["done"],
             "summary": self._node_summary(node, output),
+            "content": self._node_full_content(node, output),
             "status": "done",
         }
+
+    def _node_full_content(self, node: str, output: dict) -> str:
+        """节点完整输出(思考链全文, 不截断), 供前端"全部打印"。"""
+        if not isinstance(output, dict):
+            return str(output)[:50000]
+
+        if node == "retrieve":
+            parts = [f"检索轮次: {output.get('retrieval_round', 0)}"]
+            evidence = str(output.get("evidence", "") or "").strip()
+            if evidence:
+                parts.append("【检索证据全文】\n" + evidence)
+            return "\n\n".join(parts)
+
+        if node == "reason":
+            parts = []
+            for role, advice in (output.get("expert_opinions", {}) or {}).items():
+                parts.append(f"▶ 专家({role})意见:\n{advice}")
+            for key, label in (("proposal", "综合方案"), ("critique", "风险审查")):
+                val = output.get(key, "")
+                if val:
+                    parts.append(f"▶ {label}:\n{val}")
+            if parts:
+                return "\n\n".join(str(p) for p in parts)
+
+        if node == "debate":
+            transcript = str(output.get("debate_transcript", "") or "").strip()
+            if transcript:
+                return transcript
+
+        if node == "consensus_agent":
+            parts = [str(v) for v in (output.get("consensus"), output.get("proposal"),
+                                      output.get("critique")) if v]
+            if parts:
+                return "\n\n".join(parts)
+
+        if node in ("generate_report", "knowledge_answer"):
+            report = str(output.get("report", "") or "").strip()
+            if report:
+                return report
+
+        # 其余节点: 完整结构化输出
+        return json.dumps(output, ensure_ascii=False, indent=2)[:50000]
 
     def _node_summary(self, node: str, output: dict) -> str:
         """生成适合通过 SSE 展示的节点结果摘要。"""

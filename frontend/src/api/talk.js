@@ -129,6 +129,20 @@ function streamRequest(params, onChunk, onThinking) {
           return
         }
 
+        // ── node_start / node_done：LangGraph 节点事件 → 思考链步骤 ──
+        // 模型侧每个推理节点开始/完成时发送, 前端将其并入思考面板逐条展示
+        if (type === 'node_start' || type === 'node_done') {
+          if (onThinking) {
+            onThinking({
+              step: data.node || '',
+              title: data.label || (type === 'node_done' ? '步骤完成' : '步骤进行中'),
+              content: data.content || (data.summary ? data.summary : ''),
+              status: type === 'node_done' ? 'done' : 'running',
+            })
+          }
+          return
+        }
+
         // ── meta / resume：内部事件，前端无需处理 ──
         if (type === 'meta' || type === 'resume') {
           return

@@ -17,16 +17,8 @@ const props = defineProps({
   },
 })
 
-// 默认折叠；流结束时自动收起
-const isExpanded = ref(false)
-
-// 流结束后自动折叠
-watch(
-  () => props.isStreaming,
-  (streaming) => {
-    if (!streaming) isExpanded.value = false
-  },
-)
+// 默认展开（"全部打印"思考链）
+const isExpanded = ref(true)
 
 // streaming 时展开面板实时查看步骤
 watch(
@@ -70,8 +62,7 @@ function formatContent(content) {
       // 不是合法 JSON，按普通文本处理
     }
   }
-  // 截断超长文字
-  if (trimmed.length > 500) return { type: 'text', data: trimmed.slice(0, 500) + '…' }
+  // 思考链全文完整展示（不截断）
   return { type: 'text', data: trimmed }
 }
 </script>
