@@ -875,20 +875,14 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 - ✅ **30 题 RAGAS benchmark**：`model/evaluation/stroke_ragas.json` + Recall@K/MRR/NDCG 检索指标 + `regression_report.md` 自动生成（基线 recall@3=0.783 / MRR=0.757）
 - ✅ **测试**：41 个单元测试（归属规则/医学评分/垃圾过滤/PICO 查询/双语变体顺序）
 
-### v2.4.0 (2026-08-07)
 
-- ✅ **新增**：脑卒中医疗工具集（Tool Calling）— NIHSS/mRS/GCS 量表评估、溶栓时间窗与 rt-PA 剂量计算、禁忌症筛查、TOAST 分型共 7 个工具
-- ✅ **新增**：独立工具 API — `GET /model/tools/list` 与 `POST /model/tools/call`（JWT 校验 + 错误脱敏）
-- ✅ **新增**：`tool_use` 节点接入 LangGraph 推理链 — LLM 通过 function calling 自主调用工具，结果注入多专家推理；事件流逐条展示每次工具调用
-- ✅ **新增**：规则兜底 — LLM 未调用工具时按病例临床线索（神经体征/意识障碍/发病时长/血压异常/血管线索）自动调度对应工具
-- ✅ **安全**：`patient_info` 等敏感字段日志截断；参数校验错误不暴露输入值；`/model/tools/call` 支持 token 校验
-- ✅ **部署**：Docker 端口适配 — MySQL 映射 3307、前端映射 8088（规避本机 3306/80 端口冲突）
-- ✅ **测试**：33+ 个工具单元测试与 tool calling 集成测试
-- ✅ **新增**：AI 对话命名增强 — 基于「问题 + AI 回答」在推理完成后生成医学术语标题（如「房颤患者溶栓评估」），不再退化为问题原文截断
-- ✅ **修复**：新建对话列表重复/不刷新 — 占位符在刷新时被过滤、成功替换时重复插入、新建状态被强制切回旧对话等问题
-- ✅ **修复**：对话列表过滤空内容记录 — 注册自动创建/发送失败残留的空「新对话」不再展示
-- ✅ **修复**：范围拦截（如「你好」）的问题也创建并保存对话 — 不再出现"发了消息却没对话记录"
-- ✅ **修复**：后端 CORS 白名单适配前端 8088 端口，登录/注册不再被跨域拦截
+### v2.6.0 (2026-08-08)
+
+- ✅ **Clinical Query Planner 升级**：决策节点新增 `decision_id` / `evidence_source` / `search_query`（1-2 条可直接检索的英文专业查询），检索任务优先用 search_query，回退 PICO
+- ✅ **Medical Evidence Reranker**：BGEReranker 融合医学评分（0.35 语义 + 0.25 证据类型 + 0.20 指南权威 + 0.10 时效 + 0.10 人群/主题 + 淘汰惩罚），血脂/二级预防 subtopic 被降权淘汰
+- ✅ **Evidence Metadata 增强**：chunk 自动生成结构化标签（`subtopic` 12 类 / `phase` / `year` / `authority`），检索按 subtopic 淘汰不匹配主题（如治疗查询剔除血脂/二级预防）
+- ✅ **Multi-Collection 轻量拆分**：证据类型→目标类别显式映射（treatment→指南/共识、anatomy→教材），配合 category 过滤/subtopic/Medical Reranker 等效多库路由
+- ✅ **向量库重建**：新元数据（subtopic/phase/authority）入库，语义分块缓存加速启动（72s）
 
 ### v2.5.0 (2026-08-07)
 
@@ -904,13 +898,20 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 - ✅ **修复**：检索 0 结果根因（DASHSCOPE_API_KEY 加载时机、UnifiedSearchEngine 缺 category_filter 透传）；LangGraph 递归上限（recursion_limit 25→60）
 - ✅ **知识库**：重新分类（指南/共识/规范/教材+category 元数据）；教材语义分块（粗切+边界微调，缓存到磁盘，启动 264s→72s）
 
-### v2.6.0 (2026-08-08)
+### v2.4.0 (2026-08-07)
 
-- ✅ **Clinical Query Planner 升级**：决策节点新增 `decision_id` / `evidence_source` / `search_query`（1-2 条可直接检索的英文专业查询），检索任务优先用 search_query，回退 PICO
-- ✅ **Medical Evidence Reranker**：BGEReranker 融合医学评分（0.35 语义 + 0.25 证据类型 + 0.20 指南权威 + 0.10 时效 + 0.10 人群/主题 + 淘汰惩罚），血脂/二级预防 subtopic 被降权淘汰
-- ✅ **Evidence Metadata 增强**：chunk 自动生成结构化标签（`subtopic` 12 类 / `phase` / `year` / `authority`），检索按 subtopic 淘汰不匹配主题（如治疗查询剔除血脂/二级预防）
-- ✅ **Multi-Collection 轻量拆分**：证据类型→目标类别显式映射（treatment→指南/共识、anatomy→教材），配合 category 过滤/subtopic/Medical Reranker 等效多库路由
-- ✅ **向量库重建**：新元数据（subtopic/phase/authority）入库，语义分块缓存加速启动（72s）
+- ✅ **新增**：脑卒中医疗工具集（Tool Calling）— NIHSS/mRS/GCS 量表评估、溶栓时间窗与 rt-PA 剂量计算、禁忌症筛查、TOAST 分型共 7 个工具
+- ✅ **新增**：独立工具 API — `GET /model/tools/list` 与 `POST /model/tools/call`（JWT 校验 + 错误脱敏）
+- ✅ **新增**：`tool_use` 节点接入 LangGraph 推理链 — LLM 通过 function calling 自主调用工具，结果注入多专家推理；事件流逐条展示每次工具调用
+- ✅ **新增**：规则兜底 — LLM 未调用工具时按病例临床线索（神经体征/意识障碍/发病时长/血压异常/血管线索）自动调度对应工具
+- ✅ **安全**：`patient_info` 等敏感字段日志截断；参数校验错误不暴露输入值；`/model/tools/call` 支持 token 校验
+- ✅ **部署**：Docker 端口适配 — MySQL 映射 3307、前端映射 8088（规避本机 3306/80 端口冲突）
+- ✅ **测试**：33+ 个工具单元测试与 tool calling 集成测试
+- ✅ **新增**：AI 对话命名增强 — 基于「问题 + AI 回答」在推理完成后生成医学术语标题（如「房颤患者溶栓评估」），不再退化为问题原文截断
+- ✅ **修复**：新建对话列表重复/不刷新 — 占位符在刷新时被过滤、成功替换时重复插入、新建状态被强制切回旧对话等问题
+- ✅ **修复**：对话列表过滤空内容记录 — 注册自动创建/发送失败残留的空「新对话」不再展示
+- ✅ **修复**：范围拦截（如「你好」）的问题也创建并保存对话 — 不再出现"发了消息却没对话记录"
+- ✅ **修复**：后端 CORS 白名单适配前端 8088 端口，登录/注册不再被跨域拦截
 
 ### v2.3.0 (2026-07-31)
 
