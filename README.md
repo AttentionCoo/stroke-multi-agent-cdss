@@ -496,7 +496,7 @@ python -m scripts.eval_ragas --top-k 20
 
 #### 🐳 Docker Compose 完整项目启动（推荐）
 
-这是最省心的启动方式，会同时拉起 `frontend`、`backend`、`model`、`mysql` 和 `redis` 五个服务。
+这是最省心的启动方式，会同时拉起 `frontend`、`backend`、`model`、`mysql` 和 `redis` 五个服务。 
 
 启动前建议先确认三件事：
 
