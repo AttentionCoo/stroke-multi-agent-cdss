@@ -28,7 +28,7 @@
 
 ## ⚡ 快速启动
 
-推荐使用 Docker Compose 一次性启动前端、后端、模型服务、MySQL 与 Redis。启动前请先确认 Docker Desktop 已运行，并按以下步骤创建根目录与模型服务的环境变量：
+推荐使用 Docker Compose 一次性启动前端、后端、模型服务、MySQL 与 Redis。启动前请先确认 Docker Desktop 已运行，并按以下步骤创建根目录与模型服务的环境变量： 
 
 **第一步：创建环境变量文件**
 
