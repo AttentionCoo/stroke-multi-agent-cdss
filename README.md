@@ -1,3 +1,5 @@
+
+
 <p align="center">
   <h1 align="center">🧠 MedLLM / Stroke-Multi-Agent-CDSS</h1>
   <p align="center">
@@ -44,14 +46,16 @@ Copy-Item model/.env.example model/.env
 
 **第二步：配置密钥**
 
-编辑根目录 `.env`，为数据库、Redis、服务间鉴权设置独立强密码；再编辑 `model/.env`，至少填入模型密钥，并确保两处 `SECRET_KEY` 完全一致：
+编辑根目录 `.env`，为数据库、Redis、服务间鉴权设置独立强密码；再编辑 `model/.env`，至少填入模型密钥：
 
 ```env
+# model/.env
 DASHSCOPE_API_KEY=sk-您的阿里云百炼平台密钥
-SECRET_KEY=与根目录.env一致的随机字符串（至少32位）
 ```
 
-> 💡 **提示**：`DASHSCOPE_API_KEY` 从 [阿里云百炼平台](https://bailian.console.aliyun.com/) 获取；`SECRET_KEY` 可任意生成一段随机字符串。
+> 💡 **提示**：
+> - `DASHSCOPE_API_KEY` 从 [阿里云百炼平台](https://bailian.console.aliyun.com/) 获取。
+> - 使用 Docker Compose 启动时，系统会通过 `AI_API_SHARED_JWT_SECRET` 环境变量自动将根目录 `.env` 中的鉴权密钥同步给后端与模型服务，因此无需在 `model/.env` 中重复配置 `SECRET_KEY`（仅手动本地调试时需注意两端一致）。
 
 **第三步：启动全部服务**
 
