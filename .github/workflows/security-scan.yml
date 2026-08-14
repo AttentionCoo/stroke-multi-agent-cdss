@@ -1,0 +1,58 @@
+name: Security Scan
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 每周日凌晨执行
+    - cron: "0 2 * * 0"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trivy:
+    name: Trivy image scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images
+        run: docker compose build
+        env:
+          APP_IMAGE_TAG: scan
+      - name: Scan backend image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: stroke-multi-agent-backend:scan
+          format: sarif
+          output: trivy-backend.sarif
+          exit-code: "0"
+          severity: CRITICAL,HIGH
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: stroke-multi-agent-frontend:scan
+          format: sarif
+          output: trivy-frontend.sarif
+          exit-code: "0"
+          severity: CRITICAL,HIGH
+      - name: Scan model image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: stroke-multi-agent-model:scan
+          format: sarif
+          output: trivy-model.sarif
+          exit-code: "0"
+          severity: CRITICAL,HIGH
+      - name: Upload scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-backend.sarif
+      - name: Upload scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-frontend.sarif
+      - name: Upload scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-model.sarif

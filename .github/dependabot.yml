@@ -1,0 +1,46 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      vue-ecosystem:
+        patterns:
+          - "vue"
+          - "vue-router"
+          - "pinia"
+          - "@vitejs/*"
+          - "vite"
+          - "eslint*"
+
+  - package-ecosystem: "maven"
+    directory: "/backend/stroke-server"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    ignore:
+      # Spring Boot 大版本升级需人工评估(见 docs 升级路线)
+      - dependency-name: "org.springframework.boot:spring-boot-starter-parent"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "pip"
+    directory: "/model"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    ignore:
+      # langchain/langgraph/chromadb 大版本升级涉及代码迁移, 需人工评估
+      - dependency-name: "langchain*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "langgraph*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "chromadb"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
