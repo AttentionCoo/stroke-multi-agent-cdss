@@ -84,9 +84,11 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Boot 4: Flyway 自动配置移至独立模块, 必须显式引入 starter 才会执行 db/migration;
+             flyway-mysql 提供 MySQL 数据库类型支持, 版本由 Boot BOM 管理 -->
         <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-core</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
         </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>
