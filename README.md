@@ -9,13 +9,13 @@
 </p>
 
 <p align="center">
-  <a href="https://www.python.org/downloads/release/python-3110/"><img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python"></a>
+  <a href="https://www.python.org/downloads/release/python-3120/"><img src="https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python"></a>
   <a href="https://jdk.java.net/21/"><img src="https://img.shields.io/badge/Java-21-ED8B00?style=flat-square&logo=openjdk&logoColor=white" alt="Java"></a>
-  <a href="https://vuejs.org/"><img src="https://img.shields.io/badge/Vue-3-4FC08D?style=flat-square&logo=vue.js&logoColor=white" alt="Vue3"></a>
-  <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.128-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI"></a>
-  <a href="https://spring.io/projects/spring-boot"><img src="https://img.shields.io/badge/Spring_Boot-3.3.13-6DB33F?style=flat-square&logo=springboot&logoColor=white" alt="Spring Boot"></a>
+  <a href="https://vuejs.org/"><img src="https://img.shields.io/badge/Vue-3.5-4FC08D?style=flat-square&logo=vue.js&logoColor=white" alt="Vue3"></a>
+  <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.141-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI"></a>
+  <a href="https://spring.io/projects/spring-boot"><img src="https://img.shields.io/badge/Spring_Boot-4.0.7-6DB33F?style=flat-square&logo=springboot&logoColor=white" alt="Spring Boot"></a>
   <a href="https://redis.io/"><img src="https://img.shields.io/badge/Redis-7-FF4438?style=flat-square&logo=redis&logoColor=white" alt="Redis"></a>
-  <a href="https://www.langchain.com/langgraph"><img src="https://img.shields.io/badge/LangGraph-0.2-1C3C3C?style=flat-square&logo=langchain&logoColor=white" alt="LangGraph"></a>
+  <a href="https://www.langchain.com/langgraph"><img src="https://img.shields.io/badge/LangGraph-1.2-1C3C3C?style=flat-square&logo=langchain&logoColor=white" alt="LangGraph"></a>
   <a href="https://github.com/AttentionCasria/stroke-multi-agent-system/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/badge/Status-Active-brightgreen?style=flat-square" alt="Status">
 </p>
@@ -154,9 +154,9 @@ docker compose up -d
 
 | 架构层级 | 核心技术栈 | 核心设计职责 |
 |:---:|---|------|
-| 🎨 **前端交互层** | Vue 3 (Composition API) · Vite 7 · Pinia · SCSS · Fetch / ReadableStream | 以用户体验为核心，持续接收后端流式推送并实时打字机渲染。支持医学文档（PDF）在线预览、图片上传（多模态扩展）以及多 Agent 思考步骤折叠展示 |
-| ☕ **后端服务层** | Java 21 · Spring Boot 3.3.13 · Spring WebFlux · Redis 7 · Redisson · MySQL 8.0 · MyBatis-Plus | 采用响应式编程模型支持高并发吞吐。通过 JWT 实现身份认证与安全控制，利用 Redisson 分布式锁控制并发，通过 WebClient 对底层 Python 模型服务进行流式非阻塞调用与转发 |
-| 🐍 **模型推理层** | Python 3.11+ · FastAPI · LangGraph · LangChain · Qwen-Plus/Turbo · ChromaDB · BM25 · RRF · gte-rerank | 统一加载模型、Agentic RAG 检索循环、专家辩论与共识模块，通过异步生成器输出 `node_start`、`node_done`、`token`、`done` 标准事件 |
+| 🎨 **前端交互层** | Vue 3 (Composition API) · Vite 8 · Pinia · SCSS · Fetch / ReadableStream | 以用户体验为核心，持续接收后端流式推送并实时打字机渲染。支持医学文档（PDF）在线预览、图片上传（多模态扩展）以及多 Agent 思考步骤折叠展示 |
+| ☕ **后端服务层** | Java 21 · Spring Boot 4.0.7 · Spring WebFlux · Redis 7 · Redisson · MySQL 8.4 · MyBatis-Plus | 采用响应式编程模型支持高并发吞吐。通过 JWT 实现身份认证与安全控制，利用 Redisson 分布式锁控制并发，通过 WebClient 对底层 Python 模型服务进行流式非阻塞调用与转发 |
+| 🐍 **模型推理层** | Python 3.12 · FastAPI · LangGraph 1.2 · LangChain 1.x · Qwen-Plus/Turbo · ChromaDB 1.x · BM25 · RRF · gte-rerank | 统一加载模型、Agentic RAG 检索循环、专家辩论与共识模块，通过异步生成器输出 `node_start`、`node_done`、`token`、`done` 标准事件 |
 
 ### 🔄 全链路流式数据管道（SSE Pipeline）
 
@@ -447,7 +447,7 @@ python -m app.evaluation.benchmark \
 `model/evaluation/stroke_ragas.json` 固化 30 题临床 benchmark（解剖 5 / 病因 5 / 治疗 10 / 预防 5 / 诊断 5），每题含期望来源文档与参考答案，覆盖真实检索链路（Query Translator → Router → Multi-Collection → 医学重排）：
 
 ```bash
-# 容器内先安装 ragas==0.2.15（不进 requirements，避免 huggingface-hub 冲突破坏 transformers）
+# 容器内先安装 ragas>=0.4(不进 requirements, 避免拉入 datasets 等评测依赖)
 cd model
 python -m scripts.eval_ragas --top-k 20
 ```
@@ -486,8 +486,8 @@ python -m scripts.eval_ragas --top-k 20
 | 全局 | Docker Desktop | 最新 | 完整项目容器化部署（推荐） |
 | 后端服务 | JDK | 21+ | Java 运行环境 |
 | 后端服务 | Maven | 3.8+ | 项目构建 |
-| 前端服务 | Node.js | ≥ 20.19.0（推荐 ^22.12.0） | 前端开发与构建 |
-| 模型服务 | Python | 3.11+ | AI 推理引擎 |
+| 前端服务 | Node.js | ≥ 24 | 前端开发与构建 |
+| 模型服务 | Python | 3.12+ | AI 推理引擎 |
 | 模型服务 | Anaconda / Miniconda | 推荐 | Python 环境管理 |
 
 > 💡 **提示**：如不使用 Docker，需自行安装 MySQL 8.0+ 与 Redis 7.0+。
@@ -863,6 +863,16 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 ---
 
 ## 🔄 版本更新日志
+
+### v2.8.0 (2026-08-31) — 全栈技术升级
+
+- ✅ **基础设施**：MySQL 8.0 → 8.4 LTS（8.0 已 EOL）；Redis 7 保持；基础镜像升级 Python 3.12 / Node 24
+- ✅ **镜像瘦身**：移除未使用的 torch/transformers/sentence-transformers（embedding 与 rerank 均走 DashScope API），model 镜像体积大幅下降；补充三端 `.dockerignore`（`.env` 不再进入镜像）
+- ✅ **后端**：Spring Boot 3.3.13 → 4.0.7（3.3/3.5 均已停止 OSS 支持）；MyBatis-Plus 3.5.5 → 3.5.17（spring-boot4-starter + 显式 extension 模块）；jjwt 0.9.1 → 0.12.6（显式 HS256 与模型端 PyJWT 对齐）；Redisson 3.50 / Hutool 5.8.36 / aliyun-oss 3.18.2
+- ✅ **后端卫生**：删除无依赖的 resilience4j 死配置、未使用的 spring-cloud-alibaba 属性；移除 MyBatis SQL stdout 打印（患者数据脱敏），`com.it` 日志级别 DEBUG → INFO
+- ✅ **前端**：Vite 7 → 8（Rolldown 构建引擎）；Vue 3.5.41 / Pinia 4 / vue-router 4.6；pdfjs-dist 3.11 → 5.7（vue-pdf-embed 2.1.5 同步）
+- ✅ **模型层**：LangChain 0.2 → 1.3（core 1.5 / openai 1.5 / chroma 1.1）；LangGraph 0.2 → 1.2（`MemorySaver` → `InMemorySaver`，SSE 编排由 `astream_events` 迁移到 `astream(stream_mode=["updates","messages"])`）；ChromaDB 0.5 → 1.5（`Chroma` 改用显式 `PersistentClient`）；requirements 精简约 50%
+- ✅ **工程化**：新增 GitHub Actions CI（前端构建 / 后端 Boot 4 测试 / 模型离线测试）、Dependabot 每周依赖巡检、Trivy 镜像安全扫描 workflow
 
 ### v2.7.0 (2026-08-08)
 
