@@ -84,6 +84,9 @@ class ReportNode(BaseNode):
 【用户原始问题】
 {questions_text}
 
+【用户提问原文(含用户明确指示, 必须遵循)】
+{str(state.get('case_text', '') or '').strip() or questions_text}
+
 【患者结构化信息】
 {context_str}
 
@@ -108,7 +111,8 @@ class ReportNode(BaseNode):
 3. 即使某项治疗建议被拒绝、证据不足或需要人工复核，也必须先回答该问题，再说明拒绝原因、信息缺口和可行的下一步。
 4. 不得用 REJECT、安全警告、免责声明或内部质控过程代替对问题的回答。
 5. 只回答原问题需要的内容，不扩展无关章节；不得虚构证据或给出未经个体化核验的具体药物剂量。
-6. 正文不要输出“安全警告”章节，系统会在答案末尾追加必要的复核提示。"""
+6. 正文不要输出“安全警告”章节，系统会在答案末尾追加必要的复核提示。
+7. 严格遵循用户提问原文中的全部明确指示(如输出格式'用表格/分点'、语言'用中文/英文'、详略'简洁/详细'等)，不得擅自忽略或改变口径。"""
         else:
             report_template = self.report_manager.get_template(state['report_mode'])
             prompt_text = report_template.format(

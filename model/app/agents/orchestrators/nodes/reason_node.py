@@ -135,6 +135,17 @@ class ReasonNode(BaseNode):
                 f"{questions_text}\n"
                 "独立意见必须逐项覆盖这些问题；即使反对某项处置，也要给出直接结论和理由。"
             )
+
+        # 用户提问原文(含用户明确指示)必须完整可见, 专家意见须遵循其中指示
+        original_question = str(state.get("case_text", "") or "").strip()
+        if original_question:
+            case_info += (
+                "\n\n【用户提问原文】\n"
+                f"{original_question}\n"
+                "【用户指示优先】如果用户在提问中给出了明确指示"
+                "(如输出格式、语言、详略程度、'用表格''分点列举''简洁回答'等),"
+                "你的独立意见必须严格遵循这些指示,不得擅自改变口径或忽略。"
+            )
         
         # 如果存在之前的校验反馈，添加到上下文中用于反思
         if state['validation_feedback']:
