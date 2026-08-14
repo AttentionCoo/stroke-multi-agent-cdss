@@ -1,5 +1,5 @@
 ARG BASE_IMAGE_REGISTRY=docker.io/library
-FROM ${BASE_IMAGE_REGISTRY}/node:22-alpine AS builder
+FROM ${BASE_IMAGE_REGISTRY}/node:24-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci

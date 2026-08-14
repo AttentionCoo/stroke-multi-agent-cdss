@@ -9,3 +9,8 @@ __pycache__/
 .mypy_cache/
 logs/
 *.log
+model_cache/
+chroma_db_unified/
+.idea/
+.vscode/
+*.iml
