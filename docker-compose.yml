@@ -93,6 +93,9 @@ services:
       PORT: "8000"
       HOST: "0.0.0.0"
       SECRET_KEY: ${AI_API_SHARED_JWT_SECRET:-dev-local-secret-change-me-at-least-32-characters}
+      # 首次冷启动会为全部指南分块做 embedding; 关闭 QA 衍生可大幅缩短启动时间
+      # (开启后首次启动需数百次 LLM 调用, 建议本地离线时段执行)
+      ENABLE_QA_GENERATION: ${ENABLE_QA_GENERATION:-false}
     volumes:
       - model-data:/app/data
       - model-cache:/app/model_cache
@@ -103,7 +106,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
-      start_period: 90s
+      start_period: 900s
 
   frontend:
     image: stroke-multi-agent-frontend:${APP_IMAGE_TAG:-local}

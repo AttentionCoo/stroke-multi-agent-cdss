@@ -42,7 +42,8 @@ CONFIG = {
     ),
     "docs_dir": os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "documents"),
     "top_k_per_store": 4,
-    "enable_qa_generation": True,
+    # QA 衍生需数百次 LLM 调用, 冷启动耗时长; 默认开启(保持既有行为), 可通过环境变量关闭
+    "enable_qa_generation": os.getenv("ENABLE_QA_GENERATION", "true").strip().lower() in ("1", "true", "yes"),
 }
 
 
