@@ -286,6 +286,8 @@ function formatContent(content) {
   color: var(--color-text-medium);
   line-height: 1.5;
   word-break: break-word;
+  // 思考链全文多行打印: 保留换行与缩进
+  white-space: pre-wrap;
 }
 
 .step-content-json {

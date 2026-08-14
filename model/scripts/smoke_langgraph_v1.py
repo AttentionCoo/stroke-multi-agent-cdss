@@ -113,7 +113,42 @@ def check_event_handlers():
     print("PASS 事件翻译逻辑")
 
 
+def check_full_content():
+    """零成本验证: 所有节点的全文渲染均有内容且不截断。"""
+    agent = object.__new__(QwenAgent)
+    samples = {
+        "intent": {"intent_type": "consultation", "type": "consultation"},
+        "memory": {"patient_memory": {"short_term": "会话摘要", "episodic": "历史事件", "semantic": "稳定病史"}, "active_memory": "激活上下文全文"},
+        "analysis": {"complexity": "high", "key_risks": ["血压偏高"], "clinical_questions": ["是否溶栓"], "structured_context": {"主诉": "左侧肢体无力3小时"}},
+        "tool_use": {"tool_calls": [{"tool": "nihss_score", "arguments": {"items": [1, 2]}, "result": {"level": "moderate"}}]},
+        "research_plan": {"need_retrieve": True, "clinical_decisions": [{"priority": 10, "decision_name": "是否溶栓"}], "retrieval_queries": ["rt-PA 禁忌"], "missing_information": ["INR"]},
+        "evidence_router": {"router_routes": [{"evidence_type": "treatment", "categories": ["指南"]}], "router_keywords": ["溶栓"]},
+        "retrieve": {"retrieval_round": 1, "evidence": "【证据 R1-Q1-E1】内容"},
+        "evidence_judge": {"evidence_quality": 0.9, "need_retrieve": False, "evidence_assessment": "证据充分"},
+        "query_rewrite": {"retrieval_queries": ["重写查询"], "need_retrieve": True},
+        "reason": {"expert_opinions": {"全科医生": "意见A", "神经专科医生": "意见B", "临床药师": "意见C"}},
+        "debate": {"debate_transcript": "质询全文"},
+        "consensus_agent": {"consensus": "共识", "proposal": "方案", "critique": "风险审查"},
+        "validate": {"validation_passed": True, "reflection_count": 1, "validation_feedback": "反馈全文"},
+        "generate_report": {"report": "这是一份完整的临床报告内容测试文本"},
+        "knowledge_answer": {"report": "这是一份完整知识回答内容测试文本"},
+        "reject": {"report": "与脑卒中无关"},
+    }
+    for node, output in samples.items():
+        content = agent._node_full_content(node, output)
+        assert content and len(content) > 10, f"{node} 全文渲染为空: {content!r}"
+        print(f"  {node}: {len(content)} 字符 -> {content.splitlines()[0][:40]}")
+    # evidence_router 必须在展示表中(所有过程都要打印)
+    assert "evidence_router" in _NODE_DISPLAY, "evidence_router 缺少展示配置"
+    print("PASS 全节点全文渲染")
+
+
 if __name__ == "__main__":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
     asyncio.run(check_astream())
     check_event_handlers()
+    check_full_content()
     print("ALL PASS")

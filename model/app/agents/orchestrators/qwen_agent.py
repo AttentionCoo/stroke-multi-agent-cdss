@@ -28,6 +28,7 @@ _NODE_DISPLAY: Dict[str, Dict[str, str]] = {
     "analysis": {"running": "正在分析病例结构...", "done": "病例结构化分析"},
     "tool_use": {"running": "正在调用脑卒中医疗工具...", "done": "医疗工具调用"},
     "research_plan": {"running": "正在规划循证检索任务...", "done": "主动检索规划"},
+    "evidence_router": {"running": "正在路由证据类型...", "done": "证据路由"},
     "retrieve": {"running": "正在检索循证医学证据...", "done": "循证医学证据检索"},
     "evidence_judge": {"running": "正在评估证据充分性...", "done": "证据质量评估"},
     "query_rewrite": {"running": "正在改写医学检索式...", "done": "医学查询重写"},
@@ -290,6 +291,30 @@ class QwenAgent:
             "status": "done",
         }
 
+    @staticmethod
+    def _format_output(value, indent: int = 0) -> str:
+        """递归把节点输出渲染为可读多行文本(不截断), 供思考链全量打印。"""
+        pad = "  " * indent
+        if isinstance(value, dict):
+            lines = []
+            for k, v in value.items():
+                key = str(k)
+                if isinstance(v, (dict, list)) and v:
+                    lines.append(f"{pad}■ {key}:")
+                    lines.append(QwenAgent._format_output(v, indent + 1))
+                else:
+                    lines.append(f"{pad}■ {key}: {v}")
+            return "\n".join(lines)
+        if isinstance(value, list):
+            lines = []
+            for item in value:
+                if isinstance(item, (dict, list)):
+                    lines.append(QwenAgent._format_output(item, indent))
+                else:
+                    lines.append(f"{pad}- {item}")
+            return "\n".join(lines)
+        return f"{pad}{value}"
+
     def _node_full_content(self, node: str, output: dict) -> str:
         """节点完整输出(思考链全文, 不截断), 供前端"全部打印"。"""
         if not isinstance(output, dict):
@@ -341,13 +366,33 @@ class QwenAgent:
             if parts:
                 return "\n\n".join(parts)
 
-        if node in ("generate_report", "knowledge_answer"):
+        if node == "tool_use":
+            calls = output.get("tool_calls", []) or []
+            if isinstance(calls, list) and calls:
+                parts = []
+                for i, call in enumerate(calls, 1):
+                    if isinstance(call, dict):
+                        parts.append(
+                            f"▶ 工具调用 {i}: {call.get('tool', '未知')}\n"
+                            f"  参数: {json.dumps(call.get('arguments', {}), ensure_ascii=False)}\n"
+                            f"  结果: {json.dumps(call.get('result', {}), ensure_ascii=False)}"
+                        )
+                if parts:
+                    return "\n\n".join(parts)
+
+        if node == "generate_report" or node == "knowledge_answer":
             report = str(output.get("report", "") or "").strip()
             if report:
                 return report
 
-        # 其余节点: 完整结构化输出
-        return json.dumps(output, ensure_ascii=False, indent=2)[:50000]
+        if node == "reject":
+            report = str(output.get("report", "") or "").strip()
+            if report:
+                return "【回复全文】\n" + report
+
+        # 其余全部节点(intent/memory/analysis/research_plan/evidence_router/
+        # evidence_judge/query_rewrite/validate 等): 递归渲染完整输出, 全部打印
+        return "【节点完整输出】\n" + self._format_output(output)
 
     def _node_summary(self, node: str, output: dict) -> str:
         """生成适合通过 SSE 展示的节点结果摘要。"""
