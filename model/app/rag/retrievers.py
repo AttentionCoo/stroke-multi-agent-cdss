@@ -13,10 +13,14 @@ from langchain_core.documents import Document
 from langchain_community.retrievers import BM25Retriever
 
 # Monkey-patch chromadb to prevent ONNX embedding function initialization
-import sys
-import chromadb.utils.embedding_functions as ef_module
-original_default = ef_module.DefaultEmbeddingFunction
-ef_module.DefaultEmbeddingFunction = lambda: None
+# chromadb 1.x 中该模块结构可能变化, patch 失败时静默降级(本项目始终显式传入 embedding_function)
+try:
+    import chromadb
+    import chromadb.utils.embedding_functions as ef_module
+    original_default = ef_module.DefaultEmbeddingFunction
+    ef_module.DefaultEmbeddingFunction = lambda: None
+except Exception:
+    pass
 
 from langchain_chroma import Chroma
 
@@ -377,8 +381,10 @@ def build_or_load_vectorstore(chunks, persist_dir: str, enable_qa: bool = False,
                               collection_name: str = "langchain"):
     logger.info(f"🔌 [VectorStore] 连接: {persist_dir} collection={collection_name}")
     embeddings = DashScopeEmbeddings(model="text-embedding-v2")
+    # langchain-chroma 1.x: 显式传入 chromadb 客户端(旧 persist_directory 参数已移除)
+    chroma_client = chromadb.PersistentClient(path=persist_dir)
     vectordb = Chroma(
-        persist_directory=persist_dir,
+        client=chroma_client,
         embedding_function=embeddings,
         collection_name=collection_name,
     )
@@ -414,12 +420,13 @@ def build_multi_collection_vectorstores(chunks, persist_dir: str, enable_qa: boo
     embeddings = DashScopeEmbeddings(model="text-embedding-v2")
     buckets = bucket_chunks_by_collection(chunks)
     stores = {}
+    chroma_client = chromadb.PersistentClient(path=persist_dir)
     for key in COLLECTION_KEYS:
         docs = buckets.get(key, [])
         name = COLLECTION_NAMES[key]
         logger.info(f"🔌 [VectorStore] 连接: {persist_dir} collection={name} (待入库 {len(docs)} 条)")
         vectordb = Chroma(
-            persist_directory=persist_dir,
+            client=chroma_client,
             embedding_function=embeddings,
             collection_name=name,
         )

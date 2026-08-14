@@ -30,7 +30,7 @@
 import logging
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import SystemMessage, HumanMessage
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.memory import InMemorySaver
 from app.agents.core.schema import ClinicalState
 from app.agents.orchestrators.nodes.intent_node import IntentNode
 from app.agents.orchestrators.nodes.analysis_node import AnalysisNode
@@ -123,7 +123,7 @@ class ClinicalGraphBuilder:
         
         # 实例化持久化内存用于断点等待
         # 支持状态持久化和断点续传
-        self.checkpointer = MemorySaver()
+        self.checkpointer = InMemorySaver()
 
     def build(self):
         """

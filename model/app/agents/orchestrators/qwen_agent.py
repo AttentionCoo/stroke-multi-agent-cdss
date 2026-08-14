@@ -155,6 +155,7 @@ class QwenAgent:
             "router_routes": [],
         }
         streamed_nodes: set = set()
+        started_nodes: set = set()
 
         try:
             # 为每次请求生成唯一的thread_id
@@ -166,95 +167,117 @@ class QwenAgent:
                 }
             }
             
-            async for event in self.graph.astream_events(initial_state, config=config, version="v2"):
-                translated = self._translate_event(event, show_thinking, streamed_nodes)
-                if isinstance(translated, list):
-                    for item in translated:
-                        yield item
-                elif translated:
-                    yield translated
+            # LangGraph 1.x 已移除 astream_events, 改用 astream 双流模式:
+            #   updates  节点完成时产出 {node: output} → node_start/node_done
+            #   messages 节点内 LLM token 流 (chunk, metadata) → token 事件
+            async for stream_mode, chunk in self.graph.astream(
+                initial_state, config=config, stream_mode=["updates", "messages"]
+            ):
+                if stream_mode == "messages":
+                    events = self._on_message_chunk(chunk, show_thinking, started_nodes, streamed_nodes)
+                else:  # updates
+                    events = self._on_node_updates(chunk, show_thinking, started_nodes, streamed_nodes)
+                for item in events:
+                    yield item
 
         except Exception as e:
             logger.error(f"临床推理管线异常 | {format_error_log(e)}")
             yield build_error_event(e, talk_id=None)
 
-    def _translate_event(
+    def _on_message_chunk(
         self,
-        event: dict,
+        chunk,
         show_thinking: bool,
+        started_nodes: set,
         streamed_nodes: set,
-    ) -> Dict | list[Dict] | None:
-        """翻译 LangGraph 事件"""
-        evt = event.get("event", "")
-        name = event.get("name", "")
-        meta = event.get("metadata", {})
-        langgraph_node = meta.get("langgraph_node", "")
+    ) -> list[Dict]:
+        """处理 LLM token 流(对应旧版 on_chat_model_stream)。
 
-        logger.info(f"[event] 事件类型: {evt}, 节点名称: {name}, langgraph_node: {langgraph_node}")
+        chunk = (message_chunk, metadata); metadata.langgraph_node 标识来源节点。
+        """
+        message_chunk, metadata = chunk
+        langgraph_node = metadata.get("langgraph_node", "")
+        if langgraph_node not in self._STREAMING_NODES:
+            return []
 
-        if evt == "on_chain_start" and name in _NODE_DISPLAY and show_thinking:
-            return {
+        content = getattr(message_chunk, "content", "") or ""
+        if isinstance(content, list):
+            # OpenAI 兼容协议返回 content block 列表时拼接文本
+            content = "".join(str(getattr(b, "text", "") or "") for b in content)
+        if not content:
+            return []
+
+        translated = []
+        if show_thinking and langgraph_node not in started_nodes:
+            started_nodes.add(langgraph_node)
+            translated.append({
                 "type": "node_start",
-                "node": name,
-                "label": _NODE_DISPLAY[name]["running"],
+                "node": langgraph_node,
+                "label": _NODE_DISPLAY[langgraph_node]["running"],
                 "status": "running",
-            }
+            })
+        streamed_nodes.add(langgraph_node)
+        translated.append({"type": "token", "content": content})
+        return translated
 
-        if evt == "on_chain_end" and name in _NODE_DISPLAY:
-            output = event.get("data", {}).get("output", {})
-            report_text = output.get("report", "") if isinstance(output, dict) else ""
-            
-            logger.info(f"[event] 节点 {name} 完成，输出类型: {type(output)}")
-            if isinstance(output, dict):
-                logger.info(f"[event] 节点 {name} 输出键: {list(output.keys())}")
-                if "report" in output:
-                    logger.info(f"[event] 节点 {name} 报告长度: {len(output['report'])}")
+    def _on_node_updates(
+        self,
+        updates: dict,
+        show_thinking: bool,
+        started_nodes: set,
+        streamed_nodes: set,
+    ) -> list[Dict]:
+        """处理节点完成事件(对应旧版 on_chain_end)。updates = {node_name: node_output}。"""
+        translated: list[Dict] = []
+        for name, output in updates.items():
+            if name not in _NODE_DISPLAY:
+                continue
 
-            translated_events = []
-            if show_thinking:
-                translated_events.append(self._node_done_event(name, output))
+            logger.info(f"[event] 节点完成: {name}, 输出类型: {type(output)}")
+            if isinstance(output, dict) and "report" in output:
+                logger.info(f"[event] 节点 {name} 报告长度: {len(output['report'])}")
 
-                # tool_use 节点:将每次工具调用展开为独立步骤事件,前端可逐条展示
-                if name == "tool_use" and isinstance(output, dict):
-                    tool_calls = output.get("tool_calls", []) or []
-                    for i, call in enumerate(tool_calls[:10]):  # 防止刷屏,最多展示 10 次
-                        if not isinstance(call, dict):
-                            continue
-                        tool_name = call.get("tool", "未知工具")
-                        args = call.get("arguments", {}) or {}
-                        result = call.get("result", {}) or {}
-                        translated_events.append({
-                            "type": "node_done",
-                            "node": f"tool_call_{i}",
-                            "label": f"工具调用: {tool_name}",
-                            "summary": (
-                                f"参数: {self._short_text(json.dumps(args, ensure_ascii=False), 200)}\n"
-                                f"结果: {self._short_text(json.dumps(result, ensure_ascii=False), 300)}"
-                            ),
-                            "status": "done",
-                        })
+            # updates 模式没有节点开始事件, 节点首次完成时补发 node_start
+            if show_thinking and name not in started_nodes:
+                started_nodes.add(name)
+                translated.append({
+                    "type": "node_start",
+                    "node": name,
+                    "label": _NODE_DISPLAY[name]["running"],
+                    "status": "running",
+                })
+
+            translated.append(self._node_done_event(name, output))
+
+            # tool_use 节点:将每次工具调用展开为独立步骤事件,前端可逐条展示
+            if name == "tool_use" and isinstance(output, dict):
+                tool_calls = output.get("tool_calls", []) or []
+                for i, call in enumerate(tool_calls[:10]):  # 防止刷屏,最多展示 10 次
+                    if not isinstance(call, dict):
+                        continue
+                    tool_name = call.get("tool", "未知工具")
+                    args = call.get("arguments", {}) or {}
+                    result = call.get("result", {}) or {}
+                    translated.append({
+                        "type": "node_done",
+                        "node": f"tool_call_{i}",
+                        "label": f"工具调用: {tool_name}",
+                        "summary": (
+                            f"参数: {self._short_text(json.dumps(args, ensure_ascii=False), 200)}\n"
+                            f"结果: {self._short_text(json.dumps(result, ensure_ascii=False), 300)}"
+                        ),
+                        "status": "done",
+                    })
 
             needs_fallback_token = name == "reject" or (
                 name in self._STREAMING_NODES and name not in streamed_nodes
             )
+            report_text = output.get("report", "") if isinstance(output, dict) else ""
             if needs_fallback_token and report_text:
                 logger.info(f"[event] 节点 {name} 输出报告内容，长度: {len(report_text)}")
                 streamed_nodes.add(name)
-                translated_events.append({"type": "token", "content": report_text})
-
-            if len(translated_events) == 1:
-                return translated_events[0]
-            if translated_events:
-                return translated_events
-
-        if evt == "on_chat_model_stream" and langgraph_node in self._STREAMING_NODES:
-            chunk = event.get("data", {}).get("chunk")
-            content = getattr(chunk, "content", "") if chunk else ""
-            if content:
-                streamed_nodes.add(langgraph_node)
-                return {"type": "token", "content": content}
-
-        return None
+                translated.append({"type": "token", "content": report_text})
+        return translated
 
     def _node_done_event(self, node: str, output: dict) -> Dict:
         """构造节点完成事件(含完整输出, 供思考链全文展示)。"""
