@@ -568,15 +568,20 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                                 json.path("status").asText("running")));
             }
 
-            // node_done 事件：将节点结果摘要映射为 thinking 内容，供前端补全对应步骤
+            // node_done 事件：优先透传节点完整输出 content（专家意见/质询/共识全文），
+            // 无 content 时回退到摘要 summary，供前端思考链"全部打印"
             if ("node_done".equalsIgnoreCase(type)) {
+                String fullContent = json.path("content").asText("");
+                if (fullContent == null || fullContent.isBlank()) {
+                    fullContent = json.path("summary").asText("");
+                }
                 return buildThinkingResponse(
                         talkId,
                         generatedTitle[0],
                         new ThinkingEvent(
                                 json.path("node").asText(""),
                                 json.path("label").asText(""),
-                                json.path("summary").asText(""),
+                                fullContent,
                                 json.path("status").asText("done")));
             }
 

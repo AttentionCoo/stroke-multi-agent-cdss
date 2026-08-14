@@ -304,8 +304,22 @@ class QwenAgent:
 
         if node == "reason":
             parts = []
-            for role, advice in (output.get("expert_opinions", {}) or {}).items():
-                parts.append(f"▶ 专家({role})意见:\n{advice}")
+            # 每位专家的独立意见全文(不截断), 供前端思考链"全部打印"
+            opinions = output.get("expert_opinions", {}) or {}
+            for role, advice in opinions.items():
+                if not advice:
+                    continue
+                parts.append(f"▶ 【{role}】独立意见全文:\n{advice}")
+            # 兼容旧字段(未进入 expert_opinions 时兜底)
+            legacy_map = {
+                "generalist_advice": "全科医生",
+                "specialist_advice": "神经专科医生",
+                "pharmacist_advice": "临床药师",
+            }
+            for key, label in legacy_map.items():
+                val = output.get(key, "")
+                if val and not opinions.get(label):
+                    parts.append(f"▶ 【{label}】独立意见全文:\n{val}")
             for key, label in (("proposal", "综合方案"), ("critique", "风险审查")):
                 val = output.get(key, "")
                 if val:
@@ -316,11 +330,14 @@ class QwenAgent:
         if node == "debate":
             transcript = str(output.get("debate_transcript", "") or "").strip()
             if transcript:
-                return transcript
+                return "【交叉质询全文】\n" + transcript
 
         if node == "consensus_agent":
-            parts = [str(v) for v in (output.get("consensus"), output.get("proposal"),
-                                      output.get("critique")) if v]
+            parts = []
+            for key, label in (("consensus", "会诊共识"), ("proposal", "综合方案"), ("critique", "风险审查")):
+                val = str(output.get(key, "") or "").strip()
+                if val:
+                    parts.append(f"▶ {label}:\n{val}")
             if parts:
                 return "\n\n".join(parts)
 
