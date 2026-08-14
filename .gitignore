@@ -19,6 +19,8 @@ __pycache__/
 .coverage
 htmlcov/
 .env
+.venv/
+venv/
 
 # macOS
 .DS_Store
