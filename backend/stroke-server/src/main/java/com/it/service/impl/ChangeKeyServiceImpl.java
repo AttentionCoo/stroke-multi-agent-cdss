@@ -1,7 +1,7 @@
 package com.it.service.impl;
 
 import cn.hutool.json.JSONUtil;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
 import com.it.pojo.ChangeKey;
 import com.it.pojo.Result;
 import com.it.mapper.ChangeKeyMapper;

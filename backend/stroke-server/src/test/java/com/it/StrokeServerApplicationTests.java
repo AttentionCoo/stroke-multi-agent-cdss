@@ -5,22 +5,22 @@ import com.it.service.impl.AIStreamingServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.redisson.api.RedissonClient;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest
 class StrokeServerApplicationTests {
 
-    @MockBean
+    @MockitoBean
     private RedissonClient redissonClient;
 
-    @MockBean
+    @MockitoBean
     private StringRedisTemplate stringRedisTemplate;
 
-    @MockBean
+    @MockitoBean
     private AIStreamingServiceImpl aiStreamingService;
 
-    @MockBean
+    @MockitoBean
     private OnlineUserTracker onlineUserTracker;
 
     @Test

@@ -1,6 +1,6 @@
 package com.it.service;
 
-import com.baomidou.mybatisplus.extension.service.IService;
+import com.baomidou.mybatisplus.spring.service.IService;
 import com.it.po.uo.PatientParam;
 import com.it.pojo.Patient;
 import com.it.pojo.Result;
