@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { stripThinkingMarkdown } from '@/utils/thinkingEvents'
+import { copyText } from '@/utils/clipboard'
 
 defineOptions({ name: 'ThinkingPanel' })
 
@@ -19,6 +20,10 @@ const props = defineProps({
 
 // 默认展开（"全部打印"思考链）
 const isExpanded = ref(true)
+
+// 复制反馈状态
+const copiedAll = ref(false)
+const copiedSteps = ref({})
 
 // streaming 时展开面板实时查看步骤
 watch(
@@ -65,6 +70,38 @@ function formatContent(content) {
   // 思考链全文完整展示（不截断）
   return { type: 'text', data: trimmed }
 }
+
+// 单个步骤的纯文本(标题 + 内容), 用于复制
+function buildStepText(event, idx) {
+  const title = event.title || event.step || `步骤${idx + 1}`
+  const content = stripThinkingMarkdown(event.content || '')
+  return `【${title}】\n${content}`.trim()
+}
+
+// 复制单个步骤
+async function copyStep(event, idx) {
+  const ok = await copyText(buildStepText(event, idx))
+  if (ok) {
+    copiedSteps.value[idx] = true
+    setTimeout(() => {
+      copiedSteps.value[idx] = false
+    }, 1500)
+  }
+}
+
+// 复制整条思考链
+async function copyAll() {
+  const events = props.thinkingData?.events || []
+  if (!events.length) return
+  const text = events.map((e, i) => buildStepText(e, i)).join('\n\n')
+  const ok = await copyText(text)
+  if (ok) {
+    copiedAll.value = true
+    setTimeout(() => {
+      copiedAll.value = false
+    }, 1500)
+  }
+}
 </script>
 
 <template>
@@ -80,8 +117,13 @@ function formatContent(content) {
         <span v-else class="thinking-icon">✓</span>
         <span class="thinking-header-text">{{ headerText }}</span>
       </div>
-      <!-- 非 streaming 时显示折叠箭头 -->
-      <span v-if="!isStreaming" class="thinking-toggle-icon" :class="{ expanded: isExpanded }">▾</span>
+      <div class="thinking-header-actions">
+        <button type="button" class="copy-all-btn" :class="{ copied: copiedAll }" @click.stop="copyAll">
+          {{ copiedAll ? '已复制' : '复制全部' }}
+        </button>
+        <!-- 非 streaming 时显示折叠箭头 -->
+        <span v-if="!isStreaming" class="thinking-toggle-icon" :class="{ expanded: isExpanded }">▾</span>
+      </div>
     </div>
 
     <!-- 步骤列表 -->
@@ -95,6 +137,16 @@ function formatContent(content) {
         <div class="step-title">
           <span class="step-index">{{ idx + 1 }}</span>
           <span class="step-name">{{ event.title || event.step }}</span>
+          <button
+            v-if="event.status === 'done' && event.content"
+            type="button"
+            class="step-copy-btn"
+            :class="{ copied: copiedSteps[idx] }"
+            :title="copiedSteps[idx] ? '已复制' : '复制本步骤内容'"
+            @click="copyStep(event, idx)"
+          >
+            {{ copiedSteps[idx] ? '✓' : '复制' }}
+          </button>
           <span v-if="event.status === 'done'" class="step-status" title="已完成">✓</span>
           <span v-else class="step-status running" title="处理中"></span>
         </div>
@@ -183,6 +235,60 @@ function formatContent(content) {
 
   &.expanded {
     transform: rotate(180deg);
+  }
+}
+
+.thinking-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.copy-all-btn {
+  border: 1px solid var(--color-border, #e5e7eb);
+  background: var(--color-bg-light, #ffffff);
+  color: var(--color-primary-dark, #0d7a68);
+  font-size: 12px;
+  line-height: 1;
+  padding: 4px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    border-color: var(--color-primary, #11967f);
+    background: rgba(17, 150, 127, 0.06);
+  }
+
+  &.copied {
+    border-color: var(--color-primary, #11967f);
+    background: var(--color-primary, #11967f);
+    color: #ffffff;
+  }
+}
+
+.step-copy-btn {
+  border: none;
+  background: transparent;
+  color: var(--color-text-weak, #9ca3af);
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 8px;
+  margin-left: 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: var(--color-primary, #11967f);
+    background: rgba(17, 150, 127, 0.08);
+  }
+
+  &.copied {
+    color: var(--color-primary, #11967f);
+    font-weight: 600;
   }
 }
 

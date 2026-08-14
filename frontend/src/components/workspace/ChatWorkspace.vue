@@ -10,6 +10,7 @@ import { injectRefLinks } from '@/utils/referenceParser'
 import { buildEvidenceCards } from '@/utils/strokeAssessment'
 import { matchDocumentAPI } from '@/api/documents'
 import { compressImage } from '@/utils/imageCompress'
+import { copyText } from '@/utils/clipboard'
 import AttachFileSVG from '../svg/AttachFileSVG.vue'
 
 defineOptions({ name: 'ChatWorkspace' })
@@ -108,6 +109,8 @@ const userScrolled = ref(false)
 const isHistoryCollapsed = ref(false)
 const isMobileLayout = ref(false)
 const isSyncExpanded = ref(false)
+// 复制反馈: 当前显示"已复制"的消息下标(-1 表示无)
+const copiedMsgIndex = ref(-1)
 
 function syncLayoutState() {
   const mobile = window.innerWidth <= 960
@@ -479,27 +482,18 @@ function msgImages(msg) {
   return typeof msg === 'object' && msg !== null ? (msg.images || []) : []
 }
 
-function handleCopy(msg) {
+function handleCopy(msg, index) {
   const text = msgText(msg)
   if (!text) return
 
-  if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(text).catch(() => fallbackCopy(text))
-    return
-  }
-
-  fallbackCopy(text)
-}
-
-function fallbackCopy(text) {
-  const textarea = document.createElement('textarea')
-  textarea.value = text
-  textarea.style.position = 'fixed'
-  textarea.style.opacity = '0'
-  document.body.appendChild(textarea)
-  textarea.select()
-  document.execCommand('copy')
-  document.body.removeChild(textarea)
+  copyText(text).then((ok) => {
+    if (ok) {
+      copiedMsgIndex.value = index
+      setTimeout(() => {
+        if (copiedMsgIndex.value === index) copiedMsgIndex.value = -1
+      }, 1500)
+    }
+  })
 }
 
 function formatDateTime(value) {
@@ -594,7 +588,9 @@ function evidenceCardsFor(msg, index) {
             :class="{ user: isUserMessage(msg, index) }">
             <div class="message-meta">
               <span>{{ isUserMessage(msg, index) ? '医生输入' : 'AI回复' }}</span>
-              <button type="button" class="copy-btn" @click="handleCopy(msg)">复制</button>
+              <button type="button" class="copy-btn" :class="{ copied: copiedMsgIndex === index }" @click="handleCopy(msg, index)">
+                {{ copiedMsgIndex === index ? '已复制' : '复制' }}
+              </button>
             </div>
 
             <div class="message" :class="{ user: isUserMessage(msg, index) }">
@@ -909,6 +905,16 @@ function evidenceCardsFor(msg, index) {
   color: var(--color-primary-dark);
   cursor: pointer;
   font-size: 12px;
+  transition: color 0.15s ease;
+
+  &:hover {
+    color: var(--color-primary);
+  }
+
+  &.copied {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
 }
 
 /* ─────────────────── History list ─────────────────── */
