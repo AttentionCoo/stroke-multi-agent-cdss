@@ -20,7 +20,7 @@
     "morphdom": "^2.7.8",
     "normalize.css": "^8.0.1",
     "nprogress": "^0.2.0",
-    "pdfjs-dist": "^5.7.284",
+    "pdfjs-dist": "^6.2.108",
     "pinia": "^4.0.3",
     "pinia-plugin-persistedstate": "^4.7.1",
     "vue": "^3.5.41",
