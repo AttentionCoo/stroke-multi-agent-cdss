@@ -209,14 +209,14 @@ function formatContent(content) {
   40% { transform: scale(1); opacity: 1; }
 }
 
-/* 折叠体：max-height 过渡 */
+/* 折叠体：展开后不限高, 思考链全文(专家意见/证据全文)完整可见 */
 .thinking-body {
   max-height: 0;
   overflow: hidden;
-  transition: max-height 0.3s ease;
 
   &.expanded {
-    max-height: 2000px;
+    max-height: none;
+    overflow: visible;
   }
 }
 
