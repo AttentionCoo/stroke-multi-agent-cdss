@@ -12,7 +12,7 @@ from typing import Dict
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
-from app.agents.tools._compat import model_func
+from app.agents.tools.adapters import adapt_model_func
 
 
 class LVOScreeningInput(BaseModel):
@@ -84,7 +84,7 @@ lvo_screening_tool = StructuredTool.from_function(
         "输出 LVO 可能性分层(高/中/低)与是否推荐急诊 CTA。"
     ),
     args_schema=LVOScreeningInput,
-    func=model_func(LVOScreeningInput, _lvo_screening),
+    func=adapt_model_func(LVOScreeningInput, _lvo_screening),
 )
 
 LVO_TOOLS = [lvo_screening_tool]

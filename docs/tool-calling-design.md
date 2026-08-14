@@ -19,17 +19,19 @@
 | 溶栓治疗 | `rtpa_dose_calc` | 体重(kg) | 总剂量、10% 首剂推注、90% 静滴 |
 | 禁忌症检查 | `contraindication_check` | 治疗方式 + 患者病史文本 | 命中禁忌症列表、通过结论 |
 | 诊断分型 | `toast_classify` | 血管/心脏/影像证据线索 | TOAST 建议分型与理由 |
+| 大血管闭塞筛查 | `lvo_screening` | NIHSS 总分 + 神经体征(失语/偏瘫/皮层体征/凝视偏移/忽视) | LVO 概率分层与 CTA 建议 |
 
 ## 3. 代码结构
 
 ```
 model/app/agents/tools/
 ├── __init__.py              # 包导出
-├── _compat.py               # langchain StructuredTool 适配器(model_func)
+├── adapters.py              # langchain StructuredTool 适配器(adapt_model_func)
 ├── scales.py                # NIHSS / mRS / GCS
 ├── thrombolysis.py          # 时间窗 / rt-PA 剂量
 ├── contraindications.py     # 禁忌症检查(复用 rules_config.yaml 规则 + 同义词/数值匹配)
 ├── subtype.py               # TOAST 分型
+├── lvo_screening.py         # 大血管闭塞(LVO)筛查
 └── registry.py              # TOOLS / TOOL_MAP / TOOL_GROUPS / call_tool / get_tool_schemas
 ```
 
@@ -37,7 +39,7 @@ model/app/agents/tools/
 
 - 每个工具 = `StructuredTool.from_function` + pydantic `args_schema`,天然兼容
   `llm.bind_tools()` 与 `ToolNode`
-- `model_func()` 适配器解决 langchain 以字段 kwargs 调用 func 的约定
+- `adapt_model_func()` 适配器解决 langchain 以字段 kwargs 调用 func 的约定
 - 禁忌症工具复用 `get_validation_manager().get_contraindication_rules()`,
   内置同义词表(如「脑出血史」「血小板90」)提高命中率
 - 所有工具纯函数实现、无外部 IO(除配置加载),便于单元测试
@@ -71,7 +73,7 @@ intent → memory → analysis → [tool_use] → research_plan → retrieve →
 ```json
 {
   "code": 1, "msg": "success",
-  "data": { "tools": [...], "groups": {...}, "count": 7 }
+  "data": { "tools": [...], "groups": {...}, "count": 8 }
 }
 ```
 
@@ -89,7 +91,7 @@ intent → memory → analysis → [tool_use] → research_plan → retrieve →
 ## 6. 测试
 
 - `tests/test_tools.py` — 24 个工具单元测试(评分、窗口、剂量、禁忌(含血压数值/治疗别名)、分型、注册表)
-- `tests/test_tool_use_integration.py` — 4 个集成测试(mock LLM 驱动 ToolUseNode、图编译含/不含 tool_use)
+- `tests/test_tool_use_integration.py` — 26 个集成测试(mock LLM 驱动 ToolUseNode、图编译含/不含 tool_use、规则兜底、临床一致性校验等)
 - `tests/test_tools_api.py` — 5 个 API 端点测试(工具清单、token 校验、错误脱敏)
 
 运行:

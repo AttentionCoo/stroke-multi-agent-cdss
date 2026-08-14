@@ -11,7 +11,7 @@ from typing import Dict, List
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
-from app.agents.tools._compat import model_func
+from app.agents.tools.adapters import adapt_model_func
 
 
 class TOASTInput(BaseModel):
@@ -138,7 +138,7 @@ toast_classify_tool = StructuredTool.from_function(
         "输出建议分型(大动脉粥样硬化型/心源性栓塞型/小动脉闭塞型/其他明确病因型/不明原因型)。"
     ),
     args_schema=TOASTInput,
-    func=model_func(TOASTInput, _toast_classify),
+    func=adapt_model_func(TOASTInput, _toast_classify),
 )
 
 SUBTYPE_TOOLS = [toast_classify_tool]

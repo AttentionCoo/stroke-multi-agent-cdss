@@ -138,7 +138,7 @@ docker compose up -d
 
 ### 🆕 6. 脑卒中医疗工具调用（Skill & Tool Calling）
 
-系统内置 7 个脑卒中领域工具（NIHSS/mRS/GCS 量表、溶栓时间窗、rt-PA 剂量、禁忌症筛查、TOAST 分型），通过 LangGraph `tool_use` 节点接入推理链：LLM 以 function calling 自主选择工具，结果注入多专家推理；当弱模型判断信息不足时，规则引擎按病例临床线索自动兜底调度，确保明确的评估/检查需求不被遗漏。工具既可在推理链中调用，也可通过独立 API 直接使用。
+系统内置 8 个脑卒中领域工具（NIHSS/mRS/GCS 量表、溶栓时间窗、rt-PA 剂量、禁忌症筛查、TOAST 分型、LVO 筛查），通过 LangGraph `tool_use` 节点接入推理链：LLM 以 function calling 自主选择工具，结果注入多专家推理；当弱模型判断信息不足时，规则引擎按病例临床线索自动兜底调度，确保明确的评估/检查需求不被遗漏。工具既可在推理链中调用，也可通过独立 API 直接使用。
 
 ### 🆕 7. AI 对话命名与体验优化
 

@@ -20,9 +20,10 @@ def test_list_endpoint_returns_tools():
     r = _client().get("/model/tools/list")
     assert r.status_code == 200
     data = r.json()["data"]
-    assert data["count"] == 7
+    assert data["count"] == 8
     names = {t["name"] for t in data["tools"]}
     assert "nihss_score" in names and "rtpa_dose_calc" in names
+    assert "lvo_screening" in names
 
 
 def test_call_endpoint_without_token_succeeds():

@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
-from app.agents.tools._compat import model_func
+from app.agents.tools.adapters import adapt_model_func
 
 # ---------------------------------------------------------------------------
 # NIHSS(美国国立卫生研究院卒中量表)
@@ -102,7 +102,7 @@ nihss_score_tool = StructuredTool.from_function(
         "适用于急性缺血性卒中神经功能缺损评估。"
     ),
     args_schema=NIHSSInput,
-    func=model_func(NIHSSInput, _nihss_score),
+    func=adapt_model_func(NIHSSInput, _nihss_score),
 )
 
 # ---------------------------------------------------------------------------
@@ -147,7 +147,7 @@ mrs_score_tool = StructuredTool.from_function(
     name="mrs_score",
     description="计算 mRS(改良 Rankin 量表)功能结局分级(0-6),返回分级描述与预后提示。",
     args_schema=MRSInput,
-    func=model_func(MRSInput, _mrs_score),
+    func=adapt_model_func(MRSInput, _mrs_score),
 )
 
 # ---------------------------------------------------------------------------
@@ -189,7 +189,7 @@ gcs_score_tool = StructuredTool.from_function(
     name="gcs_score",
     description="计算 GCS(格拉斯哥昏迷量表)总分(3-15)与意识障碍分级。输入 E/V/M 三部分得分。",
     args_schema=GCSInput,
-    func=model_func(GCSInput, _gcs_score),
+    func=adapt_model_func(GCSInput, _gcs_score),
 )
 
 SCALE_TOOLS: List[StructuredTool] = [

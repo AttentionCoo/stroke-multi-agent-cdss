@@ -11,7 +11,7 @@ from typing import Dict, List, Optional
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
-from app.agents.tools._compat import model_func
+from app.agents.tools.adapters import adapt_model_func
 from app.config.config_loader import get_validation_manager
 
 # 患者信息中常见同义表述 → 规则关键词(提高命中率)
@@ -192,7 +192,7 @@ contraindication_check_tool = StructuredTool.from_function(
         "输入治疗方式与患者病史文本,返回命中的禁忌症规则及结论。"
     ),
     args_schema=ContraindicationInput,
-    func=model_func(ContraindicationInput, _check_contraindication),
+    func=adapt_model_func(ContraindicationInput, _check_contraindication),
 )
 
 CONTRAINDICATION_TOOLS = [contraindication_check_tool]

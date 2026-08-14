@@ -15,7 +15,7 @@ from typing import Dict, Optional
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
-from app.agents.tools._compat import model_func
+from app.agents.tools.adapters import adapt_model_func
 
 
 class ThrombolysisWindowInput(BaseModel):
@@ -86,11 +86,11 @@ thrombolysis_window_tool = StructuredTool.from_function(
         "返回是否在 3h/4.5h 溶栓窗内及处理建议。"
     ),
     args_schema=ThrombolysisWindowInput,
-    func=model_func(ThrombolysisWindowInput, _thrombolysis_window),
+    func=adapt_model_func(ThrombolysisWindowInput, _thrombolysis_window),
 )
 
 
-class RtPADoseInput(BaseModel):
+class RtpaDoseInput(BaseModel):
     """rt-PA 剂量计算输入。"""
 
     weight_kg: float = Field(gt=0, le=300, description="患者体重(公斤)")
@@ -102,7 +102,7 @@ class RtPADoseInput(BaseModel):
     )
 
 
-def _rtpa_dose(inputs: RtPADoseInput) -> Dict:
+def _rtpa_dose(inputs: RtpaDoseInput) -> Dict:
     raw = inputs.weight_kg * inputs.dose_per_kg
     total_dose = min(raw, inputs.max_dose_mg)
     bolus = round(total_dose * 0.10, 2)   # 10% 首剂静推
@@ -126,8 +126,8 @@ rtpa_dose_tool = StructuredTool.from_function(
         "按体重计算 rt-PA(阿替普酶)静脉溶栓剂量:0.9mg/kg,最大 90mg,"
         "返回总剂量、10% 首剂推注量与 90% 静滴量。"
     ),
-    args_schema=RtPADoseInput,
-    func=model_func(RtPADoseInput, _rtpa_dose),
+    args_schema=RtpaDoseInput,
+    func=adapt_model_func(RtpaDoseInput, _rtpa_dose),
 )
 
 THROMBOLYSIS_TOOLS = [thrombolysis_window_tool, rtpa_dose_tool]

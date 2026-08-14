@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, Type
 from pydantic import BaseModel
 
 
-def model_func(
+def adapt_model_func(
     schema: Type[BaseModel],
     impl: Callable[[BaseModel], Dict[str, Any]],
 ) -> Callable[..., Dict[str, Any]]:
