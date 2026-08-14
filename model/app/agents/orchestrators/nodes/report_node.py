@@ -112,7 +112,7 @@ class ReportNode(BaseNode):
 4. 不得用 REJECT、安全警告、免责声明或内部质控过程代替对问题的回答。
 5. 只回答原问题需要的内容，不扩展无关章节；不得虚构证据或给出未经个体化核验的具体药物剂量。
 6. 正文不要输出“安全警告”章节，系统会在答案末尾追加必要的复核提示。
-7. 严格遵循用户提问原文中的全部明确指示(如输出格式'用表格/分点'、语言'用中文/英文'、详略'简洁/详细'等)，不得擅自忽略或改变口径。"""
+7. 严格遵循用户提问原文中的全部明确指示(如输出格式'用表格/分点'、语言'用中文/英文'、详略'简洁/详细'等)，不得擅自忽略或改变口径；若用户指定了回答顺序(如'先给最紧急的处置')，章节顺序必须与用户指定的顺序一致。"""
         else:
             report_template = self.report_manager.get_template(state['report_mode'])
             prompt_text = report_template.format(
@@ -121,6 +121,16 @@ class ReportNode(BaseNode):
                 evidence=evidence_context,
                 proposal=truncate_text(state['proposal'], MAX_PROPOSAL_CHARS) or "无",
                 critique=truncate_text(state['critique'], MAX_CRITIQUE_CHARS) or "无批判意见",
+            )
+            # 模板分支同样必须遵循用户提问原文中的指示
+            original_question = str(state.get('case_text', '') or '').strip()
+            prompt_text += (
+                f"\n\n【用户提问原文(必须遵循其中指示)】\n{original_question}\n"
+                "【用户指示优先 — 强制】输出必须严格遵循用户提问中的全部明确指示"
+                "(如'分点回答''先给最紧急的处置''用表格''简洁/详细'等)。"
+                "若用户要求先回答最紧急的处置或指定了回答顺序，"
+                "必须在报告最开头新增'## 紧急处置速览'章节，分点列出即刻执行的处置，"
+                "然后再按模板结构展开其余内容，不得把最紧急的处置放在报告末尾。"
             )
 
         if warning_block and not user_questions:
