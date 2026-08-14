@@ -2,6 +2,7 @@ spring:
   application:
     name: stroke-server
   main:
+    # TODO: 消除现有循环依赖后可移除该开关
     allow-circular-references: true
   profiles:
     active: dev
@@ -64,7 +65,6 @@ mybatis-plus:
     db-config:
       ddl: false
   configuration:
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     map-underscore-to-camel-case: true
 
 ai:
@@ -101,7 +101,8 @@ logging:
     name: ${logging.file.path}/application.log
   level:
     root: INFO
-    com.it: DEBUG
+    # 生产勿开 DEBUG：患者数据可能随 SQL/参数日志泄露
+    com.it: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
@@ -116,13 +117,3 @@ rate-limiter:
   user:
     limit: 3
     interval: 60
-
-resilience4j:
-  circuitbreaker:
-    instances:
-      default:
-        register-health-indicator: true
-        sliding-window-size: 100
-        minimum-number-of-calls: 10
-        failure-rate-threshold: 50
-        wait-duration-in-open-state: 10s

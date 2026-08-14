@@ -32,7 +32,6 @@ mybatis-plus:
     db-config:
       ddl: false
   configuration:
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     map-underscore-to-camel-case: true
 
 logging:
