@@ -157,6 +157,8 @@ class QwenAgent:
         }
         streamed_nodes: set = set()
         started_nodes: set = set()
+        # 各节点实时生成缓冲: {node: {expert_or_node: 累计文本}}, 供思考链实时打印
+        self._live_buffers: dict = {}
 
         try:
             # 为每次请求生成唯一的thread_id
@@ -168,14 +170,17 @@ class QwenAgent:
                 }
             }
             
-            # LangGraph 1.x 已移除 astream_events, 改用 astream 双流模式:
+            # LangGraph 1.x 已移除 astream_events, 改用 astream 三流模式:
             #   updates  节点完成时产出 {node: output} → node_start/node_done
-            #   messages 节点内 LLM token 流 (chunk, metadata) → token 事件
+            #   messages 节点内 LLM token 流 (chunk, metadata) → token 事件(报告打字机)
+            #   custom   各节点 astream_text 实时写入的生成过程 → node_token 事件(思考链实时打印)
             async for stream_mode, chunk in self.graph.astream(
-                initial_state, config=config, stream_mode=["updates", "messages"]
+                initial_state, config=config, stream_mode=["updates", "messages", "custom"]
             ):
                 if stream_mode == "messages":
                     events = self._on_message_chunk(chunk, show_thinking, started_nodes, streamed_nodes)
+                elif stream_mode == "custom":
+                    events = self._on_custom_event(chunk, show_thinking, started_nodes)
                 else:  # updates
                     events = self._on_node_updates(chunk, show_thinking, started_nodes, streamed_nodes)
                 for item in events:
@@ -184,6 +189,60 @@ class QwenAgent:
         except Exception as e:
             logger.error(f"临床推理管线异常 | {format_error_log(e)}")
             yield build_error_event(e, talk_id=None)
+
+    def _render_live(self, node: str, buf: dict) -> str:
+        """把实时缓冲区渲染为当前节点生成中的快照文本。"""
+        parts = []
+        for key, text in buf.items():
+            if key == "__node__":
+                parts.append(text)
+            else:
+                parts.append(f"▶ 【{key}】(实时生成中)\n{text}")
+        return "\n\n".join(parts)
+
+    def _on_custom_event(
+        self,
+        chunk,
+        show_thinking: bool,
+        started_nodes: set,
+    ) -> list[Dict]:
+        """处理各节点经 stream_writer 写入的实时生成过程(custom 流)。
+
+        payload = {"node": 节点名, "chunk": 增量文本, "expert": 可选专家标签}
+        → 累加进实时缓冲, 输出 node_token 快照事件(前端对运行中步骤做增量替换显示)。
+        """
+        payload = chunk
+        if isinstance(chunk, tuple) and len(chunk) == 2 and isinstance(chunk[0], dict):
+            payload = chunk[0]  # langgraph 某些版本以 (payload, metadata) 形式产出
+        if not isinstance(payload, dict) or not payload.get("chunk"):
+            return []
+        node = str(payload.get("node", "") or "")
+        if node not in _NODE_DISPLAY:
+            return []
+        text = str(payload["chunk"])
+        expert = payload.get("expert")
+        buf = self._live_buffers.setdefault(node, {})
+        key = str(expert) if expert else "__node__"
+        buf[key] = buf.get(key, "") + text
+        snapshot = self._render_live(node, buf)
+
+        translated = []
+        if show_thinking and node not in started_nodes:
+            started_nodes.add(node)
+            translated.append({
+                "type": "node_start",
+                "node": node,
+                "label": _NODE_DISPLAY[node]["running"],
+                "status": "running",
+            })
+        translated.append({
+            "type": "node_token",
+            "node": node,
+            "label": _NODE_DISPLAY[node]["running"],
+            "content": snapshot,
+            "status": "running",
+        })
+        return translated
 
     def _on_message_chunk(
         self,
@@ -249,6 +308,9 @@ class QwenAgent:
                 })
 
             translated.append(self._node_done_event(name, output))
+
+            # 节点完成后清空其实时缓冲(反思回环再次执行时重新实时积累)
+            self._live_buffers.pop(name, None)
 
             # tool_use 节点:将每次工具调用展开为独立步骤事件,前端可逐条展示
             if name == "tool_use" and isinstance(output, dict):

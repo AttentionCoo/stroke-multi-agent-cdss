@@ -3,7 +3,7 @@ import json
 from typing import Dict, Any
 from langchain_core.messages import HumanMessage
 from app.agents.core.schema import ClinicalState
-from app.agents.orchestrators.nodes.base import BaseNode
+from app.agents.orchestrators.nodes.base import BaseNode, astream_text
 from app.agents.constants import MAX_SUB_QUESTIONS
 
 logger = logging.getLogger(__name__)
@@ -92,8 +92,8 @@ class AnalysisNode(BaseNode):
 - clinical_questions: 【重要】{intent_hint} 问题必须用中文，每条30字以内，用于检索医学文献
 - user_questions: 若输入中用户明确提出了若干具体问题（例如以"请回答以下问题："引导的列表），请将每个问题原文提取为字符串数组；若无，则返回空数组。"""
 
-        response = await self.llm.ainvoke([HumanMessage(content=prompt)])
-        result = self._parse_json(getattr(response, "content", ""), None)
+        content = await astream_text(self.llm, [HumanMessage(content=prompt)], label="analysis")
+        result = self._parse_json(content, None)
 
         if result and isinstance(result, dict):
             result.setdefault("user_questions", [])

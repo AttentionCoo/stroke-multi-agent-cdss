@@ -556,6 +556,19 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                 return Flux.just(objectMapper.writeValueAsString(tokenResp));
             }
 
+            // node_token 事件：节点生成过程的实时快照 → thinking 事件(running)，
+            // 供前端思考链对运行中步骤做增量替换显示；不混入最终回答全文
+            if ("node_token".equalsIgnoreCase(type)) {
+                return buildThinkingResponse(
+                        talkId,
+                        generatedTitle[0],
+                        new ThinkingEvent(
+                                json.path("node").asText(""),
+                                json.path("label").asText(""),
+                                json.path("content").asText(""),
+                                json.path("status").asText("running")));
+            }
+
             // node_start 事件：LangGraph 节点开始执行（替代旧版 thinking），透传为 thinking 事件
             if ("node_start".equalsIgnoreCase(type)) {
                 return buildThinkingResponse(

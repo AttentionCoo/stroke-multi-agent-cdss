@@ -94,8 +94,19 @@ class IntentNode(BaseNode):
         返回：
         - Dict: 包含意图类型的字典
         """
-        # 调用LLM进行意图分类
-        content = await self.chain.ainvoke({"case_text": state["case_text"]})
+        # 调用LLM进行意图分类(实时流式打印到思考链)
+        pieces = []
+        try:
+            from langgraph.config import get_stream_writer
+            writer = get_stream_writer()
+        except Exception:
+            writer = None
+        async for piece in self.chain.astream({"case_text": state["case_text"]}):
+            if piece:
+                pieces.append(str(piece))
+                if writer is not None:
+                    writer({"node": "intent", "chunk": str(piece)})
+        content = "".join(pieces)
         
         # 解析JSON格式的分类结果
         result = self._parse_json(content)

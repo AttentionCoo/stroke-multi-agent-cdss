@@ -101,6 +101,16 @@ function normalizeThinkingEvent(thinking = {}) {
 export function mergeThinkingEvent(events, thinking) {
   const next = normalizeThinkingEvent(thinking)
 
+  // 运行中的实时快照(node_token): 替换同节点最近一条未完成步骤的内容, 实现实时打印
+  if (next.status !== 'done' && next.step && next.content) {
+    const last = events[events.length - 1]
+    if (last && last.step === next.step && last.status !== 'done') {
+      last.content = next.content
+      last.title = next.title || last.title
+      return last
+    }
+  }
+
   if (next.status === 'done' && next.step) {
     for (let index = events.length - 1; index >= 0; index -= 1) {
       const current = events[index]

@@ -6,7 +6,7 @@ from typing import Dict, List
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.agents.core.schema import ClinicalState
-from app.agents.orchestrators.nodes.base import BaseNode
+from app.agents.orchestrators.nodes.base import BaseNode, astream_text
 from app.agents.utils.json_utils import parse_json_output
 from app.agents.utils.text_utils import truncate_text
 
@@ -75,11 +75,15 @@ class EvidenceJudgeNode(BaseNode):
 
         data = None
         try:
-            response = await self.llm.ainvoke([
-                SystemMessage(content="你是独立的循证医学证据审查员。"),
-                HumanMessage(content=prompt),
-            ])
-            data = parse_json_output(getattr(response, "content", ""), None)
+            content = await astream_text(
+                self.llm,
+                [
+                    SystemMessage(content="你是独立的循证医学证据审查员。"),
+                    HumanMessage(content=prompt),
+                ],
+                label="evidence_judge",
+            )
+            data = parse_json_output(content, None)
         except Exception as exc:
             logger.warning("证据质量评估失败，使用启发式结果: %s", exc)
 
@@ -144,11 +148,15 @@ class QueryRewriteNode(BaseNode):
 
         candidates: List[str] = []
         try:
-            response = await self.llm.ainvoke([
-                SystemMessage(content="你负责修正低召回率的医学检索查询。"),
-                HumanMessage(content=prompt),
-            ])
-            data = parse_json_output(getattr(response, "content", ""), {})
+            content = await astream_text(
+                self.llm,
+                [
+                    SystemMessage(content="你负责修正低召回率的医学检索查询。"),
+                    HumanMessage(content=prompt),
+                ],
+                label="query_rewrite",
+            )
+            data = parse_json_output(content, {})
             if isinstance(data, dict) and isinstance(data.get("queries"), list):
                 candidates = data["queries"]
             elif isinstance(data, list):

@@ -16,7 +16,7 @@ from typing import Dict, List
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.agents.core.schema import ClinicalState
-from app.agents.orchestrators.nodes.base import BaseNode
+from app.agents.orchestrators.nodes.base import BaseNode, astream_text
 from app.agents.utils.json_utils import parse_json_output
 
 logger = logging.getLogger(__name__)
@@ -78,11 +78,15 @@ query 必须与输入完全一致。"""
 
         data = None
         try:
-            response = await self.llm.ainvoke([
-                SystemMessage(content="你是严谨的医学证据路由专家,只根据查询的临床意图路由,不编造。"),
-                HumanMessage(content=prompt),
-            ])
-            data = parse_json_output(getattr(response, "content", ""), None)
+            content = await astream_text(
+                self.llm,
+                [
+                    SystemMessage(content="你是严谨的医学证据路由专家,只根据查询的临床意图路由,不编造。"),
+                    HumanMessage(content=prompt),
+                ],
+                label="evidence_router",
+            )
+            data = parse_json_output(content, None)
         except Exception as exc:
             logger.warning("Evidence Router 调用失败,使用规则兜底: %s", exc)
 

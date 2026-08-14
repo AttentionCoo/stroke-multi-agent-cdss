@@ -7,7 +7,7 @@ from typing import Dict
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.agents.core.schema import ClinicalState
-from app.agents.orchestrators.nodes.base import BaseNode
+from app.agents.orchestrators.nodes.base import BaseNode, astream_text
 from app.agents.utils.text_utils import format_numbered_questions
 from app.config.config_loader import get_expert_manager
 
@@ -71,11 +71,16 @@ class DebateNode(BaseNode):
 
 必须检查意见是否逐项回答了用户原始问题；即使某项处置应被拒绝，也不能用拒绝结论代替对问题本身的回答。
 每项医学判断必须尽量引用证据编号，例如【证据 R1-Q1-E1】；不得虚构证据。"""
-        response = await self.llm.ainvoke([
-            SystemMessage(content=f"你是严谨的{role}，正在参与真实多学科会诊。"),
-            HumanMessage(content=prompt),
-        ])
-        return str(getattr(response, "content", "") or "").strip()
+        response = await astream_text(
+            self.llm,
+            [
+                SystemMessage(content=f"你是严谨的{role}，正在参与真实多学科会诊。"),
+                HumanMessage(content=prompt),
+            ],
+            label="debate",
+            expert=role,
+        )
+        return response.strip()
 
 
 class ConsensusNode(BaseNode):
@@ -122,11 +127,15 @@ class ConsensusNode(BaseNode):
 禁止确诊语气，禁止虚构证据，禁止给出未经个体化核验的具体药物剂量。"""
 
         try:
-            response = await self.llm.ainvoke([
-                SystemMessage(content="你是中立、保守、循证的多学科会诊主持人。"),
-                HumanMessage(content=prompt),
-            ])
-            content = str(getattr(response, "content", "") or "").strip()
+            content = await astream_text(
+                self.llm,
+                [
+                    SystemMessage(content="你是中立、保守、循证的多学科会诊主持人。"),
+                    HumanMessage(content=prompt),
+                ],
+                label="consensus_agent",
+            )
+            content = content.strip()
         except Exception as exc:
             logger.error("会诊共识生成失败: %s", exc)
             content = (

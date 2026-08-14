@@ -9,20 +9,28 @@ from app.agents.orchestrators.nodes.evidence_router_node import EvidenceRouterNo
 
 
 class _FakeRouterLLM:
+    _content = json.dumps({
+        "routes": [
+            {"query": "是否静脉溶栓", "evidence_type": "treatment",
+             "target_categories": ["指南", "专家共识"], "keywords": ["alteplase", "thrombolysis"]},
+            {"query": "左MCA定位", "evidence_type": "anatomy",
+             "target_categories": ["教材"], "keywords": ["MCA syndrome", "aphasia"]},
+        ]
+    })
+
     async def ainvoke(self, messages):
-        return type("R", (), {"content": json.dumps({
-            "routes": [
-                {"query": "是否静脉溶栓", "evidence_type": "treatment",
-                 "target_categories": ["指南", "专家共识"], "keywords": ["alteplase", "thrombolysis"]},
-                {"query": "左MCA定位", "evidence_type": "anatomy",
-                 "target_categories": ["教材"], "keywords": ["MCA syndrome", "aphasia"]},
-            ]
-        })})
+        return type("R", (), {"content": self._content})
+
+    async def astream(self, messages):
+        yield type("R", (), {"content": self._content})
 
 
 class _EmptyLLM:
     async def ainvoke(self, messages):
         return type("R", (), {"content": "bad json"})
+
+    async def astream(self, messages):
+        yield type("R", (), {"content": "bad json"})
 
 
 async def main():

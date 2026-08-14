@@ -20,7 +20,7 @@ import logging
 import asyncio
 from typing import Dict
 from app.agents.core.schema import ClinicalState
-from app.agents.orchestrators.nodes.base import BaseNode
+from app.agents.orchestrators.nodes.base import BaseNode, astream_text
 from langchain_core.messages import HumanMessage, SystemMessage
 from app.config.config_loader import get_expert_manager
 from app.agents.utils.text_utils import format_numbered_questions
@@ -236,13 +236,17 @@ class ReasonNode(BaseNode):
 关键医学判断必须尽量引用检索证据中的真实编号，例如【证据 R1-Q1-E1】；不得虚构证据编号。"""
         
         try:
-            # 调用LLM进行专家推理
-            # SystemMessage设定专家角色，HumanMessage提供具体任务
-            res = await self.llm.ainvoke([
-                SystemMessage(content=system_prompt), 
-                HumanMessage(content=prompt)
-            ])
-            return getattr(res, "content", "")
+            # 调用LLM进行专家推理(实时流式打印, 携带专家标签)
+            content = await astream_text(
+                self.llm,
+                [
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=prompt),
+                ],
+                label="reason",
+                expert=role,
+            )
+            return content
         except Exception as e:
             # 异常处理：记录错误并返回友好的错误信息
             logger.error(f"{role} 推理失败: {e}")

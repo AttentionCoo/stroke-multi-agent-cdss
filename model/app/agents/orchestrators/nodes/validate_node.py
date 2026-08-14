@@ -22,7 +22,7 @@ import logging
 import re
 from typing import Dict
 from app.agents.core.schema import ClinicalState
-from app.agents.orchestrators.nodes.base import BaseNode
+from app.agents.orchestrators.nodes.base import BaseNode, astream_text
 from langchain_core.messages import HumanMessage, SystemMessage
 from app.config.config_loader import get_validation_manager
 
@@ -184,12 +184,16 @@ class ValidateNode(BaseNode):
 指南中列出的通用禁忌证不等于患者已存在该禁忌证，必须以患者输入和记忆中的阳性事实为准。"""
         
         try:
-            # 调用LLM进行反思校验
-            res = await self.llm.ainvoke([
-                SystemMessage(content="你是严厉的医疗质控审查员。"), 
-                HumanMessage(content=reflection_prompt)
-            ])
-            verdict = getattr(res, "content", "PASS").strip()
+            # 调用LLM进行反思校验(实时流式打印)
+            verdict = await astream_text(
+                self.llm,
+                [
+                    SystemMessage(content="你是严厉的医疗质控审查员。"),
+                    HumanMessage(content=reflection_prompt),
+                ],
+                label="validate",
+            )
+            verdict = verdict.strip()
             
             # 解析校验结果
             if verdict.startswith("REJECT"):

@@ -66,6 +66,7 @@ async def check_astream():
 
 def check_event_handlers():
     agent = object.__new__(QwenAgent)  # 绕过 __init__, 不触碰 LLM
+    agent._live_buffers = {}
     started, streamed = set(), set()
 
     # 节点完成 → node_start + node_done (+tool_call 展开)
@@ -143,6 +144,38 @@ def check_full_content():
     print("PASS 全节点全文渲染")
 
 
+def check_live_stream():
+    """零成本验证: custom 流实时快照(node_token)逻辑。"""
+    agent = object.__new__(QwenAgent)
+    agent._live_buffers = {}
+    started = set()
+
+    # 单节点自定义流: 首次补 node_start, 快照逐段累积
+    events = agent._on_custom_event({"node": "analysis", "chunk": "片段一"}, True, started)
+    assert [e["type"] for e in events] == ["node_start", "node_token"], events
+    assert events[-1]["content"] == "片段一"
+    events = agent._on_custom_event({"node": "analysis", "chunk": "片段二"}, True, started)
+    assert len(events) == 1 and events[0]["type"] == "node_token"
+    assert events[0]["content"] == "片段一片段二", events[0]["content"]
+
+    # 专家标签: reason 节点三位专家各自累积
+    agent._on_custom_event({"node": "reason", "chunk": "意见A", "expert": "全科医生"}, True, started)
+    events = agent._on_custom_event({"node": "reason", "chunk": "意见B", "expert": "神经专科医生"}, True, started)
+    content = events[-1]["content"]
+    assert "【全科医生】" in content and "【神经专科医生】" in content, content
+
+    # tuple 形式兼容与未知节点忽略
+    events = agent._on_custom_event(({"node": "debate", "chunk": "质询"}, {}), True, started)
+    assert events and events[-1]["type"] == "node_token"
+    assert agent._on_custom_event({"node": "nope", "chunk": "x"}, True, started) == []
+
+    # 节点完成后清缓冲, 反思回环重新积累
+    agent._live_buffers.pop("analysis", None)
+    events = agent._on_custom_event({"node": "analysis", "chunk": "新一轮"}, True, started)
+    assert events[-1]["content"] == "新一轮", events[-1]["content"]
+    print("PASS 实时流(custom)处理")
+
+
 if __name__ == "__main__":
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -151,4 +184,5 @@ if __name__ == "__main__":
     asyncio.run(check_astream())
     check_event_handlers()
     check_full_content()
+    check_live_stream()
     print("ALL PASS")

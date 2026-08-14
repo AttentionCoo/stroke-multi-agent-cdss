@@ -108,6 +108,25 @@ class ToolUseNode(BaseNode):
         tool_records: List[Dict] = []
         called_once = False
 
+        # 实时流式打印: 工具执行记录写入 custom 流(思考链实时展示)
+        try:
+            from langgraph.config import get_stream_writer
+            stream_writer = get_stream_writer()
+        except Exception:
+            stream_writer = None
+
+        def emit_tool_live(name: str, args: Dict, result: Dict):
+            if stream_writer is None:
+                return
+            stream_writer({
+                "node": "tool_use",
+                "chunk": (
+                    f"【工具调用】{name}\n"
+                    f"参数: {json.dumps(args, ensure_ascii=False)}\n"
+                    f"结果: {json.dumps(result, ensure_ascii=False)}"
+                ),
+            })
+
         for _round in range(self.max_rounds):
             try:
                 response = await self.llm.ainvoke(messages)
@@ -168,6 +187,7 @@ class ToolUseNode(BaseNode):
                     )
 
                 tool_records.append({"tool": name, "arguments": args, "result": result})
+                emit_tool_live(name, args, result if isinstance(result, dict) else {"result": result})
                 messages.append(
                     ToolMessage(
                         content=json.dumps(result, ensure_ascii=False),
@@ -205,6 +225,7 @@ class ToolUseNode(BaseNode):
                             "非临床实际评估结果,仅供参考,建议以医生实际量表评分为准。"
                         )
                     tool_records.append({"tool": name, "arguments": args, "result": result})
+                    emit_tool_live(name, args, result if isinstance(result, dict) else {"result": result})
                     logger.info(f"[tool_use] 兜底调用 {name}, 参数: {args}")
 
         # 结构化结果文本,供 reason 等节点注入提示词

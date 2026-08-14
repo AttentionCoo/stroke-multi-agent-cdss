@@ -13,30 +13,38 @@ from app.agents.orchestrators.nodes.research_node import ResearchPlanNode
 
 
 class _FakeLLM:
+    _content = json.dumps({
+        "need_retrieve": True,
+        "missing_information": ["血小板计数", "CTA结果"],
+        "clinical_decisions": [
+            {"decision_name": "是否机械取栓", "decision_type": "treatment",
+             "patient_evidence": ["NIHSS 16"], "uncertainty": ["CTA闭塞"],
+             "required_evidence": ["EVT指南"], "priority": 9},
+            {"decision_name": "是否静脉溶栓", "decision_type": "treatment",
+             "patient_evidence": ["发病90分钟"], "uncertainty": ["血小板"],
+             "required_evidence": ["AHA指南"], "priority": 10},
+            {"decision_name": "TOAST分型", "decision_type": "etiology",
+             "patient_evidence": ["房颤史"], "uncertainty": [],
+             "required_evidence": ["TOAST标准"], "priority": 5},
+        ],
+        "retrieval_tasks": [{"question": "是否溶栓", "query": "acute ischemic stroke IV alteplase guideline 4.5h"}],
+        "expanded_queries": ["thrombolysis window"],
+        "hypothetical_document": "疑似急性缺血性卒中患者时间窗内评估",
+    })
+
     async def ainvoke(self, messages):
-        return type("R", (), {"content": json.dumps({
-            "need_retrieve": True,
-            "missing_information": ["血小板计数", "CTA结果"],
-            "clinical_decisions": [
-                {"decision_name": "是否机械取栓", "decision_type": "treatment",
-                 "patient_evidence": ["NIHSS 16"], "uncertainty": ["CTA闭塞"],
-                 "required_evidence": ["EVT指南"], "priority": 9},
-                {"decision_name": "是否静脉溶栓", "decision_type": "treatment",
-                 "patient_evidence": ["发病90分钟"], "uncertainty": ["血小板"],
-                 "required_evidence": ["AHA指南"], "priority": 10},
-                {"decision_name": "TOAST分型", "decision_type": "etiology",
-                 "patient_evidence": ["房颤史"], "uncertainty": [],
-                 "required_evidence": ["TOAST标准"], "priority": 5},
-            ],
-            "retrieval_tasks": [{"question": "是否溶栓", "query": "acute ischemic stroke IV alteplase guideline 4.5h"}],
-            "expanded_queries": ["thrombolysis window"],
-            "hypothetical_document": "疑似急性缺血性卒中患者时间窗内评估",
-        })})
+        return type("R", (), {"content": self._content})
+
+    async def astream(self, messages):
+        yield type("R", (), {"content": self._content})
 
 
 class _EmptyLLM:
     async def ainvoke(self, messages):
         return type("R", (), {"content": "invalid json"})
+
+    async def astream(self, messages):
+        yield type("R", (), {"content": "invalid json"})
 
 
 _BASE_STATE = {

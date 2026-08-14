@@ -11,7 +11,7 @@ from typing import Dict, List
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.agents.core.schema import ClinicalState
-from app.agents.orchestrators.nodes.base import BaseNode
+from app.agents.orchestrators.nodes.base import BaseNode, astream_text
 from app.agents.utils.json_utils import parse_json_output
 
 
@@ -112,11 +112,15 @@ class ResearchPlanNode(BaseNode):
 
         data = None
         try:
-            response = await self.llm.ainvoke([
-                SystemMessage(content="你是医学临床决策规划与循证检索专家。"),
-                HumanMessage(content=prompt),
-            ])
-            data = parse_json_output(getattr(response, "content", ""), None)
+            content = await astream_text(
+                self.llm,
+                [
+                    SystemMessage(content="你是医学临床决策规划与循证检索专家。"),
+                    HumanMessage(content=prompt),
+                ],
+                label="research_plan",
+            )
+            data = parse_json_output(content, None)
         except Exception as exc:
             logger.warning("决策规划失败，使用临床问题回退: %s", exc)
 
