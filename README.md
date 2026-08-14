@@ -873,6 +873,7 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 - ✅ **前端**：Vite 7 → 8（Rolldown 构建引擎）；Vue 3.5.41 / Pinia 4 / vue-router 4.6；pdfjs-dist 3.11 → 5.7（vue-pdf-embed 2.1.5 同步）
 - ✅ **模型层**：LangChain 0.2 → 1.3（core 1.5 / openai 1.5 / chroma 1.1）；LangGraph 0.2 → 1.2（`MemorySaver` → `InMemorySaver`，SSE 编排由 `astream_events` 迁移到 `astream(stream_mode=["updates","messages"])`）；ChromaDB 0.5 → 1.5（`Chroma` 改用显式 `PersistentClient`）；requirements 精简约 50%
 - ✅ **工程化**：新增 GitHub Actions CI（前端构建 / 后端 Boot 4 测试 / 模型离线测试）、Dependabot 每周依赖巡检、Trivy 镜像安全扫描 workflow
+- ✅ **可运维性**：QA 衍生改为 `ENABLE_QA_GENERATION` 环境变量开关（默认开启；首次冷启动生成 QA 对需数百次 LLM 调用、耗时 1-2 小时，快速部署场景可关闭）；模型服务健康检查 `start_period` 适配冷启动（900s）
 
 ### v2.7.0 (2026-08-08)
 
