@@ -35,11 +35,18 @@ _TOOL_USE_PROMPT = """你是脑卒中临床决策支持系统的工具调度员�
 - contraindication_check:涉及溶栓/抗凝/双抗治疗时检查禁忌症
 - toast_classify:存在血管/心脏/影像线索时辅助 TOAST 分型
 - rtpa_dose_calc:仅在确认溶栓适应证且禁忌症已排查后,才计算剂量
+- aspects_score:CT 提示早期缺血改变或需评估梗死范围时计算 ASPECTS
+- cha2ds2_vasc_score:有房颤/心房扑动病史时评估卒中风险与抗凝指征
+- has_bled_score:拟启动抗凝时评估出血风险
+- swallow_screen:存在言语不清/吞咽困难/呛咳/意识障碍时做洼田饮水试验筛查
+- rtpa_monitoring_checklist:确定溶栓后输出 24h 监测清单
+- vte_pressure_ulcer_prevention:卧床/偏瘫患者输出 DVT 与压疮预防清单
+- hemorrhage_transformation_risk:溶栓或大面积梗死患者评估出血转化风险
 
 【工具调用优先级(Level)】
-Level 1 - 基础评估(最先):stroke 类型判断、NIHSS、LVO 筛查、时间窗
-Level 2 - 安全核查(其次):contraindication_check(禁忌症)
-Level 3 - 治疗计算(最后):rtpa_dose_calc
+Level 1 - 基础评估(最先):stroke 类型判断、NIHSS、LVO 筛查、时间窗、ASPECTS
+Level 2 - 安全核查(其次):contraindication_check(禁忌症)、cha2ds2_vasc/has_bled(抗凝决策)、swallow_screen(吞咽)
+Level 3 - 治疗计算(最后):rtpa_dose_calc、rtpa_monitoring_checklist、出血转化风险分层
 剂量计算是决策链的最后一步:必须先确认 CT 排除出血、血压达标、无禁忌症、完成 LVO 评估,才能计算 rt-PA 剂量。
 
 规则：
