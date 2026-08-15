@@ -15,6 +15,8 @@ import {
   createEmptyStrokeAssessment,
   normalizeAssessmentPayload,
 } from '@/utils/strokeAssessment'
+import request from '@/utils/request'
+import { compressImage } from '@/utils/imageCompress'
 
 defineOptions({ name: 'GreenwayWorkspace' })
 
@@ -28,6 +30,51 @@ const props = defineProps({
 const emit = defineEmits(['analyze', 'create-patient'])
 
 const form = reactive(createEmptyStrokeAssessment())
+
+// ── 化验单拍照解析(自动回填表单) ─────────────────────────
+const labFileInput = ref(null)
+const labExtracting = ref(false)
+const labExtractMsg = ref('')
+
+function pickLabImage() {
+  labFileInput.value?.click()
+}
+
+async function onLabFileChange(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  try {
+    const dataUrl = await compressImage(file)
+    const base64 = dataUrl.split(',')[1]
+    labExtracting.value = true
+    labExtractMsg.value = ''
+    const res = await request.post('/lab-report/extract', { images: [base64] })
+    const data = res.data?.data
+    if (res.data?.code === 1 && data) {
+      fillLabFields(data)
+      labExtractMsg.value = '✅ 已识别并回填化验单字段'
+    } else {
+      labExtractMsg.value = res.data?.msg || '识别失败，请重试'
+    }
+  } catch (e) {
+    labExtractMsg.value = '识别失败，请检查图片后重试'
+  } finally {
+    labExtracting.value = false
+  }
+}
+
+function fillLabFields(data) {
+  if (data.systolic_bp != null) form.systolicBloodPressure = Number(data.systolic_bp) || ''
+  if (data.diastolic_bp != null) form.diastolicBloodPressure = Number(data.diastolic_bp) || ''
+  if (data.blood_glucose_mmol_l != null) form.bloodGlucoseMmolL = Number(data.blood_glucose_mmol_l) || ''
+  if (data.platelet_count != null) form.plateletCount = Number(data.platelet_count) || ''
+  if (data.inr != null) form.inr = Number(data.inr) || ''
+  if (data.notes) {
+    const extra = String(data.notes).trim()
+    if (extra) form.notes = form.notes ? `${form.notes}\n${extra}` : extra
+  }
+}
 const assessments = ref([])
 const currentView = ref(null)
 const reviews = ref([])
@@ -397,6 +444,14 @@ function reviewActionLabel(action) {
       </section>
 
       <form class="assessment-form" @submit.prevent="saveAssessment">
+        <div class="lab-extract-bar">
+          <button type="button" class="lab-extract-btn" :disabled="labExtracting" @click="pickLabImage">
+            {{ labExtracting ? '🔍 识别中…' : '📷 拍照识别化验单' }}
+          </button>
+          <input ref="labFileInput" type="file" accept="image/*" class="lab-file-input" @change="onLabFileChange" />
+          <span v-if="labExtractMsg" class="lab-extract-msg" :class="{ ok: labExtractMsg.startsWith('✅') }">{{ labExtractMsg }}</span>
+          <span class="lab-extract-hint">自动回填血压 / 血糖 / 血小板 / INR 等字段</span>
+        </div>
         <section class="form-section">
           <div class="form-section-title">
             <span>01</span>
@@ -1029,4 +1084,43 @@ function reviewActionLabel(action) {
     grid-template-columns: 1fr;
   }
 }
-</style>
+
+.lab-extract-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  background: rgba(17, 150, 127, 0.05);
+  border: 1px dashed rgba(17, 150, 127, 0.4);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.lab-extract-btn {
+  border: none;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  background: var(--color-primary, #11967f);
+  color: #ffffff;
+  transition: opacity 0.15s ease;
+
+  &:hover:not(:disabled) { opacity: 0.88; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.lab-file-input { display: none; }
+
+.lab-extract-msg {
+  font-size: 12px;
+  color: #b45309;
+
+  &.ok { color: #059669; }
+}
+
+.lab-extract-hint {
+  font-size: 11px;
+  color: #9ca3af;
+}</style>

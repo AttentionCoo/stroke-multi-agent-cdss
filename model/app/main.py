@@ -8,6 +8,7 @@ import json
 import uuid
 import jwt
 import time
+from typing import List
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -699,6 +700,26 @@ class ToolCallRequest(BaseModel):
     name: str = Field(description="工具名称,如 nihss_score")
     arguments: dict = Field(default_factory=dict, description="工具参数 dict")
     token: str = Field(default="", description="JWT 鉴权令牌(与 /model/get_result 一致)")
+
+
+class LabExtractRequest(BaseModel):
+    token: str = Field(description="JWT 鉴权令牌")
+    images: List[str] = Field(description="Base64 化验单图片列表(最多3张)")
+
+
+@app.post("/model/lab_extract")
+async def extract_lab_fields_api(request: LabExtractRequest):
+    """化验单拍照解析: 提取结构化字段供绿道表单自动回填。"""
+    verify_token(request.token)
+    vision_svc = resources.get("vision_service")
+    if not vision_svc:
+        raise HTTPException(status_code=503, detail="Vision service not ready")
+    try:
+        data = await asyncio.to_thread(vision_svc.extract_lab_fields, request.images[:3])
+        return {"code": 1, "msg": "success", "data": data}
+    except Exception as e:
+        logger.warning(f"化验单解析失败: {e}")
+        return {"code": 0, "msg": f"解析失败: {str(e)[:200]}", "data": None}
 
 
 @app.get("/model/tools/list")

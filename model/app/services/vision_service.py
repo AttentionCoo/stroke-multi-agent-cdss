@@ -15,6 +15,24 @@ _KEYWORDS_DRUG = ["药", "药品", "药物", "什么药", "药盒", "说明书",
 _STREAM_DONE = object()
 
 
+_LAB_EXTRACT_SYSTEM = """\
+你是一位严谨的检验报告数据提取器。请从上传的化验单/检验报告图片中提取字段，
+只输出一个 JSON 对象，不要输出任何其他文字。字段不存在时用 null：
+
+{
+  "systolic_bp": 收缩压mmHg整数或null,
+  "diastolic_bp": 舒张压mmHg整数或null,
+  "blood_glucose_mmol_l": 血糖mmol/L数值或null,
+  "platelet_count": 血小板计数×10^9/L整数或null,
+  "inr": INR数值或null,
+  "pt_seconds": PT秒数值或null,
+  "aptt_seconds": APTT秒数值或null,
+  "hemoglobin_g_l": 血红蛋白g/L数值或null,
+  "creatinine_umol_l": 肌酐μmol/L数值或null,
+  "notes": "其余异常指标简述(不超过80字)"
+}"""
+
+
 class VisionAnalysisService:
 
     def __init__(self, prompt_manager):
@@ -22,6 +40,46 @@ class VisionAnalysisService:
         self._api_key = os.getenv("DASHSCOPE_API_KEY")
         if not self._api_key:
             logger.warning("⚠️ 未找到 DASHSCOPE_API_KEY，影像分析功能将不可用")
+
+    def extract_lab_fields(self, images: List[str]) -> dict:
+        """化验单结构化字段提取(供绿道表单自动回填)。"""
+        import json as _json
+        import re as _re
+
+        messages = self._build_messages(
+            images=images,
+            question="请提取结构化字段。",
+            all_info="",
+            system_text=_LAB_EXTRACT_SYSTEM,
+            user_prefix="请解析以下化验单图片。",
+        )
+        response = MultiModalConversation.call(
+            model="qwen-vl-plus",
+            api_key=self._api_key,
+            messages=messages,
+            stream=False,
+        )
+        if response.status_code != 200:
+            raise RuntimeError(f"API 错误 {response.status_code}: {getattr(response, 'message', '')}")
+
+        text_parts = []
+        try:
+            for item in response.output.choices[0].message.content:
+                text_parts.append(item.get("text", "") or "")
+        except (AttributeError, IndexError, KeyError):
+            pass
+        raw = "".join(text_parts).strip()
+
+        m = _re.search(r"\{.*\}", raw, _re.S)
+        if m:
+            try:
+                data = _json.loads(m.group(0))
+                if isinstance(data, dict):
+                    return data
+            except Exception:
+                pass
+        raise RuntimeError(f"无法从识别结果中解析结构化字段: {raw[:200]}")
+
 
     def _detect_image_type(self, question: str) -> str:
         q = question.lower()
