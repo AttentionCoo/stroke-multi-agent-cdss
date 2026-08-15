@@ -114,6 +114,46 @@ function formatContent(content) {
   return { type: 'text', data: trimmed }
 }
 
+// ── 专家发言分色渲染 ─────────────────────────────────────
+// 按专家标题行把内容切分为着色片段: 全科医生/神经专科医生/临床药师/主持人 各自一色
+const EXPERT_COLOR_MAP = {
+  全科医生: 'gp',
+  神经专科医生: 'neuro',
+  临床药师: 'pharm',
+  会诊共识: 'moderator',
+  综合方案: 'moderator',
+  风险审查: 'moderator',
+}
+
+function expertSegments(content) {
+  if (!content) return []
+  const lines = String(content).split('\n')
+  const segments = []
+  let current = { text: '', cls: null }
+
+  const flush = () => {
+    if (current.text) segments.push({ text: current.text, cls: current.cls })
+    current = { text: '', cls: null }
+  }
+
+  for (const line of lines) {
+    // 专家标题行: ▶【专家】独立意见全文 / ▶【专家】(实时生成中) / 【专家交叉质询】 / ▶ 会诊共识
+    const m =
+      line.match(/^▶\s*【([^】]+?)】/) ||
+      line.match(/^【([^】]+?)交叉质询】/) ||
+      line.match(/^▶\s*(会诊共识|综合方案|风险审查)/)
+    if (m) {
+      const name = m[1]
+      flush()
+      current = { text: `${line}\n`, cls: EXPERT_COLOR_MAP[name] || null }
+    } else {
+      current.text += `${line}\n`
+    }
+  }
+  flush()
+  return segments
+}
+
 // 检索质量看板: 步骤对应的结构化指标 chips
 function statsFor(step) {
   const stats = props.thinkingData?.nodeStats?.[step]
@@ -252,9 +292,12 @@ async function copyAll() {
               <span class="json-val">{{ typeof val === 'object' ? JSON.stringify(val) : val }}</span>
             </div>
           </div>
-          <!-- 普通文本 -->
+          <!-- 普通文本: 专家发言按角色分色渲染 -->
           <div v-else class="step-content">
-            {{ formatContent(event.content).data }}
+            <template v-for="(seg, si) in expertSegments(formatContent(event.content).data)" :key="si">
+              <span v-if="seg.cls" class="expert-seg" :class="`expert-color-${seg.cls}`">{{ seg.text }}</span>
+              <span v-else class="expert-seg">{{ seg.text }}</span>
+            </template>
           </div>
         </template>
       </div>
@@ -591,6 +634,17 @@ async function copyAll() {
   // 思考链全文多行打印: 保留换行与缩进
   white-space: pre-wrap;
 }
+
+/* 专家发言分色: 全科医生(青绿)/神经专科医生(蓝)/临床药师(紫)/主持人(琥珀) */
+.expert-seg { display: inline; }
+
+.expert-color-gp { color: #0d9488; }
+
+.expert-color-neuro { color: #2563eb; }
+
+.expert-color-pharm { color: #7c3aed; }
+
+.expert-color-moderator { color: #d97706; }
 
 .step-content-json {
   display: flex;
