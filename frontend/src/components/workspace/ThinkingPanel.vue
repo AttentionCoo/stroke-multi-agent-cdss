@@ -18,18 +18,18 @@ const props = defineProps({
   },
 })
 
-// 默认展开（"全部打印"思考链）
-const isExpanded = ref(true)
+// 默认折叠成窄栏(答案立即可见); 推理中自动展开实时看, 结束后自动收起
+const isExpanded = ref(false)
 
 // 复制反馈状态
 const copiedAll = ref(false)
 const copiedSteps = ref({})
 
-// streaming 时展开面板实时查看步骤
+// streaming 时展开面板实时查看步骤, 结束后折叠成窄栏
 watch(
   () => props.isStreaming,
   (streaming) => {
-    if (streaming) isExpanded.value = true
+    isExpanded.value = streaming
   },
   { immediate: true },
 )

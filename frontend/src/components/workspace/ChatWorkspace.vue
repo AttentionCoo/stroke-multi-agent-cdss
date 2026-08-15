@@ -768,12 +768,13 @@ function evidenceCardsFor(msg, index) {
                 <div class="plain-text">{{ msgText(msg) }}</div>
               </template>
               <template v-else>
-                <!-- ThinkingPanel：有思考记录时显示 DeepSeek 风格思考面板 -->
+                <!-- ThinkingPanel：有思考记录时显示 DeepSeek 风格思考面板
+                     is-streaming 只反映"推理阶段": 推理中自动展开实时看, 答案开始输出即折叠成窄栏 -->
                 <ThinkingPanel
                   v-if="getThinkingData(index)"
                   :thinking-data="getThinkingData(index)"
                   :is-streaming="
-                    (isStreaming || isThinking) && index === currentTalkList.length - 1
+                    isThinking && index === currentTalkList.length - 1
                   "
                 />
                 <!-- 信息缺口追问闭环：会诊后展示缺口清单, 补充后一键重新会诊 -->
