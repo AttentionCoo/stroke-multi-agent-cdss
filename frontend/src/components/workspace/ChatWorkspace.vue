@@ -112,6 +112,22 @@ const isMobileLayout = ref(false)
 const isSyncExpanded = ref(false)
 // 复制反馈: 当前显示"已复制"的消息下标(-1 表示无)
 const copiedMsgIndex = ref(-1)
+// 信息缺口追问: 补充文本草稿
+const askDraft = ref('')
+
+// 当前消息的缺口清单(来自 thinkingHistoryList[index].askDoctor)
+function askData(index) {
+  const entry = props.thinkingHistoryList[index]
+  return entry?.askDoctor || null
+}
+
+// 补充信息并重新会诊: 组装问题文本后走统一发送流程
+function submitAsk() {
+  const text = askDraft.value.trim()
+  if (!text) return
+  askDraft.value = ''
+  emit('send-message', `补充信息：${text}`)
+}
 
 function syncLayoutState() {
   const mobile = window.innerWidth <= 960
@@ -710,6 +726,26 @@ function evidenceCardsFor(msg, index) {
                     (isStreaming || isThinking) && index === currentTalkList.length - 1
                   "
                 />
+                <!-- 信息缺口追问闭环：会诊后展示缺口清单, 补充后一键重新会诊 -->
+                <div
+                  v-if="askData(index) && !(isStreaming || isThinking)"
+                  class="ask-doctor-card"
+                >
+                  <div class="ask-title">⚠️ {{ askData(index).message || '系统发现信息缺口，补充后可重新会诊：' }}</div>
+                  <ul class="ask-list">
+                    <li v-for="(q, qi) in askData(index).questions" :key="qi">{{ q }}</li>
+                  </ul>
+                  <div class="ask-input-row">
+                    <textarea
+                      v-model="askDraft"
+                      rows="2"
+                      placeholder="请补充上述信息（如：INR=1.1、血小板计数=180×10⁹/L、无近期手术史…）"
+                    ></textarea>
+                    <button type="button" class="ask-submit-btn" :disabled="!askDraft.trim()" @click="submitAsk">
+                      补充并重新会诊
+                    </button>
+                  </div>
+                </div>
                 <!-- 降级 fallback：无思考记录时显示旧版弹跳点（兼容历史消息） -->
                 <div
                   v-if="!msgText(msg) && isThinking && index === currentTalkList.length - 1 && !getThinkingData(index)"
@@ -1017,6 +1053,75 @@ function evidenceCardsFor(msg, index) {
 
   &.export-btn {
     margin-left: 10px;
+  }
+}
+
+/* ── 信息缺口追问卡片 ── */
+.ask-doctor-card {
+  margin: 10px 0;
+  border: 1px dashed var(--color-primary, #11967f);
+  background: rgba(17, 150, 127, 0.04);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.ask-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary-dark, #0d7a68);
+  margin-bottom: 6px;
+}
+
+.ask-list {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--color-text-medium);
+  line-height: 1.6;
+}
+
+.ask-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+
+  textarea {
+    flex: 1;
+    resize: vertical;
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-family: inherit;
+    line-height: 1.5;
+    color: var(--color-text);
+    background: var(--color-bg-light, #ffffff);
+
+    &:focus {
+      outline: none;
+      border-color: var(--color-primary, #11967f);
+    }
+  }
+}
+
+.ask-submit-btn {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  background: var(--color-primary, #11967f);
+  color: #ffffff;
+  transition: opacity 0.15s ease;
+
+  &:hover:not(:disabled) {
+    opacity: 0.88;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 }
 

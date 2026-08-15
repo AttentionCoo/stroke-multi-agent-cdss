@@ -159,6 +159,9 @@ class QwenAgent:
         started_nodes: set = set()
         # 各节点实时生成缓冲: {node: {expert_or_node: 累计文本}}, 供思考链实时打印
         self._live_buffers: dict = {}
+        # 信息缺口追问: 记录会诊路径与各节点最终输出
+        is_consultation = False
+        last_outputs: dict = {}
 
         try:
             # 为每次请求生成唯一的thread_id
@@ -182,9 +185,35 @@ class QwenAgent:
                 elif stream_mode == "custom":
                     events = self._on_custom_event(chunk, show_thinking, started_nodes)
                 else:  # updates
+                    for name, output in chunk.items():
+                        if isinstance(output, dict):
+                            last_outputs[name] = output
+                        if name == "intent" and output.get("intent_type") == "consultation":
+                            is_consultation = True
                     events = self._on_node_updates(chunk, show_thinking, started_nodes, streamed_nodes)
                 for item in events:
                     yield item
+
+            # ── 信息缺口追问闭环: 会诊结束后列出关键信息缺口, 供前端"补充后重新会诊" ──
+            if is_consultation:
+                missing = []
+                evidence_judge = last_outputs.get("evidence_judge") or {}
+                if not evidence_judge.get("need_retrieve", True) and evidence_judge.get("missing_information"):
+                    missing = [str(x).strip() for x in evidence_judge["missing_information"] if str(x).strip()]
+                if not missing:
+                    research_plan = last_outputs.get("research_plan") or {}
+                    missing = [str(x).strip() for x in research_plan.get("missing_information", []) if str(x).strip()]
+                if not missing:
+                    validate = last_outputs.get("validate") or {}
+                    feedback = str(validate.get("validation_feedback", "") or "").strip()
+                    if not validate.get("validation_passed", True) and feedback:
+                        missing = [feedback[:300]]
+                if missing:
+                    yield {
+                        "type": "ask_doctor",
+                        "questions": missing[:6],
+                        "message": "以下信息缺口影响决策质量，补充后可重新发起会诊：",
+                    }
 
         except Exception as e:
             logger.error(f"临床推理管线异常 | {format_error_log(e)}")

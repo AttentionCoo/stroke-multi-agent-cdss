@@ -598,6 +598,14 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                                 json.path("status").asText("done")));
             }
 
+            // ask_doctor 事件：信息缺口追问闭环——透传缺口清单, 前端显示"补充信息"卡片
+            if ("ask_doctor".equalsIgnoreCase(type)) {
+                Map<String, Object> askResp = baseResponse(talkId, generatedTitle[0], "ask_doctor");
+                askResp.put("questions", json.path("questions"));
+                askResp.put("message", json.path("message").asText(""));
+                return Flux.just(objectMapper.writeValueAsString(askResp));
+            }
+
             // ── 旧事件格式兼容（Python 回滚时仍能正常工作）──────────────────────────
 
             // heartbeat 事件：Python 端心跳保活，Java 侧静默丢弃，不透传前端

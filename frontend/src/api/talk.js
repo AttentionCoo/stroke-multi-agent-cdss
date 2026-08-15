@@ -31,7 +31,7 @@ const MAX_RETRIES = 3
  * @param {Function} onChunk     - 收到答案片段时回调 (text: string) => void
  * @param {Function} onThinking  - 收到 thinking 事件时回调 ({ step, title, content }) => void
  */
-function streamRequest(params, onChunk, onThinking, onUsage) {
+function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor) {
   const userStore = useUserStore()
   const token = userStore.token
 
@@ -171,6 +171,17 @@ function streamRequest(params, onChunk, onThinking, onUsage) {
           if (text) {
             fullAnswer += text
             if (onChunk) onChunk(text)
+          }
+          return
+        }
+
+        // ── ask_doctor：信息缺口追问闭环 ──
+        if (type === 'ask_doctor') {
+          if (onAskDoctor) {
+            onAskDoctor({
+              questions: Array.isArray(data.questions) ? data.questions : [],
+              message: data.message || '',
+            })
           }
           return
         }
@@ -337,11 +348,11 @@ function streamRequest(params, onChunk, onThinking, onUsage) {
   })
 }
 
-export const sendQuestionStreamAPI = (params, onChunk, onThinking, onUsage) =>
-  streamRequest(params, onChunk, onThinking, onUsage)
+export const sendQuestionStreamAPI = (params, onChunk, onThinking, onUsage, onAskDoctor) =>
+  streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor)
 
-export const newChatStreamAPI = (params, onChunk, onThinking, onUsage) =>
-  streamRequest(params, onChunk, onThinking, onUsage)
+export const newChatStreamAPI = (params, onChunk, onThinking, onUsage, onAskDoctor) =>
+  streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor)
 
 // 5. 删除对话
 // talkId: String
