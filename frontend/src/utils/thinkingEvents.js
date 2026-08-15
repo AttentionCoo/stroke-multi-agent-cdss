@@ -86,11 +86,15 @@ export function stripThinkingMarkdown(content) {
 
 function normalizeThinkingEvent(thinking = {}) {
   const content = stripThinkingMarkdown(thinking.content)
+  const now = Date.now()
   return {
     step: thinking.step || '',
     title: thinking.title || thinking.step || 'AI 思考中...',
     content,
     status: thinking.status || (content ? 'done' : 'running'),
+    // 时间轴可视化: 记录步骤开始/结束时间戳
+    startedAt: now,
+    endedAt: null,
   }
 }
 
@@ -100,6 +104,7 @@ function normalizeThinkingEvent(thinking = {}) {
  */
 export function mergeThinkingEvent(events, thinking) {
   const next = normalizeThinkingEvent(thinking)
+  const now = Date.now()
 
   // 运行中的实时快照(node_token): 替换同节点最近一条未完成步骤的内容, 实现实时打印
   if (next.status !== 'done' && next.step && next.content) {
@@ -107,6 +112,7 @@ export function mergeThinkingEvent(events, thinking) {
     if (last && last.step === next.step && last.status !== 'done') {
       last.content = next.content
       last.title = next.title || last.title
+      last.updatedAt = now
       return last
     }
   }
@@ -116,6 +122,7 @@ export function mergeThinkingEvent(events, thinking) {
       const current = events[index]
       if (current.step === next.step && current.status !== 'done') {
         Object.assign(current, next)
+        current.endedAt = now
         return current
       }
     }
@@ -127,6 +134,8 @@ export function mergeThinkingEvent(events, thinking) {
     }
   }
 
+  // 独立完成事件(无前置 running 事件): 直接落一条完整记录
+  if (next.status === 'done') next.endedAt = now
   events.push(next)
   return next
 }

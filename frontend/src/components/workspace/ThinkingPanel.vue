@@ -61,6 +61,38 @@ const usageText = computed(() => {
   return parts.join(' · ')
 })
 
+// ── 会诊过程时间轴 ─────────────────────────────────────────
+const EXPERT_STEPS = new Set(['reason', 'debate', 'consensus_agent'])
+const FINAL_STEPS = new Set(['validate', 'generate_report', 'knowledge_answer', 'reject'])
+
+function phaseOf(step) {
+  if (EXPERT_STEPS.has(step)) return 'experts'
+  if (FINAL_STEPS.has(step)) return 'final'
+  return 'outer'
+}
+
+const timelineRows = computed(() => {
+  const events = props.thinkingData?.events || []
+  const now = Date.now()
+  const rows = events
+    .filter((e) => e.startedAt)
+    .map((e) => {
+      const end = e.endedAt || e.updatedAt || now
+      const duration = Math.max(0.1, (end - e.startedAt) / 1000)
+      return {
+        step: e.step,
+        title: e.title || e.step,
+        startedAt: e.startedAt,
+        seconds: Math.round(duration * 10) / 10,
+        duration,
+        phase: phaseOf(e.step),
+      }
+    })
+  if (!rows.length) return []
+  const total = Math.max(...rows.map((r) => r.duration), 0.1)
+  return rows.map((r) => ({ ...r, width: Math.max(2, Math.round((r.duration / total) * 1000) / 10) }))
+})
+
 function toggleExpand() {
   isExpanded.value = !isExpanded.value
 }
@@ -140,6 +172,26 @@ async function copyAll() {
 
     <!-- 步骤列表 -->
     <div class="thinking-body" :class="{ expanded: isExpanded }">
+      <!-- 会诊过程时间轴 -->
+      <div v-if="timelineRows.length" class="timeline">
+        <div class="timeline-title">
+          ⏱ 会诊过程时间轴
+          <span class="timeline-legend">
+            <span class="legend-dot outer"></span>流程
+            <span class="legend-dot experts"></span>专家会诊
+            <span class="legend-dot final"></span>校验报告
+          </span>
+        </div>
+        <div v-for="row in timelineRows" :key="`${row.step}-${row.startedAt}`" class="timeline-row">
+          <span class="timeline-label" :title="row.title">{{ row.title }}</span>
+          <div class="timeline-track">
+            <div class="timeline-bar" :class="`phase-${row.phase}`" :style="{ width: row.width + '%' }">
+              <span v-if="row.width > 14" class="timeline-duration">{{ row.seconds }}s</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div
         v-for="(event, idx) in thinkingData.events"
         :key="idx"
@@ -312,6 +364,88 @@ async function copyAll() {
     color: var(--color-primary, #11967f);
     font-weight: 600;
   }
+}
+
+/* ── 会诊过程时间轴 ── */
+.timeline {
+  padding: 10px 12px 4px;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+.timeline-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary-dark, #0d7a68);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.timeline-legend {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-text-weak, #9ca3af);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+
+  &.outer { background: #11967f; }
+  &.experts { background: #f59e0b; }
+  &.final { background: #8b5cf6; }
+}
+
+.timeline-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.timeline-label {
+  width: 118px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--color-text-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+.timeline-track {
+  flex: 1;
+  background: rgba(17, 150, 127, 0.06);
+  border-radius: 4px;
+  height: 16px;
+  overflow: hidden;
+}
+
+.timeline-bar {
+  height: 100%;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  padding-left: 6px;
+  transition: width 0.3s ease;
+
+  &.phase-outer { background: linear-gradient(90deg, #11967f, #34c2a8); }
+  &.phase-experts { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+  &.phase-final { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+}
+
+.timeline-duration {
+  font-size: 10px;
+  color: #ffffff;
+  white-space: nowrap;
 }
 
 /* 弹跳点（与 ChatWorkspace 样式一致） */
