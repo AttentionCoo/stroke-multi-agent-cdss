@@ -124,9 +124,14 @@ docker compose up -d
 - **证据进入推理**：每条证据使用 `R{轮次}-Q{查询}-E{结果}` 编号，专家初始意见、交叉质询和最终共识均被要求引用真实证据编号，未覆盖的信息进入风险审查而不是被当作事实补全。
 - **RAGAS 可复现评测**：30 题临床 benchmark（`model/evaluation/stroke_ragas.json`）固化检索与生成指标（Recall@K / MRR / NDCG / faithfulness 等），回归报告自动生成，支撑检索质量持续追踪。
 
-### ⚡ 3. 全栈响应式流式数据管道（Reactive Stream Pipeline）
+### ⚡ 3. 全链路实时流式数据管道（Reactive Stream Pipeline）
 
-后端通过 `WebClient`/Reactor 转发 SSE 流，模型服务使用 Python Asyncio，前端通过 Vue 3 `ReadableStream` 增量渲染。界面展示的是可观察的分析阶段、证据引用和校验状态，不展示或宣称暴露模型内部思维链。
+后端通过 `WebClient`/Reactor 转发 SSE 流，模型服务使用 Python Asyncio，前端通过 Vue 3 `ReadableStream` 增量渲染。**思考链实时打印**：全部推理节点（意图识别、病例分析、检索规划、证据路由、证据评估、专家会诊、校验等）改用 `astream` + `stream_writer` 边生成边推送，三位专家的独立意见在面板中**并行实时滚动**，报告以打字机方式增量输出；界面完整展示可观察的分析阶段、各节点过程全文、证据引用与校验状态。
+
+### 🆕 8. 用户指示优先与思考链全量复制
+
+- **用户指示优先**：专家推理、报告生成、知识问答与快速分析各环节强制遵循用户提问中的明确指示（如「用表格」「分点回答」「先给最紧急的处置」「简洁/详细」等），指定回答顺序时报告以「紧急处置速览」章节置顶回应。
+- **思考链全量打印与复制**：16 个推理步骤的完整内容（三位专家独立意见全文、交叉质询、主持人共识、检索证据全文）不限高度完整展示；支持「复制全部」一键带走整条思考链，或按步骤单独复制（如仅复制某位专家意见）。
 
 ### 🧠 4. 面向连续诊疗的三级患者记忆
 
@@ -156,7 +161,7 @@ docker compose up -d
 |:---:|---|------|
 | 🎨 **前端交互层** | Vue 3 (Composition API) · Vite 8 · Pinia · SCSS · Fetch / ReadableStream | 以用户体验为核心，持续接收后端流式推送并实时打字机渲染。支持医学文档（PDF）在线预览、图片上传（多模态扩展）以及多 Agent 思考步骤折叠展示 |
 | ☕ **后端服务层** | Java 21 · Spring Boot 4.0.7 · Spring WebFlux · Redis 7 · Redisson · MySQL 8.4 · MyBatis-Plus | 采用响应式编程模型支持高并发吞吐。通过 JWT 实现身份认证与安全控制，利用 Redisson 分布式锁控制并发，通过 WebClient 对底层 Python 模型服务进行流式非阻塞调用与转发 |
-| 🐍 **模型推理层** | Python 3.12 · FastAPI · LangGraph 1.2 · LangChain 1.x · Qwen-Plus/Turbo · ChromaDB 1.x · BM25 · RRF · gte-rerank | 统一加载模型、Agentic RAG 检索循环、专家辩论与共识模块，通过异步生成器输出 `node_start`、`node_done`、`token`、`done` 标准事件 |
+| 🐍 **模型推理层** | Python 3.12 · FastAPI · LangGraph 1.2 · LangChain 1.x · Qwen-Plus/Turbo · ChromaDB 1.x · BM25 · RRF · gte-rerank | 统一加载模型、Agentic RAG 检索循环、专家辩论与共识模块，通过异步生成器实时输出 `node_start`、`node_token`、`node_done`、`token`、`done` 标准事件 |
 
 ### 🔄 全链路流式数据管道（SSE Pipeline）
 
@@ -732,9 +737,10 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 | 事件 | 方向 | data 结构 | 说明 |
 |------|------|------|------|
 | `node_start` | Python → Java | `{"node": "intent", "label": "正在判断问题类型...", "status": "running"}` | 推理节点开始执行 |
-| `node_done` | Python → Java | `{"node": "evidence_judge", "summary": "...", "status": "done"}` | 节点完成及可展示摘要 |
-| `token` | Python → Java | `{"content": "根据..."}` | LLM 生成的增量文本 |
-| `thinking` | Java → Vue | `{"thinking": {"step": "analysis", "title": "病例结构化分析", "content": "..."}}` | Java 将节点事件统一映射为前端思考事件 |
+| `node_token` | Python → Java | `{"node": "reason", "label": "...", "content": "实时快照", "status": "running"}` | 节点生成过程实时快照（各节点 astream 增量累积），前端对运行中步骤做增量替换显示 |
+| `node_done` | Python → Java | `{"node": "evidence_judge", "summary": "...", "content": "节点完整输出", "status": "done"}` | 节点完成：`content` 为可读全文（专家意见/质询/共识/证据），缺失时回退 `summary` |
+| `token` | Python → Java | `{"content": "根据..."}` | 报告/知识回答的流式增量文本（打字机输出，映射为前端 chunk） |
+| `thinking` | Java → Vue | `{"thinking": {"step": "analysis", "title": "病例结构化分析", "content": "..."}}` | Java 将 `node_start`/`node_token`/`node_done` 统一映射为前端思考事件 |
 | `done` | Python → Java | `{"name": "...", "request_id": "...", "all_info": "..."}` | 推理完成，含会话名称与上下文摘要 |
 | `error` | Python → Java | `{"error_code": "...", "message": "...", "retryable": true}` | 推理异常，retryable 标识是否可重试 |
 | SSE comment | 服务间 | `: ping` / `: heartbeat` | 协议层心跳，前端忽略，不作为业务 JSON |
@@ -863,6 +869,15 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 ---
 
 ## 🔄 版本更新日志
+
+### v2.9.0 (2026-08-14) — 全链路实时打印与体验优化
+
+- ✅ **专家发言全文打印**：`node_done` 事件透传完整 `content` 字段（修复此前只取截断摘要的问题），三位专家独立意见、交叉质询、主持人共识、综合方案与风险审查全文展示
+- ✅ **全链路过程打印**：`evidence_router` 等全部 16 个推理节点统一可读全文渲染（`【节点完整输出】` 递归格式），思考面板不限高度完整展示
+- ✅ **实时打印**：各节点 LLM 调用由 `ainvoke` 改为 `astream` + `stream_writer` 实时推送，新增 `node_token` 快照事件，前端对运行中步骤增量替换显示——三位专家意见在面板中并行实时滚动生成
+- ✅ **用户指示优先**：专家/报告/知识问答/快速分析各环节强制遵循用户提问中的明确指示（输出格式、语言、详略、回答顺序）；要求"先给最紧急的处置"时报告以「紧急处置速览」章节置顶
+- ✅ **前端复制功能**：思考链「复制全部」+ 每步单独复制 + 消息复制按钮「已复制」反馈，公共剪贴板工具兼容非 HTTPS 部署
+- ✅ **修复**：思考面板展开移除 2000px 高度上限（专家意见/证据全文不再被裁掉）
 
 ### v2.8.0 (2026-08-31) — 全栈技术升级
 
