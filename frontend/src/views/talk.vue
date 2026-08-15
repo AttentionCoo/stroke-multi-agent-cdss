@@ -397,13 +397,18 @@ async function handleSendMessage({ text, images } = {}) {
   const aiIndex = currentTalkList.value.length - 1
 
   // 为本次 AI 回答初始化独立的思考记录
-  const thinkingEntry = reactive({ events: [], elapsedSeconds: null, startTime: Date.now() })
+  const thinkingEntry = reactive({ events: [], elapsedSeconds: null, startTime: Date.now(), usage: null })
   thinkingHistoryList.value.push(thinkingEntry)
 
   // thinking 事件回调：开始事件新增步骤，完成事件补全该步骤的结果摘要
   const onThinking = (thinking) => {
     thinkingHint.value = thinking.title || thinking.step || 'AI 思考中...'
     mergeThinkingEvent(thinkingEntry.events, thinking)
+  }
+
+  // LLM 用量回调(done 事件携带): token 数/调用次数/估算成本
+  const onUsage = (usage) => {
+    thinkingEntry.usage = usage
   }
 
   // ── 双缓冲区（仅作用于本次对话的生命周期）────────────────────────
@@ -475,11 +480,12 @@ async function handleSendMessage({ text, images } = {}) {
     const requestPayload = buildPatientAwareRequest(text, syncPatientId.value, images)
     const finalResult =
       currentTalkId.value === NEW_TALK_ID
-        ? await newChatStreamAPI(requestPayload, onChunk, onThinking)
+        ? await newChatStreamAPI(requestPayload, onChunk, onThinking, onUsage)
         : await sendQuestionStreamAPI(
           { ...requestPayload, talkId: currentTalkId.value },
           onChunk,
           onThinking,
+          onUsage,
         )
 
     const { title, content } = finalResult.data || {}

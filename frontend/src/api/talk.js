@@ -31,7 +31,7 @@ const MAX_RETRIES = 3
  * @param {Function} onChunk     - 收到答案片段时回调 (text: string) => void
  * @param {Function} onThinking  - 收到 thinking 事件时回调 ({ step, title, content }) => void
  */
-function streamRequest(params, onChunk, onThinking) {
+function streamRequest(params, onChunk, onThinking, onUsage) {
   const userStore = useUserStore()
   const token = userStore.token
 
@@ -177,6 +177,7 @@ function streamRequest(params, onChunk, onThinking) {
 
         // ── done：流正常结束 ──
         if (type === 'done') {
+          if (data.usage && onUsage) onUsage(data.usage)
           safeResolve(buildResult())
           return
         }
@@ -336,11 +337,11 @@ function streamRequest(params, onChunk, onThinking) {
   })
 }
 
-export const sendQuestionStreamAPI = (params, onChunk, onThinking) =>
-  streamRequest(params, onChunk, onThinking)
+export const sendQuestionStreamAPI = (params, onChunk, onThinking, onUsage) =>
+  streamRequest(params, onChunk, onThinking, onUsage)
 
-export const newChatStreamAPI = (params, onChunk, onThinking) =>
-  streamRequest(params, onChunk, onThinking)
+export const newChatStreamAPI = (params, onChunk, onThinking, onUsage) =>
+  streamRequest(params, onChunk, onThinking, onUsage)
 
 // 5. 删除对话
 // talkId: String

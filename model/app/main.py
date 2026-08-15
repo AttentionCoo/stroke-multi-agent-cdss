@@ -34,6 +34,7 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 from app.utils.context_summary import ConversationSummaryService
+from app.utils.usage import UsageCallbackHandler, begin_request, end_request
 
 
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
@@ -154,10 +155,13 @@ def init_all_resources():
         raise ValueError("DASHSCOPE_API_KEY 环境变量未设置")
     
     logger.info("  ✅ API密钥: 已配置（日志中隐藏）")
-    
-    llm_max = ChatOpenAI(model="qwen-plus", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False})
-    llm_plus = ChatOpenAI(model="qwen-plus", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False})
-    llm_turbo = ChatOpenAI(model="qwen-turbo", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False})
+
+    # LLM 用量跟踪(真实 token_usage → 成本估算看板)
+    usage_handler = UsageCallbackHandler()
+
+    llm_max = ChatOpenAI(model="qwen-plus", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False}, callbacks=[usage_handler])
+    llm_plus = ChatOpenAI(model="qwen-plus", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False}, callbacks=[usage_handler])
+    llm_turbo = ChatOpenAI(model="qwen-turbo", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False}, callbacks=[usage_handler])
     
     logger.info(f"  ✅ 模型加载完成: qwen-plus(主推理/质控), qwen-plus(快速), qwen-turbo(摘要/命名/工具)")
     
@@ -289,6 +293,8 @@ async def get_model_result(request: QueryRequest):
     async def generate():
         req_id = uuid.uuid4().hex[:12]
         start_time = time.time()
+        # 本请求的 LLM 用量账本(contextvars 隔离)
+        begin_request()
         
         try:
             logger.info("=" * 80)
@@ -368,6 +374,7 @@ async def get_model_result(request: QueryRequest):
                     "request_id": req_id,
                     "name": "影像分析",
                     "all_info": request.all_info,
+                    "usage": end_request(),
                 }, ensure_ascii=False)
                 
                 logger.info(f"🟢 [请求 {req_id}] 完成 - 总耗时: {total_time:.2f}秒")
@@ -476,14 +483,20 @@ async def get_model_result(request: QueryRequest):
             logger.info(f"🟢 [请求 {req_id}] 请求处理完成")
             logger.info("=" * 80)
 
+            usage_summary = end_request()
+            logger.info(f"💰 [请求 {req_id}] LLM 用量: {usage_summary['input_tokens']}入/{usage_summary['output_tokens']}出 tokens, "
+                         f"{usage_summary['calls']}次调用, 估算成本 ¥{usage_summary['cost']}")
+
             yield json.dumps({
                 "type": "done",
                 "request_id": req_id,
                 "name": generated_name,
                 "all_info": updated_all_info,
+                "usage": usage_summary,
             }, ensure_ascii=False)
 
         except Exception as e:
+            end_request()
             error_time = time.time() - start_time
             logger.error(f"❌ [请求 {req_id}] 处理失败 - 耗时: {error_time:.2f}秒")
             logger.error(f"     错误类型: {type(e).__name__}")

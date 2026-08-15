@@ -50,6 +50,17 @@ const headerText = computed(() => {
   return '临床分析已完成'
 })
 
+// LLM 用量信息(来自 done 事件): token 数 / 调用次数 / 估算成本
+const usageText = computed(() => {
+  const usage = props.thinkingData?.usage
+  if (!usage) return ''
+  const parts = []
+  if (usage.input_tokens != null) parts.push(`${usage.input_tokens} 入 / ${usage.output_tokens} 出 tokens`)
+  if (usage.calls != null) parts.push(`${usage.calls} 次 LLM 调用`)
+  if (usage.cost != null) parts.push(`估算成本 ¥${usage.cost}`)
+  return parts.join(' · ')
+})
+
 function toggleExpand() {
   isExpanded.value = !isExpanded.value
 }
@@ -116,6 +127,7 @@ async function copyAll() {
         <!-- 完成后显示脑图标 -->
         <span v-else class="thinking-icon">✓</span>
         <span class="thinking-header-text">{{ headerText }}</span>
+        <span v-if="usageText" class="usage-badge" title="LLM 用量统计">{{ usageText }}</span>
       </div>
       <div class="thinking-header-actions">
         <button type="button" class="copy-all-btn" :class="{ copied: copiedAll }" @click.stop="copyAll">
@@ -219,6 +231,16 @@ async function copyAll() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.usage-badge {
+  font-size: 11px;
+  color: var(--color-text-weak, #9ca3af);
+  background: rgba(17, 150, 127, 0.06);
+  border-radius: 10px;
+  padding: 1px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .thinking-icon {
