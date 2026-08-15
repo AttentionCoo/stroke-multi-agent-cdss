@@ -117,3 +117,13 @@ rate-limiter:
   user:
     limit: 3
     interval: 60
+
+# 可观测性: 暴露健康与基础指标(内存/线程/HTTP)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

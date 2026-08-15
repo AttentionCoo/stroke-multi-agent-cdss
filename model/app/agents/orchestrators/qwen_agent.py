@@ -60,6 +60,7 @@ class QwenAgent:
         prompt_manager,
         report_manager,
         llm_turbo=None,
+        llm_consensus=None,
     ):
         self.llm_proposer = llm_proposer
         self.llm_critic = llm_critic
@@ -80,7 +81,7 @@ class QwenAgent:
         self.query_rewrite_node = QueryRewriteNode(self.llm_critic)
         self.reason_node = ReasonNode(self.llm_proposer)
         self.debate_node = DebateNode(self.llm_proposer)
-        self.consensus_node = ConsensusNode(self.llm_critic)
+        self.consensus_node = ConsensusNode(llm_consensus or self.llm_critic)
         self.validate_node = ValidateNode(self.llm_critic)
         self.report_node = ReportNode(self.llm_proposer, report_manager)
 

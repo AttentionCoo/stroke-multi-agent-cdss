@@ -129,6 +129,43 @@ function submitAsk() {
   emit('send-message', `补充信息：${text}`)
 }
 
+// ── 语音录入(Web Speech API) ────────────────────────────
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+const voiceSupported = !!SpeechRecognition
+const voiceListening = ref(false)
+let recognition = null
+
+function toggleVoice() {
+  if (!voiceSupported) return
+  if (voiceListening.value) {
+    recognition?.stop()
+    return
+  }
+  try {
+    recognition = new SpeechRecognition()
+    recognition.lang = 'zh-CN'
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.onresult = (event) => {
+      let transcript = ''
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        transcript += event.results[i][0].transcript
+      }
+      if (transcript) draftMessage.value += transcript
+    }
+    recognition.onend = () => {
+      voiceListening.value = false
+    }
+    recognition.onerror = () => {
+      voiceListening.value = false
+    }
+    voiceListening.value = true
+    recognition.start()
+  } catch {
+    voiceListening.value = false
+  }
+}
+
 function syncLayoutState() {
   const mobile = window.innerWidth <= 960
 
@@ -555,7 +592,18 @@ function handleExportMDT(msg, index) {
     body { margin: 12mm; }
     header { border-bottom-width: 2px; }
   }
-</style>
+
+.voice-btn {
+  &.listening {
+    color: #dc2626;
+    animation: voice-pulse 1s ease-in-out infinite;
+  }
+}
+
+@keyframes voice-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}</style>
 </head>
 <body>
 <header>
@@ -810,6 +858,16 @@ function evidenceCardsFor(msg, index) {
           <textarea ref="inputRef" v-model="draftMessage" rows="1"
             :placeholder="imageList.length ? '可补充文字描述（直接发送将询问图片内容）' : '请输入症状、病史或希望AI分析的问题'" @input="autoResize"
             @keydown.enter.exact.prevent="handleSendMessage" />
+
+          <!-- 🎤 语音录入按钮（Web Speech API, 中文识别） -->
+          <button
+            v-if="voiceSupported"
+            type="button"
+            class="attach-btn voice-btn"
+            :class="{ listening: voiceListening }"
+            :title="voiceListening ? '点击停止' : '语音录入'"
+            @click="toggleVoice"
+          >🎤</button>
 
           <!-- 📎 上传图片按钮 -->
           <button type="button" class="attach-btn" :disabled="imageList.length >= 3 || isStreaming" title="上传图片（最多3张）"
@@ -1944,4 +2002,15 @@ function evidenceCardsFor(msg, index) {
     }
   }
 }
-</style>
+
+.voice-btn {
+  &.listening {
+    color: #dc2626;
+    animation: voice-pulse 1s ease-in-out infinite;
+  }
+}
+
+@keyframes voice-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}</style>

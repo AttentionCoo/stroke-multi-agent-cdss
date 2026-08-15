@@ -34,11 +34,12 @@ def test_registry_aggregates_expected_tools():
     assert "contraindication_check" in names
     assert "toast_classify" in names
     assert "lvo_screening" in names
-    # 附加评估工具(ASPECTS/风险评分/护理清单)
+    # 附加评估工具(ASPECTS/风险评分/护理清单/随访计划)
     assert {"aspects_score", "cha2ds2_vasc_score", "has_bled_score",
             "swallow_screen", "rtpa_monitoring_checklist",
-            "vte_pressure_ulcer_prevention", "hemorrhage_transformation_risk"} <= names
-    assert len(get_all_tools()) == 15
+            "vte_pressure_ulcer_prevention", "hemorrhage_transformation_risk",
+            "followup_plan"} <= names
+    assert len(get_all_tools()) == 16
 
 
 def test_tool_groups_cover_all_tools():
@@ -48,7 +49,7 @@ def test_tool_groups_cover_all_tools():
 
 def test_schemas_are_serializable():
     schemas = get_tool_schemas()
-    assert len(schemas) == 15
+    assert len(schemas) == 16
     for s in schemas:
         assert s["name"] and s["description"]
         assert "properties" in s["parameters"]

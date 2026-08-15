@@ -42,6 +42,7 @@ _TOOL_USE_PROMPT = """你是脑卒中临床决策支持系统的工具调度员�
 - rtpa_monitoring_checklist:确定溶栓后输出 24h 监测清单
 - vte_pressure_ulcer_prevention:卧床/偏瘫患者输出 DVT 与压疮预防清单
 - hemorrhage_transformation_risk:溶栓或大面积梗死患者评估出血转化风险
+- followup_plan:完成病因分型与治疗决策后,生成出院随访计划
 
 【工具调用优先级(Level)】
 Level 1 - 基础评估(最先):stroke 类型判断、NIHSS、LVO 筛查、时间窗、ASPECTS

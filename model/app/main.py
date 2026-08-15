@@ -164,6 +164,13 @@ def init_all_resources():
     llm_max = ChatOpenAI(model="qwen-plus", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False}, callbacks=[usage_handler])
     llm_plus = ChatOpenAI(model="qwen-plus", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False}, callbacks=[usage_handler])
     llm_turbo = ChatOpenAI(model="qwen-turbo", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False}, callbacks=[usage_handler])
+    # 共识节点可独立配置更强模型(如 qwen-max), 默认与质控共用 qwen-plus
+    consensus_model = os.getenv("CONSENSUS_MODEL", "").strip() or "qwen-plus"
+    llm_consensus = (
+        llm_plus if consensus_model == "qwen-plus" else
+        ChatOpenAI(model=consensus_model, base_url=_dashscope_base, api_key=_dashscope_key,
+                   extra_body={"enable_thinking": False}, callbacks=[usage_handler])
+    )
     
     logger.info(f"  ✅ 模型加载完成: qwen-plus(主推理/质控), qwen-plus(快速), qwen-turbo(摘要/命名/工具)")
     
@@ -217,6 +224,7 @@ def init_all_resources():
         prompt_manager=prompt_mgr,
         report_manager=report_mgr,
         llm_turbo=llm_turbo,
+        llm_consensus=llm_consensus,
     )
     logger.info("  ✅ 临床推理智能体初始化完成")
     

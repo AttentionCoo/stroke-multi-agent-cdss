@@ -288,6 +288,56 @@ def _ht_risk(inputs: HtRiskInput) -> Dict:
     }
 
 
+# ============ 8. 出院随访计划生成 ============
+class FollowupInput(BaseModel):
+    subtype: str = Field(
+        default="large_artery",
+        description="TOAST 病因分型(large_artery/cardioembolic/small_vessel/other/undetermined)"
+    )
+    received_thrombolysis: bool = Field(default=False, description="是否接受静脉溶栓/取栓")
+    anticoagulation_needed: bool = Field(default=False, description="是否需要长期抗凝(如心源性栓塞)")
+    hypertension: bool = Field(default=True, description="高血压")
+    diabetes: bool = Field(default=False, description="糖尿病")
+
+
+def _followup_plan(inputs: FollowupInput) -> Dict:
+    plans = []
+    for node, months in (("3个月", 3), ("6个月", 6), ("12个月", 12)):
+        items = [
+            f"神经功能评估(NIHSS/mRS)、血压与血糖控制评估",
+            f"用药依从性与不良反应核查(抗血小板{'/抗凝' if inputs.anticoagulation_needed else ''}、他汀)",
+        ]
+        if months >= 6:
+            items.append("颈动脉超声/CTA 复查(评估血管再狭窄或斑块进展)")
+        if months >= 12:
+            items.append("年度综合评估: 心脏超声/Holter(如病因未明)、认知与抑郁筛查")
+        plans.append({"node": node, "items": items})
+    return {
+        "followup_nodes": plans,
+        "daily_management": [
+            "血压: 家庭自测, 目标 <140/90 mmHg(合并糖尿病/肾病 <130/80)",
+            "血糖: 每 3 个月查 HbA1c, 目标 <7%",
+            "血脂: 他汀长期维持, LDL-C <1.8 mmol/L(高危)",
+            "生活方式: 戒烟限酒、限盐(<5g/d)、每周≥150 分钟中等强度运动、体重管理",
+            "康复: 吞咽/言语/肢体功能康复训练按需持续",
+        ],
+        "warning_signs": [
+            "突发口角歪斜、肢体无力、言语不清 → 立即急诊(FAST)",
+            "黑便/牙龈出血/皮肤瘀斑(抗栓治疗期) → 就医评估",
+            "房颤患者出现心悸加重 → 复查心电图/Holter",
+        ],
+        "note": "随访计划为通用模板,需结合患者个体情况与出院医嘱个体化调整。",
+    }
+
+
+followup_plan_tool = StructuredTool.from_function(
+    name="followup_plan",
+    description="卒中出院随访计划生成(3/6/12个月随访节点、日常管理、预警信号)。",
+    args_schema=FollowupInput,
+    func=adapt_model_func(FollowupInput, _followup_plan),
+)
+
+
 # ============ 工具注册 ============
 aspects_score_tool = StructuredTool.from_function(
     name="aspects_score",
@@ -340,6 +390,7 @@ EXTRA_TOOLS = [
     rtpa_monitor_tool,
     care_bundle_tool,
     ht_risk_tool,
+    followup_plan_tool,
 ]
 
 __all__ = ["EXTRA_TOOLS"]
