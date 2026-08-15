@@ -31,6 +31,38 @@ const emit = defineEmits(['analyze', 'create-patient'])
 
 const form = reactive(createEmptyStrokeAssessment())
 
+// ── 绿道质控看板 ─────────────────────────────────────────
+const qcStats = ref(null)
+const qcExpanded = ref(false)
+
+const qcTrend = computed(() => {
+  const trend = qcStats.value?.trend || {}
+  // 只保留最近 14 天, 补零
+  const result = {}
+  const today = new Date()
+  for (let i = 13; i >= 0; i -= 1) {
+    const d = new Date(today)
+    d.setDate(d.getDate() - i)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    result[key] = trend[key] || 0
+  }
+  return result
+})
+
+function trendHeight(count) {
+  const max = Math.max(...Object.values(qcTrend.value), 1)
+  return `${Math.round((count / max) * 100)}%`
+}
+
+async function loadQcStats() {
+  try {
+    const res = await request.get('/stroke-assessments/qc-stats')
+    if (res.data?.code === 1) qcStats.value = res.data.data
+  } catch {
+    qcStats.value = null
+  }
+}
+
 // ── 化验单拍照解析(自动回填表单) ─────────────────────────
 const labFileInput = ref(null)
 const labExtracting = ref(false)
@@ -117,6 +149,7 @@ watch(
 
 onMounted(() => {
   loadAssessments()
+  loadQcStats()
   tickId = window.setInterval(() => {
     now.value = Date.now()
   }, 1000)
@@ -203,6 +236,7 @@ async function saveAssessment() {
     dirty.value = false
     await loadAssessments()
     await loadReviews(response.data.id)
+    await loadQcStats()
   } catch (error) {
     errorMessage.value = error?.msg || '评估保存失败'
   } finally {
@@ -427,6 +461,38 @@ function reviewActionLabel(action) {
       </header>
 
       <div v-if="errorMessage" class="error-band">{{ errorMessage }}</div>
+
+      <!-- 绿道质控看板 -->
+      <section class="qc-dashboard">
+        <div class="qc-head" @click="qcExpanded = !qcExpanded">
+          <span>📊 绿道质控看板</span>
+          <span class="qc-toggle">{{ qcExpanded ? '收起' : '展开' }}</span>
+        </div>
+        <div v-if="qcExpanded" class="qc-body">
+          <div v-if="!qcStats" class="qc-empty">暂无评估数据，保存评估后自动统计</div>
+          <template v-else>
+            <div class="qc-cards">
+              <div class="qc-card"><strong>{{ qcStats.total }}</strong><span>评估总数</span></div>
+              <div class="qc-card"><strong>{{ qcStats.dntMedianMinutes }}</strong><span>DNT 中位数(分钟)</span></div>
+              <div class="qc-card"><strong>{{ qcStats.dntAvgMinutes }}</strong><span>DNT 均值(分钟)</span></div>
+              <div class="qc-card"><strong>{{ qcStats.withinWindowRate }}%</strong><span>4.5h 窗口内比例</span></div>
+              <div class="qc-card"><strong>{{ qcStats.nihssAvg }}</strong><span>NIHSS 均值</span></div>
+              <div class="qc-card"><strong>{{ qcStats.keyFieldCompleteRate }}%</strong><span>关键字段完整率</span></div>
+              <div class="qc-card" :class="{ warn: qcStats.riskHitCount > 0 }"><strong>{{ qcStats.riskHitCount }}</strong><span>风险信号命中</span></div>
+            </div>
+            <div class="qc-trend">
+              <span class="qc-trend-title">近 14 天评估趋势</span>
+              <div class="qc-trend-bars">
+                <div v-for="(count, day) in qcTrend" :key="day" class="qc-trend-bar" :title="`${day}: ${count} 条`">
+                  <div class="qc-trend-fill" :style="{ height: trendHeight(count) }"></div>
+                  <span>{{ day.slice(5) }}</span>
+                </div>
+                <div v-if="!Object.keys(qcTrend).length" class="qc-empty">暂无趋势数据</div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </section>
 
       <section class="time-strip" aria-label="急诊时间轴">
         <article>
@@ -1123,4 +1189,84 @@ function reviewActionLabel(action) {
 .lab-extract-hint {
   font-size: 11px;
   color: #9ca3af;
-}</style>
+}
+/* ── 绿道质控看板 ── */
+.qc-dashboard {
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  background: var(--color-bg-light, #ffffff);
+  overflow: hidden;
+}
+
+.qc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary-dark, #0d7a68);
+  cursor: pointer;
+  user-select: none;
+}
+
+.qc-toggle {
+  font-size: 12px;
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.qc-body { padding: 4px 14px 12px; }
+
+.qc-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.qc-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 6px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 8px;
+  background: #f9fafb;
+
+  strong { font-size: 18px; color: var(--color-primary-dark, #0d7a68); }
+  span { font-size: 11px; color: #6b7280; margin-top: 2px; text-align: center; }
+
+  &.warn strong { color: #b45309; }
+}
+
+.qc-trend-title { font-size: 12px; color: #6b7280; }
+
+.qc-trend-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 64px;
+  margin-top: 6px;
+}
+
+.qc-trend-bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+
+  .qc-trend-fill {
+    width: 100%;
+    min-height: 2px;
+    background: linear-gradient(180deg, #34c2a8, #11967f);
+    border-radius: 2px 2px 0 0;
+  }
+
+  span { font-size: 9px; color: #9ca3af; margin-top: 2px; }
+}
+
+.qc-empty { font-size: 12px; color: #9ca3af; padding: 8px 0; }</style>
