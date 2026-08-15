@@ -15,6 +15,8 @@ const props = defineProps({
   url: { type: String, default: '' },
   fileName: { type: String, default: 'document.pdf' },
   downloadUrl: { type: String, default: '' },
+  // 证据页码定位: 打开后自动滚动到该页
+  initialPage: { type: Number, default: 1 },
 })
 
 const emit = defineEmits(['close'])
@@ -33,6 +35,7 @@ const baseDocumentWidth = ref(MAX_DOCUMENT_WIDTH)
 
 let resizeObserver = null
 let resizeFrame = 0
+let pageJumped = false
 
 const documentWidth = computed(() => {
   return Math.max(MIN_DOCUMENT_WIDTH, Math.round(baseDocumentWidth.value * zoomLevel.value))
@@ -47,6 +50,7 @@ function resetState() {
   totalPages.value = 0
   loading.value = true
   zoomLevel.value = 1
+  pageJumped = false
 }
 
 function updateBaseDocumentWidth() {
@@ -167,8 +171,31 @@ function onRendered() {
   loading.value = false
 
   nextTick(() => {
+    // 证据页码定位: 打开后滚动到引用页码
+    if (props.initialPage > 1 && !pageJumped) {
+      pageJumped = true
+      scrollToPage(props.initialPage)
+      return
+    }
     updateCurrentPageFromScroll()
   })
+}
+
+function scrollToPage(page) {
+  const viewport = bodyRef.value
+  if (!viewport) return
+
+  const pages = viewport.querySelectorAll('.vue-pdf-embed__page')
+  const target = pages[page - 1]
+  if (!target) return
+
+  const viewportTop = viewport.getBoundingClientRect().top
+  const targetTop = target.getBoundingClientRect().top
+  viewport.scrollTo({
+    top: viewport.scrollTop + (targetTop - viewportTop) - 10,
+    behavior: 'instant',
+  })
+  currentPage.value = page
 }
 
 function handleDownload() {

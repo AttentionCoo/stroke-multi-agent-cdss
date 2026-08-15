@@ -14,9 +14,12 @@
 export function injectRefLinks(raw) {
   if (!raw || typeof raw !== 'string') return raw
 
-  return raw.replace(/《([^》\n]+)》/g, (match, name) => {
+  // 《文献名》 + 可选页码标记(p.7 / 第7页) → 携带 data-ref-page 的点击 span
+  return raw.replace(/《([^》\n]+)》(?:\s*[pP]\.?\s*(\d{1,4})|\s*第\s*(\d{1,4})\s*页)?/g, (match, name, pageDot, pageCn) => {
     // 对 data 属性值中的双引号转义，避免破坏 HTML 结构
     const safeAttr = name.replace(/"/g, '&quot;')
-    return `<span class="ref-link" data-ref-name="${safeAttr}">${match}</span>`
+    const page = pageDot || pageCn || ''
+    const pageAttr = page ? ` data-ref-page="${page}"` : ''
+    return `<span class="ref-link" data-ref-name="${safeAttr}"${pageAttr}>${match}</span>`
   })
 }

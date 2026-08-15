@@ -178,11 +178,12 @@ function handleRefClick(e) {
   if (!span) return
   const name = span.dataset.refName
   if (!name) return
-  openRefPopup(name)
+  const page = Number(span.dataset.refPage) || 0
+  openRefPopup(name, page)
 }
 
-async function openRefPopup(name) {
-  refPopup.value = { visible: true, name, loading: true, previewUrl: '', downloadUrl: '', error: '' }
+async function openRefPopup(name, page = 0) {
+  refPopup.value = { visible: true, name, page, loading: true, previewUrl: '', downloadUrl: '', error: '' }
 
   // 命中缓存则直接使用，避免重复请求
   if (refUrlCache.has(name)) {
@@ -209,6 +210,7 @@ function openPdfPreview() {
     url: refPopup.value.previewUrl,
     downloadUrl: refPopup.value.downloadUrl,
     fileName: refPopup.value.name,
+    initialPage: Number(refPopup.value.page) || 1,
   }
   refPopup.value.visible = false
 }
@@ -357,8 +359,8 @@ const renderMarkdown = (raw = '') => {
       breaks: true,
       gfm: true,
     }),
-    // 允许 ref-link span 上的 data-ref-name 属性通过 DOMPurify 过滤
-    { ADD_ATTR: ['data-ref-name'] },
+    // 允许 ref-link span 上的 data-ref-name / data-ref-page 属性通过 DOMPurify 过滤
+    { ADD_ATTR: ['data-ref-name', 'data-ref-page'] },
   )
 }
 
@@ -827,6 +829,7 @@ function evidenceCardsFor(msg, index) {
       <div v-if="refPopup.visible" class="ref-popup-backdrop" @click.self="refPopup.visible = false">
         <div class="ref-popup">
           <p class="ref-popup-title">《{{ refPopup.name }}》</p>
+          <p v-if="refPopup.page" class="ref-popup-page">引用页码：第 {{ refPopup.page }} 页（预览将自动定位）</p>
           <div v-if="refPopup.loading" class="ref-popup-status">匹配中...</div>
           <div v-else-if="refPopup.error" class="ref-popup-status error">{{ refPopup.error }}</div>
           <div v-else class="ref-popup-actions">
@@ -841,7 +844,8 @@ function evidenceCardsFor(msg, index) {
 
     <!-- ── PDF 预览弹窗（复用 PdfPreviewModal） ──────── -->
     <PdfPreviewModal :visible="pdfPreviewState.visible" :url="pdfPreviewState.url" :file-name="pdfPreviewState.fileName"
-      :download-url="pdfPreviewState.downloadUrl" @close="pdfPreviewState.visible = false" />
+      :download-url="pdfPreviewState.downloadUrl" :initial-page="pdfPreviewState.initialPage || 1"
+      @close="pdfPreviewState.visible = false" />
 
     <!-- 图片放大预览 -->
     <Teleport to="body">
@@ -1372,7 +1376,12 @@ function evidenceCardsFor(msg, index) {
   gap: 14px;
 }
 
-.ref-popup-title {
+
+.ref-popup-page {
+  font-size: 12px;
+  color: var(--color-primary-dark, #0d7a68);
+  margin: 0 0 8px;
+}.ref-popup-title {
   margin: 0;
   font-size: 15px;
   font-weight: 700;
