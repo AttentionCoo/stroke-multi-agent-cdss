@@ -397,7 +397,7 @@ async function handleSendMessage({ text, images } = {}) {
   const aiIndex = currentTalkList.value.length - 1
 
   // 为本次 AI 回答初始化独立的思考记录
-  const thinkingEntry = reactive({ events: [], elapsedSeconds: null, startTime: Date.now(), usage: null, askDoctor: null })
+  const thinkingEntry = reactive({ events: [], elapsedSeconds: null, startTime: Date.now(), usage: null, askDoctor: null, nodeStats: {} })
   thinkingHistoryList.value.push(thinkingEntry)
 
   // thinking 事件回调：开始事件新增步骤，完成事件补全该步骤的结果摘要
@@ -414,6 +414,13 @@ async function handleSendMessage({ text, images } = {}) {
   // 信息缺口追问(ask_doctor 事件): 记录缺口清单供补充卡片展示
   const onAskDoctor = (payload) => {
     if (payload?.questions?.length) thinkingEntry.askDoctor = payload
+  }
+
+  // 检索质量看板(node_stats 事件): 按节点记录结构化指标
+  const onNodeStats = (payload) => {
+    if (payload?.node && payload?.stats) {
+      thinkingEntry.nodeStats[payload.node] = payload.stats
+    }
   }
 
   // ── 双缓冲区（仅作用于本次对话的生命周期）────────────────────────
@@ -485,13 +492,14 @@ async function handleSendMessage({ text, images } = {}) {
     const requestPayload = buildPatientAwareRequest(text, syncPatientId.value, images)
     const finalResult =
       currentTalkId.value === NEW_TALK_ID
-        ? await newChatStreamAPI(requestPayload, onChunk, onThinking, onUsage, onAskDoctor)
+        ? await newChatStreamAPI(requestPayload, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats)
         : await sendQuestionStreamAPI(
           { ...requestPayload, talkId: currentTalkId.value },
           onChunk,
           onThinking,
           onUsage,
           onAskDoctor,
+          onNodeStats,
         )
 
     const { title, content } = finalResult.data || {}

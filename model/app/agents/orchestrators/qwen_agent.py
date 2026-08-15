@@ -219,6 +219,44 @@ class QwenAgent:
             logger.error(f"临床推理管线异常 | {format_error_log(e)}")
             yield build_error_event(e, talk_id=None)
 
+    @staticmethod
+    def _node_stats_event(node: str, output: dict) -> Dict | None:
+        """检索质量看板: 为 retrieve/evidence_judge 生成结构化指标事件。"""
+        if not isinstance(output, dict):
+            return None
+        if node == "retrieve":
+            import re
+            evidence = str(output.get("evidence", "") or "")
+            items = re.findall(r"【证据\s+([^】]+)】", evidence)
+            sources = {}
+            categories = {}
+            for head in items:
+                m_src = re.search(r"来源:\s*([^\]\s]+?)(?:\.pdf|\.PDF)?\s*(?:p\.?\d*)?", head)
+                m_cat = re.search(r"类别:\s*(\S+)", head)
+                if m_src:
+                    src = m_src.group(1).strip().rstrip(".")
+                    sources[src] = sources.get(src, 0) + 1
+                if m_cat:
+                    cat = m_cat.group(1).strip()
+                    categories[cat] = categories.get(cat, 0) + 1
+            stats = {
+                "round": int(output.get("retrieval_round", 0) or 0),
+                "evidence_count": len(items),
+                "unique_sources": len(sources),
+                "source_distribution": sources,
+                "category_distribution": categories,
+            }
+            return {"type": "node_stats", "node": node, "stats": stats}
+        if node == "evidence_judge":
+            missing = output.get("missing_information", [])
+            stats = {
+                "quality": round(float(output.get("evidence_quality", 0.0) or 0.0), 2),
+                "need_retrieve": bool(output.get("need_retrieve", False)),
+                "missing_count": len(missing) if isinstance(missing, list) else 0,
+            }
+            return {"type": "node_stats", "node": node, "stats": stats}
+        return None
+
     def _render_live(self, node: str, buf: dict) -> str:
         """把实时缓冲区渲染为当前节点生成中的快照文本。"""
         parts = []
@@ -340,6 +378,11 @@ class QwenAgent:
 
             # 节点完成后清空其实时缓冲(反思回环再次执行时重新实时积累)
             self._live_buffers.pop(name, None)
+
+            # ── 检索质量看板: retrieve/evidence_judge 输出结构化指标 ──
+            stats_event = self._node_stats_event(name, output)
+            if stats_event:
+                translated.append(stats_event)
 
             # tool_use 节点:将每次工具调用展开为独立步骤事件,前端可逐条展示
             if name == "tool_use" and isinstance(output, dict):

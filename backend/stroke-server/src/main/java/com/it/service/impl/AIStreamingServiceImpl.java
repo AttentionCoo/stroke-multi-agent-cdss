@@ -598,6 +598,14 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                                 json.path("status").asText("done")));
             }
 
+            // node_stats 事件：检索质量看板结构化指标, 透传前端
+            if ("node_stats".equalsIgnoreCase(type)) {
+                Map<String, Object> statsResp = baseResponse(talkId, generatedTitle[0], "node_stats");
+                statsResp.put("node", json.path("node").asText(""));
+                statsResp.put("stats", json.path("stats"));
+                return Flux.just(objectMapper.writeValueAsString(statsResp));
+            }
+
             // ask_doctor 事件：信息缺口追问闭环——透传缺口清单, 前端显示"补充信息"卡片
             if ("ask_doctor".equalsIgnoreCase(type)) {
                 Map<String, Object> askResp = baseResponse(talkId, generatedTitle[0], "ask_doctor");

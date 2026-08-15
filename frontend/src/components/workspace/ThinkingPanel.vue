@@ -114,6 +114,26 @@ function formatContent(content) {
   return { type: 'text', data: trimmed }
 }
 
+// 检索质量看板: 步骤对应的结构化指标 chips
+function statsFor(step) {
+  const stats = props.thinkingData?.nodeStats?.[step]
+  if (!stats) return null
+  if (step === 'retrieve') {
+    const cats = Object.entries(stats.category_distribution || {})
+      .map(([k, v]) => `${k}×${v}`)
+      .join(' ')
+    return [`轮次 ${stats.round}`, `证据 ${stats.evidence_count} 条`, `来源 ${stats.unique_sources} 篇`, cats].filter(Boolean)
+  }
+  if (step === 'evidence_judge') {
+    return [
+      `质量 ${Math.round((stats.quality || 0) * 100)}%`,
+      stats.need_retrieve ? '需补充检索' : '证据充分',
+      `缺口 ${stats.missing_count ?? 0} 项`,
+    ]
+  }
+  return null
+}
+
 // 单个步骤的纯文本(标题 + 内容), 用于复制
 function buildStepText(event, idx) {
   const title = event.title || event.step || `步骤${idx + 1}`
@@ -201,6 +221,9 @@ async function copyAll() {
         <div class="step-title">
           <span class="step-index">{{ idx + 1 }}</span>
           <span class="step-name">{{ event.title || event.step }}</span>
+          <span v-if="statsFor(event.step)" class="step-stats">
+            <span v-for="(chip, ci) in statsFor(event.step)" :key="ci" class="stat-chip">{{ chip }}</span>
+          </span>
           <button
             v-if="event.status === 'done' && event.content"
             type="button"
@@ -500,6 +523,23 @@ async function copyAll() {
   min-width: 0;
   flex: 1;
   overflow-wrap: anywhere;
+}
+
+.step-stats {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.stat-chip {
+  font-size: 10px;
+  color: #6b7280;
+  background: rgba(17, 150, 127, 0.07);
+  border-radius: 8px;
+  padding: 0 6px;
+  line-height: 16px;
+  white-space: nowrap;
 }
 
 .step-status {
