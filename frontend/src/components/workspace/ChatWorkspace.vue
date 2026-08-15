@@ -11,6 +11,7 @@ import { buildEvidenceCards } from '@/utils/strokeAssessment'
 import { matchDocumentAPI } from '@/api/documents'
 import { compressImage } from '@/utils/imageCompress'
 import { copyText } from '@/utils/clipboard'
+import { stripThinkingMarkdown } from '@/utils/thinkingEvents'
 import AttachFileSVG from '../svg/AttachFileSVG.vue'
 
 defineOptions({ name: 'ChatWorkspace' })
@@ -477,6 +478,98 @@ function msgText(msg) {
   return typeof msg === 'object' && msg !== null ? (msg.content ?? msg.text ?? msg.message ?? '') : (msg || '')
 }
 
+// HTML 转义(导出纪要防注入)
+function escapeHtml(text) {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+// 导出 MDT 多学科会诊纪要(打印/另存 PDF)
+function handleExportMDT(msg, index) {
+  const caseText = msgText(index > 0 ? props.currentTalkList[index - 1] : null)
+  const reportText = msgText(msg)
+  const events = props.thinkingHistoryList[index]?.events || []
+
+  const stepHtml = events
+    .map((e, i) => {
+      const title = e.title || e.step || `步骤${i + 1}`
+      const content = escapeHtml(stripThinkingMarkdown(e.content || ''))
+      return `<section class="step"><h3>${i + 1}. ${escapeHtml(title)}</h3><div class="step-content">${content}</div></section>`
+    })
+    .join('\n')
+
+  let reportHtml = ''
+  try {
+    reportHtml = DOMPurify.sanitize(marked.parse(reportText))
+  } catch {
+    reportHtml = escapeHtml(reportText)
+  }
+
+  const now = new Date()
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>脑卒中多学科会诊纪要</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #1f2937; margin: 24px; line-height: 1.7; }
+  header { text-align: center; border-bottom: 2px solid #0d7a68; padding-bottom: 12px; margin-bottom: 16px; }
+  header h1 { font-size: 20px; margin: 0 0 6px; color: #0d7a68; }
+  header .sub { font-size: 12px; color: #6b7280; }
+  h2 { font-size: 15px; color: #0d7a68; border-left: 4px solid #0d7a68; padding-left: 8px; margin: 18px 0 8px; }
+  section.step { margin: 10px 0; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 6px; page-break-inside: avoid; }
+  section.step h3 { font-size: 13px; margin: 0 0 6px; color: #0d7a68; }
+  .step-content { white-space: pre-wrap; font-size: 12px; color: #374151; }
+  .case-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 12px; font-size: 13px; white-space: pre-wrap; }
+  .report { font-size: 13px; }
+  .report table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 12px; }
+  .report table th, .report table td { border: 1px solid #d1d5db; padding: 4px 8px; text-align: left; }
+  .report h1, .report h2, .report h3, .report h4 { color: #0d7a68; margin: 12px 0 6px; }
+  footer { margin-top: 28px; font-size: 12px; color: #9ca3af; display: flex; justify-content: space-between; }
+  .sign { width: 40%; border-top: 1px solid #9ca3af; padding-top: 4px; text-align: center; }
+  @media print {
+    body { margin: 12mm; }
+    header { border-bottom-width: 2px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>脑卒中多学科会诊纪要（MDT）</h1>
+  <div class="sub">卒中多智能体临床辅助决策支持系统 · 生成时间：${dateStr}</div>
+</header>
+
+<h2>一、病例资料</h2>
+<div class="case-box">${escapeHtml(caseText) || '（未提供）'}</div>
+
+<h2>二、多智能体会诊过程</h2>
+${stepHtml || '<p style="font-size:12px;color:#9ca3af">（本消息无思考链记录）</p>'}
+
+<h2>三、会诊结论</h2>
+<div class="report">${reportHtml || '<p style="color:#9ca3af">（无报告内容）</p>'}</div>
+
+<footer>
+  <span>本纪要由 AI 辅助生成，仅供临床参考，最终诊断与治疗决策须由执业医师确认。</span>
+  <span class="sign">审核医师签名</span>
+</footer>
+<script>window.onload = function () { setTimeout(function () { window.print() }, 300) }</scr` + `ipt>
+</body>
+</html>`
+
+  const win = window.open('', '_blank')
+  if (!win) return
+  win.document.open()
+  win.document.write(html)
+  win.document.close()
+  win.focus()
+}
+
 // 从消息中提取图片列表
 function msgImages(msg) {
   return typeof msg === 'object' && msg !== null ? (msg.images || []) : []
@@ -591,6 +684,12 @@ function evidenceCardsFor(msg, index) {
               <button type="button" class="copy-btn" :class="{ copied: copiedMsgIndex === index }" @click="handleCopy(msg, index)">
                 {{ copiedMsgIndex === index ? '已复制' : '复制' }}
               </button>
+              <button
+                v-if="!isUserMessage(msg, index)"
+                type="button"
+                class="copy-btn export-btn"
+                @click="handleExportMDT(msg, index)"
+              >导出纪要</button>
             </div>
 
             <div class="message" :class="{ user: isUserMessage(msg, index) }">
@@ -914,6 +1013,10 @@ function evidenceCardsFor(msg, index) {
   &.copied {
     color: var(--color-primary);
     font-weight: 600;
+  }
+
+  &.export-btn {
+    margin-left: 10px;
   }
 }
 
