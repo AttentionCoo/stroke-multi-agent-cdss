@@ -84,10 +84,9 @@ public class ConversationPersistenceService {
             // 设置content为answer（或summary，如果有）
             String finalContent = summary != null && !summary.isEmpty() ? summary : answer;
             talk.setContent(finalContent);
-            // 追加本轮思考链(节点过程/专家意见/用量)到历史, 供刷新后重新打开思维链
-            if (thinkingJson != null && !thinkingJson.isBlank()) {
-                talk.setThinkingJson(appendThinkingRound(talk.getThinkingJson(), thinkingJson));
-            }
+            // 思维链对齐: 每条 AI 回答必须占一个轮次槽位(无思维链则存 null 占位),
+            // 保证历史思维链与对应问答严格一一对应, 不因"范围拦截/重试持久化"等无思维链轮次而错位
+            talk.setThinkingJson(appendThinkingRound(talk.getThinkingJson(), thinkingJson));
             talk.setUpdateTime(now);
             talkService.updateById(talk);
         } else {
@@ -98,7 +97,8 @@ public class ConversationPersistenceService {
     }
 
     /**
-     * 把新一轮思考链 JSON 追加到历史数组(历史可能为 null/空/非法 JSON, 全部降级处理)。
+     * 把新一轮思考链追加到历史数组: 每条 AI 回答占一个槽位, 无思维链时为 null 占位。
+     * (历史可能为 null/空/非法 JSON, 全部降级处理)
      */
     private String appendThinkingRound(String existing, String newRoundJson) {
         try {
@@ -113,7 +113,15 @@ public class ConversationPersistenceService {
                     log.warn("历史思考链 JSON 解析失败, 按空数组处理: {}", e.getMessage());
                 }
             }
-            rounds.add(objectMapper.readValue(newRoundJson, Object.class));
+            Object newRound = null;
+            if (newRoundJson != null && !newRoundJson.isBlank()) {
+                try {
+                    newRound = objectMapper.readValue(newRoundJson, Object.class);
+                } catch (Exception e) {
+                    log.warn("本轮思考链 JSON 解析失败, 存 null 占位: {}", e.getMessage());
+                }
+            }
+            rounds.add(newRound);
             // 上限 200 轮, 防止极端情况下字段无限膨胀
             if (rounds.size() > 200) {
                 rounds = new java.util.ArrayList<>(rounds.subList(rounds.size() - 200, rounds.size()));
