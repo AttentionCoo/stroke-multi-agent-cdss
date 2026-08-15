@@ -54,6 +54,7 @@ const tabs = [
 const userStore = useUserStore()
 const themeStore = useThemeStore()
 const NEW_TALK_ID = ''
+const LAST_TALK_KEY = 'stroke_last_talk_id'
 
 const activeTab = ref('chat')
 const activeLearningView = ref('pdfs')
@@ -178,6 +179,16 @@ watch(activeTab, (tab) => {
   }
 })
 
+// 记住当前对话: 刷新页面后自动恢复上次查看的问答
+watch(currentTalkId, (talkId) => {
+  try {
+    if (talkId) localStorage.setItem(LAST_TALK_KEY, talkId)
+    else localStorage.removeItem(LAST_TALK_KEY)
+  } catch {
+    // 隐私模式等场景下 localStorage 不可用, 静默降级
+  }
+})
+
 onMounted(async () => {
   await Promise.allSettled([fetchTalkTitle(), fetchPatients()])
 })
@@ -271,11 +282,14 @@ async function fetchTalkTitle() {
       return
     }
 
-    const preferredTalk = talkTitleList.value.find((talk) => talk.talkId === currentTalkId.value)
+    // 刷新恢复: 优先打开上次查看的对话(持久化在 localStorage), 其次当前值, 最后第一个有效对话
+    const savedTalkId = localStorage.getItem(LAST_TALK_KEY) || ''
+    const savedValid = talkTitleList.value.some((talk) => talk.talkId === savedTalkId) ? savedTalkId : ''
+    const preferredTalk = talkTitleList.value.find((talk) => talk.talkId === (savedValid || currentTalkId.value))
     const firstValidTalk = preferredTalk || talkTitleList.value.find((talk) => talk.talkId !== NEW_TALK_ID) || talkTitleList.value[0]
 
     // 若用户主动新建对话（区别于首次加载），保留占位符，不要强制切回旧对话
-    if (currentTalkId.value === NEW_TALK_ID && userRequestedNewChat.value) {
+    if (currentTalkId.value === NEW_TALK_ID && userRequestedNewChat.value && !savedValid) {
       talkTitleList.value.unshift({ talkId: NEW_TALK_ID, title: '新对话' })
       return
     }

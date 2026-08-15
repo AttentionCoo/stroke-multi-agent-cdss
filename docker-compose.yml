@@ -21,11 +21,14 @@ services:
     image: ${DOCKER_BASE_IMAGE_REGISTRY:-public.ecr.aws/docker/library}/redis:7-alpine
     container_name: stroke-redis
     restart: unless-stopped
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-stroke-local-only}"]
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-stroke-local-only}", "--appendonly", "yes"]
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-stroke-local-only}
     ports:
       - "6379:6379"
+    volumes:
+      # 持久化: 容器重建后登录会话/限流/SSE 缓存不丢失
+      - redis-data:/data
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
       interval: 10s
@@ -130,6 +133,7 @@ services:
 
 volumes:
   mysql-data:
+  redis-data:
   model-data:
   model-cache:
   model-chroma:
