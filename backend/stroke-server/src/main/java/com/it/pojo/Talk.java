@@ -18,6 +18,8 @@ public class Talk {
     private Long patientId;
     private String title;
     private String content;
+    /** 思考链历史(JSON数组, 每轮推理过程/专家意见/用量), 供刷新后重新打开思维链 */
+    private String thinkingJson;
 
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

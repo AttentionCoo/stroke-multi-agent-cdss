@@ -5,6 +5,7 @@ import com.it.po.vo.AnswerVO;
 import com.it.pojo.Talk;
 import reactor.core.publisher.Flux;
 import java.util.List;
+import java.util.Map;
 
 public interface AIStreamingService {
     // 创建新对话
@@ -23,8 +24,8 @@ public interface AIStreamingService {
             Long patientId
     );
 
-    // 获取历史对话内容，返回含 role/content/images 的 DTO 列表
-    List<ContDTO> getPreContent(Long userId, Long talkId);
+    // 获取历史对话内容: {conversation: [{role,content,images}], thinkingHistory: [每轮思考链]}
+    Map<String, Object> getPreContent(Long userId, Long talkId);
 
     // 保存被范围拦截的问题+提示到对话（确保"你好"等也有对话记录）
     void persistRejectedScopeConversation(Long userId, Long talkId, String question, String message);

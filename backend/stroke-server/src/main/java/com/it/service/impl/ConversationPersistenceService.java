@@ -28,7 +28,8 @@ public class ConversationPersistenceService {
 
     @Transactional
     public void persistConversation(Long userId, Long talkId, String question, String answer,
-                                    String summary, String title, List<String> images) {
+                                    String summary, String title, List<String> images,
+                                    String thinkingJson) {
         LocalDateTime now = LocalDateTime.now();
 
         // 将图片列表序列化为 JSON 字符串，无图片时存 null
@@ -83,6 +84,10 @@ public class ConversationPersistenceService {
             // 设置content为answer（或summary，如果有）
             String finalContent = summary != null && !summary.isEmpty() ? summary : answer;
             talk.setContent(finalContent);
+            // 追加本轮思考链(节点过程/专家意见/用量)到历史, 供刷新后重新打开思维链
+            if (thinkingJson != null && !thinkingJson.isBlank()) {
+                talk.setThinkingJson(appendThinkingRound(talk.getThinkingJson(), thinkingJson));
+            }
             talk.setUpdateTime(now);
             talkService.updateById(talk);
         } else {
@@ -90,5 +95,33 @@ public class ConversationPersistenceService {
         }
         // 清除历史缓存
         String historyKey = "chat:history:" + userId + ":" + talkId;
+    }
+
+    /**
+     * 把新一轮思考链 JSON 追加到历史数组(历史可能为 null/空/非法 JSON, 全部降级处理)。
+     */
+    private String appendThinkingRound(String existing, String newRoundJson) {
+        try {
+            java.util.ArrayList<Object> rounds = new java.util.ArrayList<>();
+            if (existing != null && !existing.isBlank()) {
+                try {
+                    Object parsed = objectMapper.readValue(existing, Object.class);
+                    if (parsed instanceof java.util.List<?> list) {
+                        rounds.addAll(list);
+                    }
+                } catch (Exception e) {
+                    log.warn("历史思考链 JSON 解析失败, 按空数组处理: {}", e.getMessage());
+                }
+            }
+            rounds.add(objectMapper.readValue(newRoundJson, Object.class));
+            // 上限 200 轮, 防止极端情况下字段无限膨胀
+            if (rounds.size() > 200) {
+                rounds = new java.util.ArrayList<>(rounds.subList(rounds.size() - 200, rounds.size()));
+            }
+            return objectMapper.writeValueAsString(rounds);
+        } catch (Exception e) {
+            log.warn("追加思考链失败, 保留原值: {}", e.getMessage());
+            return existing;
+        }
     }
 }

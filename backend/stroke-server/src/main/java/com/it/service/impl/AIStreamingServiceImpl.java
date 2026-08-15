@@ -38,6 +38,7 @@ import java.time.Duration;
 import org.springframework.scheduling.annotation.Scheduled;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -103,7 +104,7 @@ public class AIStreamingServiceImpl implements AIStreamingService {
         try {
             // 复用持久化服务：保存"问题(user) + 范围提示(assistant)"
             conversationPersistenceService.persistConversation(
-                    userId, talkId, question, message, "", "问题范围提示", List.of());
+                    userId, talkId, question, message, "", "问题范围提示", List.of(), null);
             clearTalkListCache(userId);
             log.info("已保存被范围拦截的对话: talkId={}, question={}", talkId, question);
         } catch (Exception e) {
@@ -162,7 +163,7 @@ public class AIStreamingServiceImpl implements AIStreamingService {
 
     @Transactional(readOnly = true)
     @Override
-    public List<ContDTO> getPreContent(Long userId, Long talkId) {
+    public Map<String, Object> getPreContent(Long userId, Long talkId) {
         // 直接查数据库，不走 Redis 缓存
         // 原因：Redis 缓存中 images 字段已被剔除（避免大字段膨胀），
         //       前端加载历史记录时需要完整的图片数据，必须从 DB 取
@@ -172,26 +173,49 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                         .eq(Cont::getTalkId, talkId)
                         .orderByAsc(Cont::getId)
         );
-        if (history == null) return Collections.emptyList();
 
-        return history.stream()
-                .map(cont -> {
-                    // 将 images JSON 字符串反序列化回 List<String>，失败时降级为空列表
-                    List<String> imageList = Collections.emptyList();
-                    if (cont.getImages() != null && !cont.getImages().isEmpty()) {
-                        try {
-                            imageList = objectMapper.readValue(cont.getImages(), new TypeReference<>() {});
-                        } catch (Exception e) {
-                            log.warn("图片列表反序列化失败，降级为空列表: contId={}", cont.getId());
+        List<ContDTO> conversation;
+        if (history == null) {
+            conversation = Collections.emptyList();
+        } else {
+            conversation = history.stream()
+                    .map(cont -> {
+                        // 将 images JSON 字符串反序列化回 List<String>，失败时降级为空列表
+                        List<String> imageList = Collections.emptyList();
+                        if (cont.getImages() != null && !cont.getImages().isEmpty()) {
+                            try {
+                                imageList = objectMapper.readValue(cont.getImages(), new TypeReference<>() {});
+                            } catch (Exception e) {
+                                log.warn("图片列表反序列化失败，降级为空列表: contId={}", cont.getId());
+                            }
                         }
-                    }
-                    return ContDTO.builder()
-                            .role(cont.getRole() != null ? cont.getRole() : "user")
-                            .content(cont.getContent() != null ? cont.getContent() : "")
-                            .images(imageList)
-                            .build();
-                })
-                .collect(Collectors.toList());
+                        return ContDTO.builder()
+                                .role(cont.getRole() != null ? cont.getRole() : "user")
+                                .content(cont.getContent() != null ? cont.getContent() : "")
+                                .images(imageList)
+                                .build();
+                    })
+                    .collect(Collectors.toList());
+        }
+
+        // 思考链历史: 从 talk.thinking_json 解析(JSON 数组, 与 AI 消息一一对应)
+        List<Object> thinkingHistory = Collections.emptyList();
+        try {
+            Talk talk = talkService.getById(talkId);
+            if (talk != null && talk.getThinkingJson() != null && !talk.getThinkingJson().isBlank()) {
+                Object parsed = objectMapper.readValue(talk.getThinkingJson(), Object.class);
+                if (parsed instanceof List<?> list) {
+                    thinkingHistory = new ArrayList<>(list);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("思考链历史解析失败, 返回空列表: talkId={}, err={}", talkId, e.getMessage());
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("conversation", conversation);
+        result.put("thinkingHistory", thinkingHistory);
+        return result;
     }
 
     private boolean tryAcquire(String key, int rate, int seconds) {
@@ -306,6 +330,8 @@ public class AIStreamingServiceImpl implements AIStreamingService {
         StringBuilder fullAnswer = new StringBuilder();
         final String[] generatedTitle = {null};
         final String[] updatedAllInfo = {historyText};
+        // 本轮思考链累积器(节点过程/专家意见/用量), 随对话持久化, 供刷新后重新打开思维链
+        final RoundAccumulator roundAcc = new RoundAccumulator();
 
         return webClient.post()
                 .uri("/model/get_result")
@@ -329,7 +355,7 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                 .filter(line -> !line.isEmpty())
                 .filter(line -> !"[DONE]".equalsIgnoreCase(line))
 
-                .flatMap(line -> parseModelLine(line, finalTalkId, generatedTitle, updatedAllInfo, fullAnswer), 1)
+                .flatMap(line -> parseModelLine(line, finalTalkId, generatedTitle, updatedAllInfo, fullAnswer, roundAcc), 1)
 
                 .concatWith(Mono.fromCallable(() -> {
                     // 仅做标题解析（轻量同步），done 事件构造后立即发往前端
@@ -367,8 +393,10 @@ public class AIStreamingServiceImpl implements AIStreamingService {
 
                         // 快照本次请求携带的图片列表，随问题一起持久化
                         final List<String> snapshotImages = images;
+                        // 快照本轮思考链(节点过程/专家意见/用量/缺口), 随对话持久化
+                        final String snapshotThinking = roundAcc.toJsonString(objectMapper);
                         Mono.fromRunnable(
-                                () -> persistAndCleanCache(userId, finalTalkId, question, snapshotAnswer, snapshotTitle, snapshotImages))
+                                () -> persistAndCleanCache(userId, finalTalkId, question, snapshotAnswer, snapshotTitle, snapshotImages, snapshotThinking))
                                 .subscribeOn(Schedulers.boundedElastic())
                                 .doOnError(e -> log.warn("异步持久化失败，进入重试队列: talkId={}", finalTalkId, e))
                                 .onErrorResume(e -> {
@@ -420,7 +448,8 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                                         Long talkId,
                                         String[] generatedTitle,
                                         String[] updatedAllInfo,
-                                        StringBuilder fullAnswer) {
+                                        StringBuilder fullAnswer,
+                                        RoundAccumulator round) {
         // ── 超长行保护：解析前先检查长度，防止 OOM ──────────────────────────────
         if (line.length() > MAX_LINE_LENGTH) {
             log.error("接收到超长 SSE 行，已截断拒绝解析: length={}, talkId={}, preview={}",
@@ -451,6 +480,11 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                         json.path("summary").asText(""));
                 if (StrUtil.isNotBlank(allInfo)) {
                     updatedAllInfo[0] = allInfo;
+                }
+                // LLM 用量(思考链看板): 随思考链一并持久化
+                if (round != null && !json.path("usage").isMissingNode()) {
+                    round.usage = objectMapper.convertValue(
+                            json.path("usage"), new TypeReference<Map<String, Object>>() {});
                 }
                 return Flux.empty();
             }
@@ -559,24 +593,35 @@ public class AIStreamingServiceImpl implements AIStreamingService {
             // node_token 事件：节点生成过程的实时快照 → thinking 事件(running)，
             // 供前端思考链对运行中步骤做增量替换显示；不混入最终回答全文
             if ("node_token".equalsIgnoreCase(type)) {
+                String step = json.path("node").asText("");
+                String label = json.path("label").asText("");
+                String content = json.path("content").asText("");
+                if (round != null && StrUtil.isNotBlank(step)) {
+                    round.onStepToken(step, label, content);
+                }
                 return buildThinkingResponse(
                         talkId,
                         generatedTitle[0],
                         new ThinkingEvent(
-                                json.path("node").asText(""),
-                                json.path("label").asText(""),
-                                json.path("content").asText(""),
+                                step,
+                                label,
+                                content,
                                 json.path("status").asText("running")));
             }
 
             // node_start 事件：LangGraph 节点开始执行（替代旧版 thinking），透传为 thinking 事件
             if ("node_start".equalsIgnoreCase(type)) {
+                String step = json.path("node").asText("");
+                String label = json.path("label").asText("");
+                if (round != null && StrUtil.isNotBlank(step)) {
+                    round.onStepStart(step, label);
+                }
                 return buildThinkingResponse(
                         talkId,
                         generatedTitle[0],
                         new ThinkingEvent(
-                                json.path("node").asText(""),
-                                json.path("label").asText(""),
+                                step,
+                                label,
                                 json.path("content").asText(""),
                                 json.path("status").asText("running")));
             }
@@ -584,15 +629,19 @@ public class AIStreamingServiceImpl implements AIStreamingService {
             // node_done 事件：优先透传节点完整输出 content（专家意见/质询/共识全文），
             // 无 content 时回退到摘要 summary，供前端思考链"全部打印"
             if ("node_done".equalsIgnoreCase(type)) {
+                String step = json.path("node").asText("");
                 String fullContent = json.path("content").asText("");
                 if (fullContent == null || fullContent.isBlank()) {
                     fullContent = json.path("summary").asText("");
+                }
+                if (round != null && StrUtil.isNotBlank(step)) {
+                    round.onStepDone(step, fullContent);
                 }
                 return buildThinkingResponse(
                         talkId,
                         generatedTitle[0],
                         new ThinkingEvent(
-                                json.path("node").asText(""),
+                                step,
                                 json.path("label").asText(""),
                                 fullContent,
                                 json.path("status").asText("done")));
@@ -600,14 +649,23 @@ public class AIStreamingServiceImpl implements AIStreamingService {
 
             // node_stats 事件：检索质量看板结构化指标, 透传前端
             if ("node_stats".equalsIgnoreCase(type)) {
+                String node = json.path("node").asText("");
+                if (round != null && StrUtil.isNotBlank(node) && !json.path("stats").isMissingNode()) {
+                    round.nodeStats.put(node, objectMapper.convertValue(
+                            json.path("stats"), new TypeReference<Map<String, Object>>() {}));
+                }
                 Map<String, Object> statsResp = baseResponse(talkId, generatedTitle[0], "node_stats");
-                statsResp.put("node", json.path("node").asText(""));
+                statsResp.put("node", node);
                 statsResp.put("stats", json.path("stats"));
                 return Flux.just(objectMapper.writeValueAsString(statsResp));
             }
 
             // ask_doctor 事件：信息缺口追问闭环——透传缺口清单, 前端显示"补充信息"卡片
             if ("ask_doctor".equalsIgnoreCase(type)) {
+                if (round != null) {
+                    round.askQuestions = objectMapper.convertValue(
+                            json.path("questions"), new TypeReference<List<String>>() {});
+                }
                 Map<String, Object> askResp = baseResponse(talkId, generatedTitle[0], "ask_doctor");
                 askResp.put("questions", json.path("questions"));
                 askResp.put("message", json.path("message").asText(""));
@@ -733,10 +791,12 @@ public class AIStreamingServiceImpl implements AIStreamingService {
      * 供 doOnNext 的异步 Mono 和 @Scheduled 重试任务共同调用。
      */
     private void persistAndCleanCache(Long userId, Long talkId,
-                                      String question, String answer, String title, List<String> images) {
-        log.info("异步持久化开始: talkId={}, answerLen={}", talkId, answer.length());
+                                      String question, String answer, String title, List<String> images,
+                                      String thinkingJson) {
+        log.info("异步持久化开始: talkId={}, answerLen={}, thinkingLen={}",
+                talkId, answer.length(), thinkingJson == null ? 0 : thinkingJson.length());
         conversationPersistenceService.persistConversation(
-                userId, talkId, question, answer, "", title, images);
+                userId, talkId, question, answer, "", title, images, thinkingJson);
         // 持久化成功后清理相关缓存
         stringRedisTemplate.delete("chat:history:" + userId + ":" + talkId);
         clearTalkListCache(userId);
@@ -777,7 +837,7 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                 }
 
                 try {
-                    persistAndCleanCache(userId, talkId, question, answer, title, null);
+                    persistAndCleanCache(userId, talkId, question, answer, title, null, null);
                     log.info("持久化重试成功: talkId={}, retryCount={}", talkId, retryCount);
                 } catch (Exception e) {
                     int nextRetry = retryCount + 1;
@@ -937,6 +997,90 @@ public class AIStreamingServiceImpl implements AIStreamingService {
             log.debug("持久化重试任务已入队: talkId={}, retryCount={}", talkId, retryCount);
         } catch (Exception e) {
             log.error("持久化重试任务入队失败: talkId={}, err={}", talkId, e.getMessage());
+        }
+    }
+
+    /**
+     * 单轮思考链累积器: 收集节点开始/实时快照/完成事件,
+     * 序列化为 JSON 随对话持久化, 供前端刷新后随时重新打开思维链。
+     */
+    static final class RoundAccumulator {
+        final List<Map<String, Object>> steps = Collections.synchronizedList(new ArrayList<>());
+        final Map<String, Object> nodeStats = new HashMap<>();
+        volatile Map<String, Object> usage = null;
+        volatile List<String> askQuestions = null;
+        final long startedAt = System.currentTimeMillis();
+
+        synchronized void onStepStart(String step, String title) {
+            Map<String, Object> s = new HashMap<>();
+            s.put("step", step);
+            s.put("title", title == null ? "" : title);
+            s.put("content", "");
+            s.put("status", "running");
+            s.put("startedAt", System.currentTimeMillis());
+            steps.add(s);
+        }
+
+        synchronized void onStepToken(String step, String title, String content) {
+            for (int i = steps.size() - 1; i >= 0; i--) {
+                Map<String, Object> s = steps.get(i);
+                if (step.equals(s.get("step")) && "running".equals(s.get("status"))) {
+                    s.put("content", content == null ? "" : content);
+                    if (title != null && !title.isBlank()) {
+                        s.put("title", title);
+                    }
+                    return;
+                }
+            }
+            Map<String, Object> s = new HashMap<>();
+            s.put("step", step);
+            s.put("title", title == null ? "" : title);
+            s.put("content", content == null ? "" : content);
+            s.put("status", "running");
+            s.put("startedAt", System.currentTimeMillis());
+            steps.add(s);
+        }
+
+        synchronized void onStepDone(String step, String content) {
+            for (int i = steps.size() - 1; i >= 0; i--) {
+                Map<String, Object> s = steps.get(i);
+                if (step.equals(s.get("step"))) {
+                    s.put("content", content == null ? "" : content);
+                    s.put("status", "done");
+                    s.put("endedAt", System.currentTimeMillis());
+                    return;
+                }
+            }
+            Map<String, Object> s = new HashMap<>();
+            s.put("step", step);
+            s.put("title", "");
+            s.put("content", content == null ? "" : content);
+            s.put("status", "done");
+            s.put("startedAt", System.currentTimeMillis());
+            s.put("endedAt", System.currentTimeMillis());
+            steps.add(s);
+        }
+
+        String toJsonString(ObjectMapper mapper) {
+            try {
+                Map<String, Object> round = new HashMap<>();
+                synchronized (steps) {
+                    round.put("events", new ArrayList<>(steps));
+                }
+                round.put("usage", usage);
+                round.put("nodeStats", nodeStats);
+                round.put("elapsedSeconds", Math.max(1, (System.currentTimeMillis() - startedAt) / 1000));
+                if (askQuestions != null) {
+                    Map<String, Object> ask = new HashMap<>();
+                    ask.put("questions", askQuestions);
+                    ask.put("message", "以下信息缺口影响决策质量，补充后可重新发起会诊：");
+                    round.put("askDoctor", ask);
+                }
+                return mapper.writeValueAsString(round);
+            } catch (Exception e) {
+                log.warn("思考链序列化失败: {}", e.getMessage());
+                return null;
+            }
         }
     }
 }

@@ -312,8 +312,32 @@ async function fetchTalkHistory(talkId = currentTalkId.value) {
   isDialogShow.value = false
   try {
     const res = await getChatHistoryAPI(talkId)
-    currentTalkList.value = normalizeTalkHistory(res.data)
-    // 历史回答没有思考详情，但需要保留空槽位以对齐后续新回答。
+    const payload = res.data
+
+    // 新格式: {conversation, thinkingHistory} —— 历史思维链随对话持久化, 刷新后可随时重新打开
+    if (payload && !Array.isArray(payload) && Array.isArray(payload.conversation)) {
+      currentTalkList.value = normalizeTalkHistory(payload.conversation)
+      const rounds = Array.isArray(payload.thinkingHistory) ? payload.thinkingHistory : []
+      let aiOrdinal = 0
+      thinkingHistoryList.value = currentTalkList.value.map((msg) => {
+        if (msg.role !== 'assistant') return null
+        const round = rounds[aiOrdinal]
+        aiOrdinal += 1
+        if (!round || typeof round !== 'object') return null
+        return reactive({
+          events: Array.isArray(round.events) ? round.events : [],
+          elapsedSeconds: round.elapsedSeconds ?? null,
+          usage: round.usage ?? null,
+          askDoctor: round.askDoctor ?? null,
+          nodeStats: round.nodeStats ?? {},
+          startTime: Date.now(),
+        })
+      })
+      return
+    }
+
+    // 旧格式(数组): 历史回答没有思考详情，但需要保留空槽位以对齐后续新回答。
+    currentTalkList.value = normalizeTalkHistory(payload)
     thinkingHistoryList.value = createThinkingHistorySlots(currentTalkList.value)
   } catch (error) {
     console.error('获取历史对话失败', error)
