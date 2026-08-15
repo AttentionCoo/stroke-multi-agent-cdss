@@ -2,6 +2,7 @@ import logging
 import sys
 import asyncio
 import concurrent.futures
+import threading
 from contextlib import asynccontextmanager
 import os
 import json
@@ -10,7 +11,7 @@ import jwt
 import time
 from typing import List
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 import uvicorn
@@ -232,7 +233,7 @@ def init_all_resources():
     logger.info(f"🎉 系统初始化完成！耗时: {init_time:.2f}秒")
     logger.info("=" * 80)
     
-    return agent, naming_model, context_summary, vision_service, llm_turbo
+    return agent, naming_model, context_summary, vision_service, llm_turbo, retriever
 
 
 @asynccontextmanager
@@ -242,7 +243,7 @@ async def lifespan(app: FastAPI):
     loop = asyncio.get_running_loop()
 
     try:
-        agent, naming, context_summary, vision_service, llm_turbo = await loop.run_in_executor(
+        agent, naming, context_summary, vision_service, llm_turbo, retriever = await loop.run_in_executor(
             resources["executor"], init_all_resources
         )
         resources["model"] = agent
@@ -250,6 +251,7 @@ async def lifespan(app: FastAPI):
         resources["context_summary"] = context_summary
         resources["vision_service"] = vision_service
         resources["llm_turbo"] = llm_turbo
+        resources["retriever"] = retriever
         logging.info(">>> 所有模型组装完成，服务已就绪")
     except Exception as e:
         logging.error(f"!!! 模型初始化严重失败: {e}")
@@ -705,6 +707,96 @@ class ToolCallRequest(BaseModel):
 class LabExtractRequest(BaseModel):
     token: str = Field(description="JWT 鉴权令牌")
     images: List[str] = Field(description="Base64 化验单图片列表(最多3张)")
+
+
+# ============ 知识库管理(界面化) ============
+_KbJobs: dict = {}
+
+
+def start_kb_job(action: str) -> str:
+    """后台执行知识库热更新(reload), 返回 job_id 供前端轮询状态。"""
+    job_id = uuid.uuid4().hex[:12]
+    _KbJobs[job_id] = {"status": "running", "action": action, "started": time.time(), "finished": None, "stats": None, "error": None}
+
+    def _run():
+        try:
+            retriever = resources.get("retriever")
+            if not retriever:
+                raise RuntimeError("检索引擎未就绪")
+            stats = retriever.reload()
+            _KbJobs[job_id].update(status="done", finished=time.time(), stats=stats)
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"[KB] 热更新失败: {e}")
+            _KbJobs[job_id].update(status="error", finished=time.time(), error=str(e)[:300])
+
+    threading.Thread(target=_run, daemon=True).start()
+    return job_id
+
+
+class KbUploadRequest(BaseModel):
+    token: str = Field(description="JWT 鉴权令牌")
+    files: List[dict] = Field(description="[{name, base64}] PDF 文件列表")
+
+
+@app.post("/model/kb/upload")
+async def kb_upload(request: KbUploadRequest):
+    """上传指南 PDF → 保存到文档目录 → 后台热更新知识库。"""
+    verify_token(request.token)
+    retriever = resources.get("retriever")
+    if not retriever:
+        raise HTTPException(status_code=503, detail="Retriever not ready")
+    import base64 as _b64
+
+    os.makedirs(retriever.docs_dir, exist_ok=True)
+    saved = []
+    for f in request.files[:10]:
+        name = os.path.basename(str(f.get("name", "") or "upload.pdf"))
+        if not name.lower().endswith(".pdf"):
+            name += ".pdf"
+        data = _b64.b64decode(str(f.get("base64", "") or ""))
+        if not data:
+            continue
+        with open(os.path.join(retriever.docs_dir, name), "wb") as fh:
+            fh.write(data)
+        saved.append(name)
+    if not saved:
+        return {"code": 0, "msg": "未收到有效文件", "data": None}
+    job_id = start_kb_job("upload")
+    return {"code": 1, "msg": "success", "data": {"saved": saved, "job_id": job_id}}
+
+
+@app.delete("/model/kb/documents/{name}")
+async def kb_delete_document(name: str, token: str = Header("")):
+    """删除指南 PDF → 后台热更新知识库。"""
+    verify_token(token)
+    retriever = resources.get("retriever")
+    if not retriever:
+        raise HTTPException(status_code=503, detail="Retriever not ready")
+    safe_name = os.path.basename(name)
+    path = os.path.join(retriever.docs_dir, safe_name)
+    if not os.path.exists(path):
+        return {"code": 0, "msg": "文件不存在", "data": None}
+    os.remove(path)
+    job_id = start_kb_job("delete")
+    return {"code": 1, "msg": "success", "data": {"deleted": safe_name, "job_id": job_id}}
+
+
+@app.post("/model/kb/reload")
+async def kb_reload(token: str = Header("")):
+    """手动触发知识库热更新。"""
+    verify_token(token)
+    job_id = start_kb_job("reload")
+    return {"code": 1, "msg": "success", "data": {"job_id": job_id}}
+
+
+@app.get("/model/kb/status")
+async def kb_status(token: str = Header("")):
+    """知识库统计 + 最近任务状态。"""
+    verify_token(token)
+    retriever = resources.get("retriever")
+    stats = retriever.stats() if retriever else {"documents": [], "document_count": 0, "chunk_count": 0, "collections": {}}
+    active = next((v for v in _KbJobs.values() if v.get("status") == "running"), None)
+    return {"code": 1, "msg": "success", "data": {"stats": stats, "active_job": active}}
 
 
 @app.post("/model/lab_extract")

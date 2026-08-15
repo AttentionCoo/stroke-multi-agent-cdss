@@ -5,6 +5,7 @@ import * as pdfjsLib from 'pdfjs-dist'
 import PapersSidebar from './PapersSidebar.vue'
 import { getDocumentsAPI, getDocumentUrlAPI } from '@/api/documents'
 import { searchPubMedAPI } from '@/api/learning'
+import request from '@/utils/request'
 import FileSVG from '../svg/FileSVG.vue'
 import UpSVG from '../svg/UpSVG.vue'
 import DownSVG from '../svg/DownSVG.vue'
@@ -70,6 +71,111 @@ const pubmedError = ref('')
 const pubmedPapers = ref([])
 const pubmedSearched = ref(false)
 const activePaperPmid = ref('')
+
+// ── 知识库管理(RAG 向量库) ───────────────────────────────
+const kbStats = ref(null)
+const kbExpanded = ref(false)
+const kbUploading = ref(false)
+const kbMsg = ref('')
+const kbJob = ref(null)
+const kbFileInput = ref(null)
+let kbPollTimer = null
+
+async function loadKbStatus() {
+  try {
+    const res = await request.get('/kb/status')
+    if (res.data?.code === 1) {
+      kbStats.value = res.data.data?.stats || null
+      kbJob.value = res.data.data?.active_job || null
+    }
+  } catch {
+    kbStats.value = null
+  }
+}
+
+function pickKbFile() {
+  kbFileInput.value?.click()
+}
+
+async function onKbFileChange(event) {
+  const files = Array.from(event.target.files || [])
+  event.target.value = ''
+  const pdfs = files.filter((f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name))
+  if (!pdfs.length) {
+    kbMsg.value = '仅支持 PDF 文件'
+    return
+  }
+  kbUploading.value = true
+  kbMsg.value = ''
+  try {
+    const payload = { files: [] }
+    for (const f of pdfs.slice(0, 10)) {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = reject
+        reader.readAsDataURL(f)
+      })
+      payload.files.push({ name: f.name, base64: String(dataUrl).split(',')[1] })
+    }
+    const res = await request.post('/kb/upload', payload)
+    if (res.data?.code === 1) {
+      kbMsg.value = `✅ 已上传 ${res.data.data.saved.length} 篇，正在后台重建向量库…`
+      startKbPolling()
+    } else {
+      kbMsg.value = res.data?.msg || '上传失败'
+    }
+  } catch {
+    kbMsg.value = '上传失败，请重试'
+  } finally {
+    kbUploading.value = false
+  }
+}
+
+async function deleteKbDoc(name) {
+  if (!window.confirm(`确定从知识库删除「${name}」？删除后将重建向量库。`)) return
+  kbMsg.value = ''
+  try {
+    const res = await request.delete(`/kb/documents/${encodeURIComponent(name)}`)
+    if (res.data?.code === 1) {
+      kbMsg.value = `✅ 已删除「${name}」，正在后台重建向量库…`
+      startKbPolling()
+    } else {
+      kbMsg.value = res.data?.msg || '删除失败'
+    }
+  } catch {
+    kbMsg.value = '删除失败，请重试'
+  }
+}
+
+async function reloadKb() {
+  kbMsg.value = ''
+  try {
+    const res = await request.post('/kb/reload')
+    if (res.data?.code === 1) {
+      kbMsg.value = '🔄 正在后台重建向量库…'
+      startKbPolling()
+    }
+  } catch {
+    kbMsg.value = '重建失败'
+  }
+}
+
+function startKbPolling() {
+  if (kbPollTimer) window.clearInterval(kbPollTimer)
+  kbPollTimer = window.setInterval(async () => {
+    await loadKbStatus()
+    if (!kbJob.value) {
+      window.clearInterval(kbPollTimer)
+      kbPollTimer = null
+      kbMsg.value = '✅ 知识库已更新'
+    }
+  }, 5000)
+}
+
+onBeforeUnmount(() => {
+  if (kbPollTimer) window.clearInterval(kbPollTimer)
+})
 
 const pdfCategories = computed(() => Object.keys(pdfDocuments.value))
 const categoryDocs = computed(() =>
@@ -307,6 +413,7 @@ watch(activeView, (view) => {
 onMounted(() => {
   updateLayoutMode()
   window.addEventListener('resize', updateLayoutMode)
+  loadKbStatus()
 })
 
 onBeforeUnmount(() => {
@@ -321,6 +428,39 @@ onBeforeUnmount(() => {
       'mobile-show-preview': isMobileLayout && activeMobilePane === 'preview',
     }">
       <aside class="selection-pane">
+        <!-- 知识库管理(RAG 向量库) -->
+        <div class="kb-panel">
+          <div class="kb-head" @click="kbExpanded = !kbExpanded">
+            <span>📚 知识库管理</span>
+            <span class="kb-toggle">{{ kbExpanded ? '收起' : '展开' }}</span>
+          </div>
+          <div v-if="kbExpanded" class="kb-body">
+            <div v-if="kbStats" class="kb-stats">
+              <span class="kb-stat"><strong>{{ kbStats.document_count }}</strong> 篇文献</span>
+              <span class="kb-stat"><strong>{{ kbStats.chunk_count }}</strong> 个分块</span>
+              <span v-for="(count, key) in kbStats.collections" :key="key" class="kb-stat">
+                <strong>{{ count }}</strong> {{ key }}
+              </span>
+            </div>
+            <div v-if="kbJob" class="kb-job">⏳ 后台任务: {{ kbJob.action }} 进行中…</div>
+            <div v-if="kbMsg" class="kb-msg">{{ kbMsg }}</div>
+            <div class="kb-actions">
+              <button type="button" class="kb-btn" :disabled="kbUploading" @click="pickKbFile">
+                {{ kbUploading ? '上传中…' : '上传指南 PDF' }}
+              </button>
+              <input ref="kbFileInput" type="file" accept=".pdf,application/pdf" multiple class="kb-file-input" @change="onKbFileChange" />
+              <button type="button" class="kb-btn secondary" @click="reloadKb">重建索引</button>
+            </div>
+            <div v-if="kbStats?.documents?.length" class="kb-docs">
+              <div v-for="doc in kbStats.documents" :key="doc" class="kb-doc-row">
+                <span class="kb-doc-name" :title="doc">{{ doc }}</span>
+                <button type="button" class="kb-del" title="从知识库删除" @click="deleteKbDoc(doc)">删除</button>
+              </div>
+            </div>
+            <div v-else class="kb-empty">知识库为空，上传指南 PDF 后将自动分块入库。</div>
+          </div>
+        </div>
+
         <template v-if="activeView === 'pdfs'">
           <div class="section-head compact pane-head">
             <div>
@@ -1030,4 +1170,115 @@ onBeforeUnmount(() => {
     min-height: 32px;
   }
 }
-</style>
+
+/* ── 知识库管理面板 ── */
+.kb-panel {
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  background: var(--color-bg-light, #ffffff);
+  overflow: hidden;
+}
+
+.kb-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary-dark, #0d7a68);
+  cursor: pointer;
+  user-select: none;
+}
+
+.kb-toggle { font-size: 12px; color: #9ca3af; font-weight: 400; }
+
+.kb-body { padding: 4px 12px 12px; }
+
+.kb-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.kb-stat {
+  font-size: 11px;
+  color: #6b7280;
+  background: #f3f4f6;
+  border-radius: 10px;
+  padding: 2px 8px;
+
+  strong { color: var(--color-primary-dark, #0d7a68); }
+}
+
+.kb-job { font-size: 12px; color: #b45309; margin-bottom: 6px; }
+.kb-msg { font-size: 12px; color: #059669; margin-bottom: 6px; }
+
+.kb-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.kb-btn {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  background: var(--color-primary, #11967f);
+  color: #ffffff;
+  transition: opacity 0.15s ease;
+
+  &:hover:not(:disabled) { opacity: 0.88; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  &.secondary {
+    background: transparent;
+    color: var(--color-primary-dark, #0d7a68);
+    border: 1px solid var(--color-border, #e5e7eb);
+  }
+}
+
+.kb-file-input { display: none; }
+
+.kb-docs {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kb-doc-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #374151;
+  background: #f9fafb;
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.kb-doc-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kb-del {
+  border: none;
+  background: transparent;
+  color: #dc2626;
+  font-size: 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+
+  &:hover { text-decoration: underline; }
+}
+
+.kb-empty { font-size: 12px; color: #9ca3af; padding: 6px 0; }</style>

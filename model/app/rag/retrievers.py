@@ -675,6 +675,7 @@ class UnifiedSearchEngine:
     def __init__(self, persist_dir: str, top_k: int, docs_dir=None):
         logger.info("🔧 初始化 UnifiedSearchEngine (Multi-Collection)...")
 
+        self.persist_dir = persist_dir
         self.docs_dir = (
                 docs_dir
                 or os.getenv("MEDICAL_DOCS_DIR")
@@ -712,6 +713,45 @@ class UnifiedSearchEngine:
         self.reranker = BGEReranker(top_k=CONFIG.get("top_k_final", 3))
         self._cache: dict = {}
         self._cache_ttl = 300
+
+    def reload(self) -> dict:
+        """知识库热更新: 重新加载文档、重建分块/向量库/BM25, 返回最新统计。"""
+        logger.info("🔄 [KB] 知识库热更新开始...")
+        raw_docs = load_pdfs_from_dir(self.docs_dir)
+        self.chunks = split_documents(raw_docs)
+        self.collections = build_multi_collection_vectorstores(
+            self.chunks,
+            self.persist_dir,
+            enable_qa=bool(CONFIG.get("enable_qa_generation", False))
+        )
+        buckets = bucket_chunks_by_collection(self.chunks)
+        self.retrievers = {
+            key: HybridRetriever(
+                self.collections[key],
+                buckets.get(key, []),
+                k=CONFIG.get("reranker_initial_k", 8)
+            )
+            for key in COLLECTION_KEYS
+        }
+        self.clear_cache()
+        logger.info("✅ [KB] 知识库热更新完成")
+        return self.stats()
+
+    def stats(self) -> dict:
+        """知识库统计: 文档列表、分块数、各 collection 向量条数。"""
+        doc_names = sorted({str(c.metadata.get("source", "") or "") for c in self.chunks if c.metadata.get("source")})
+        collection_counts = {}
+        for key, store in self.collections.items():
+            try:
+                collection_counts[key] = store._collection.count()
+            except Exception:
+                collection_counts[key] = 0
+        return {
+            "documents": doc_names,
+            "document_count": len(doc_names),
+            "chunk_count": len(self.chunks),
+            "collections": collection_counts,
+        }
 
     def search(self, query: str, top_k_final: int = 3, category_filter: List[str] = None,
                evidence_type: str = None, collections: List[str] = None) -> List[Document]:
