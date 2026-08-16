@@ -22,6 +22,7 @@ class NamingModel(object):
                 max_tokens=300,
                 timeout=25,
                 extra_body={"enable_thinking": False},
+                stream_usage=True,
             )
 
     def run_naming(self, question, answer=None, max_title_len: int = 12):

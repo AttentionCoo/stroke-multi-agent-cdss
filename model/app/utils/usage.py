@@ -80,16 +80,41 @@ class UsageCallbackHandler(BaseCallbackHandler):
         if usage is None:
             return
         try:
-            llm_output = response.llm_output or {}
-            token_usage = llm_output.get("token_usage") or {}
-            in_tokens = int(token_usage.get("prompt_tokens", 0) or 0)
-            out_tokens = int(token_usage.get("completion_tokens", 0) or 0)
+            in_tokens, out_tokens, model = self._extract_usage(response, kwargs)
             if in_tokens or out_tokens:
-                model = str(
-                    (kwargs.get("invocation_params") or {}).get("model")
-                    or llm_output.get("model_name")
-                    or "unknown"
-                )
                 usage.record(model, in_tokens, out_tokens)
         except Exception as e:  # noqa: BLE001 - 记账失败不影响主流程
             logger.debug("用量记账失败: %s", e)
+
+    @staticmethod
+    def _extract_usage(response, kwargs):
+        """从 LLMResult 提取 (入tokens, 出tokens, 模型名)。
+
+        langchain-core 1.x 下流式/结构化输出路径的 llm_output 可能为 None,
+        token 用量改放在 generation.message.usage_metadata(input_tokens/output_tokens),
+        因此两条路径都兼容。
+        """
+        llm_output = getattr(response, "llm_output", None) or {}
+        token_usage = llm_output.get("token_usage") or {}
+        in_tokens = int(token_usage.get("prompt_tokens", 0) or 0)
+        out_tokens = int(token_usage.get("completion_tokens", 0) or 0)
+        model = str(
+            (kwargs.get("invocation_params") or {}).get("model")
+            or llm_output.get("model_name")
+            or "unknown"
+        )
+
+        # llm_output 为空(流式/函数调用路径): 汇总 generations 里的 usage_metadata
+        if not in_tokens and not out_tokens:
+            for gen_list in getattr(response, "generations", None) or []:
+                for gen in gen_list or []:
+                    message = getattr(gen, "message", None)
+                    meta = getattr(message, "usage_metadata", None) or {}
+                    in_tokens += int(meta.get("input_tokens", 0) or 0)
+                    out_tokens += int(meta.get("output_tokens", 0) or 0)
+                    if model == "unknown":
+                        model = str(
+                            (getattr(message, "response_metadata", None) or {}).get("model_name", "")
+                            or "unknown"
+                        )
+        return in_tokens, out_tokens, model

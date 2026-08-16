@@ -330,6 +330,8 @@ public class AIStreamingServiceImpl implements AIStreamingService {
         StringBuilder fullAnswer = new StringBuilder();
         final String[] generatedTitle = {null};
         final String[] updatedAllInfo = {historyText};
+        // 模型 done 事件携带的 LLM 用量(入/出 tokens、调用次数、估算成本), 转发给前端用量徽标
+        final Map<String, Object>[] lastUsage = new Map[]{null};
         // 本轮思考链累积器(节点过程/专家意见/用量), 随对话持久化, 供刷新后重新打开思维链
         final RoundAccumulator roundAcc = new RoundAccumulator();
 
@@ -355,7 +357,7 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                 .filter(line -> !line.isEmpty())
                 .filter(line -> !"[DONE]".equalsIgnoreCase(line))
 
-                .flatMap(line -> parseModelLine(line, finalTalkId, generatedTitle, updatedAllInfo, fullAnswer, roundAcc), 1)
+                .flatMap(line -> parseModelLine(line, finalTalkId, generatedTitle, updatedAllInfo, fullAnswer, roundAcc, lastUsage), 1)
 
                 .concatWith(Mono.fromCallable(() -> {
                     // 仅做标题解析（轻量同步），done 事件构造后立即发往前端
@@ -372,6 +374,10 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                     done.put("title", finalTitle);
                     done.put("name", finalTitle);
                     done.put("all_info", updatedAllInfo[0]);
+                    // LLM 用量透传: 前端思维面板显示"入/出 tokens、调用次数、估算成本"
+                    if (lastUsage[0] != null) {
+                        done.put("usage", lastUsage[0]);
+                    }
 
                     return objectMapper.writeValueAsString(done);
                 }))
@@ -449,7 +455,8 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                                         String[] generatedTitle,
                                         String[] updatedAllInfo,
                                         StringBuilder fullAnswer,
-                                        RoundAccumulator round) {
+                                        RoundAccumulator round,
+                                        Map<String, Object>[] lastUsage) {
         // ── 超长行保护：解析前先检查长度，防止 OOM ──────────────────────────────
         if (line.length() > MAX_LINE_LENGTH) {
             log.error("接收到超长 SSE 行，已截断拒绝解析: length={}, talkId={}, preview={}",
@@ -481,10 +488,16 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                 if (StrUtil.isNotBlank(allInfo)) {
                     updatedAllInfo[0] = allInfo;
                 }
-                // LLM 用量(思考链看板): 随思考链一并持久化
-                if (round != null && !json.path("usage").isMissingNode()) {
-                    round.usage = objectMapper.convertValue(
+                // LLM 用量(思考链看板): 随思考链一并持久化, 同时透传给前端用量徽标
+                if (!json.path("usage").isMissingNode()) {
+                    Map<String, Object> usageMap = objectMapper.convertValue(
                             json.path("usage"), new TypeReference<Map<String, Object>>() {});
+                    if (round != null) {
+                        round.usage = usageMap;
+                    }
+                    if (lastUsage != null) {
+                        lastUsage[0] = usageMap;
+                    }
                 }
                 return Flux.empty();
             }

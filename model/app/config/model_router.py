@@ -76,6 +76,9 @@ class ModelRouter:
             extra_body={"enable_thinking": False},
             request_timeout=timeout,
             max_retries=int(retries),
+            # 自定义 base_url(DashScope)下 langchain 不会自动开启流式用量返回,
+            # 显式开启使 astream 的最后 chunk 携带 usage → 用量看板统计完整
+            stream_usage=True,
             callbacks=[self._usage_handler] if self._usage_handler else None,
         )
         self._clients[role] = llm

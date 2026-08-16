@@ -2,6 +2,7 @@ import logging
 import sys
 import asyncio
 import concurrent.futures
+import contextvars
 import threading
 from contextlib import asynccontextmanager
 import os
@@ -503,8 +504,10 @@ async def get_model_result(request: QueryRequest):
                 # 推理完成后基于问题+回答生成标题(更准确)
                 logger.info(f"🏷️  [节点 {node_count + 1}] 命名模型推理开始(基于问题+回答)")
                 node_start_time["naming"] = time.time()
+                # copy_context().run: 线程池执行时保留请求的 contextvars(LLM 用量账本)
                 naming_future = loop.run_in_executor(
                     resources["executor"],
+                    contextvars.copy_context().run,
                     resources["naming_model"].run_naming,
                     request.question,
                     answer_text[:500],
@@ -523,8 +526,10 @@ async def get_model_result(request: QueryRequest):
                 logger.info(f"💬 [节点 {node_count + 1}] 上下文摘要更新开始")
                 summary_start = time.time()
                 try:
+                    # copy_context().run: 线程池执行时保留请求的 contextvars(LLM 用量账本)
                     summary_result = await loop.run_in_executor(
                         resources["executor"],
+                        contextvars.copy_context().run,
                         resources["context_summary"].update_all_info,
                         request.all_info,
                         request.question,
