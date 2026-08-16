@@ -435,7 +435,9 @@ async function handleSendMessage({ text, images } = {}) {
   const aiIndex = currentTalkList.value.length - 1
 
   // 为本次 AI 回答初始化独立的思考记录
+  // 与 currentTalkList 按下标对齐: 用户消息占一个 null 槽, AI 回答占真实记录槽
   const thinkingEntry = reactive({ events: [], elapsedSeconds: null, startTime: Date.now(), usage: null, askDoctor: null, nodeStats: {} })
+  thinkingHistoryList.value.push(null)
   thinkingHistoryList.value.push(thinkingEntry)
 
   // thinking 事件回调：开始事件新增步骤，完成事件补全该步骤的结果摘要
@@ -585,6 +587,8 @@ async function handleSendMessage({ text, images } = {}) {
     console.error('发送消息失败', error)
     currentTalkList.value.splice(aiIndex, 1)
     currentTalkList.value.pop()
+    // 与消息对齐: 同样移除用户消息槽与 AI 思考槽
+    thinkingHistoryList.value.pop()
     thinkingHistoryList.value.pop()
     // 利用结构化错误码：retryable=true 提示用户可以重试
     const retryTip = error.retryable ? '\n请稍后重试。' : ''

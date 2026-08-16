@@ -675,11 +675,10 @@ function shortText(value, fallback = '暂无内容') {
   return text || fallback
 }
 
-// 根据当前消息在 AI 消息序列中的位置获取对应思考记录
+// 根据消息下标直接取对应思考记录(thinkingHistoryList 与 currentTalkList 按下标一一对齐)
 function getThinkingData(msgIndex) {
   if (isUserMessage(props.currentTalkList[msgIndex], msgIndex)) return null
-  const aiMsgIndex = props.currentTalkList.slice(0, msgIndex + 1).filter((msg, index) => !isUserMessage(msg, index)).length - 1
-  const entry = props.thinkingHistoryList[aiMsgIndex]
+  const entry = props.thinkingHistoryList[msgIndex]
   return entry?.events?.length ? entry : null
 }
 

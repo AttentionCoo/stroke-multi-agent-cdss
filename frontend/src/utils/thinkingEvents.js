@@ -141,5 +141,7 @@ export function mergeThinkingEvent(events, thinking) {
 }
 
 export function createThinkingHistorySlots(messages = []) {
-  return messages.filter((message) => message?.role === 'assistant').map(() => null)
+  // 与 currentTalkList 按下标一一对齐(用户消息槽位同样占位 null),
+  // 保证 getThinkingData(index) 直接按消息下标取到对应思考记录
+  return messages.map(() => null)
 }
