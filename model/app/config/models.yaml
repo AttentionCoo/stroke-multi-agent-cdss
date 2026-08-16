@@ -1,0 +1,38 @@
+# 多模型路由配置(阶段4 多模型解耦)
+# 按"角色"选择 LLM 型号与接入点, 支持环境变量覆盖, 业务代码不再硬编码模型名。
+#
+# roles.<name>:
+#   model:         默认型号
+#   provider:      接入 provider(对应 provider_defaults)
+#   env_override:  环境变量名, 设置后覆盖 model(如 MODEL_MAIN=qwen-max)
+#   base_url:      可选, 覆盖 provider 默认地址
+#   api_key_env:   可选, 覆盖 provider 默认密钥环境变量
+#
+# 角色约定:
+#   main      主推理/提案专家(reason/debate/report)
+#   fast      质控/批评者(analysis/plan/router/judge/validate)
+#   turbo     轻量任务(intent/tool_use/naming/摘要/知识问答)
+#   consensus 会诊主持人(可独立配置更强模型, 不与其他角色共用实例)
+
+provider_defaults:
+  dashscope:
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    api_key_env: DASHSCOPE_API_KEY
+
+roles:
+  main:
+    model: qwen-plus
+    provider: dashscope
+    env_override: MODEL_MAIN
+  fast:
+    model: qwen-plus
+    provider: dashscope
+    env_override: MODEL_FAST
+  turbo:
+    model: qwen-turbo
+    provider: dashscope
+    env_override: MODEL_TURBO
+  consensus:
+    model: qwen-plus
+    provider: dashscope
+    env_override: MODEL_CONSENSUS

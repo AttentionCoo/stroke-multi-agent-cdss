@@ -31,10 +31,10 @@ from app.config.config_loader import (
     get_validation_manager,
     get_limits_manager
 )
+from app.config.model_router import ModelRouter
 from app.services.vision_service import VisionAnalysisService
 
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 from app.utils.context_summary import ConversationSummaryService
 from app.utils.usage import UsageCallbackHandler, begin_request, end_request
@@ -156,9 +156,8 @@ def init_all_resources(checkpointer=None):
     logger.info(f"     - 最大证据字符数: {limits_mgr.get_max_evidence_chars()}")
     logger.info(f"     - 最大提案字符数: {limits_mgr.get_max_proposal_chars()}")
     
-    # 步骤2: 初始化LLM模型
+    # 步骤2: 初始化LLM模型(阶段4: 多模型解耦, 按角色从 models.yaml 路由)
     logger.info("🤖 [2/7] 初始化大语言模型...")
-    _dashscope_base = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     _dashscope_key = os.getenv("DASHSCOPE_API_KEY")
     
     if not _dashscope_key:
@@ -170,18 +169,15 @@ def init_all_resources(checkpointer=None):
     # LLM 用量跟踪(真实 token_usage → 成本估算看板)
     usage_handler = UsageCallbackHandler()
 
-    llm_max = ChatOpenAI(model="qwen-plus", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False}, callbacks=[usage_handler])
-    llm_plus = ChatOpenAI(model="qwen-plus", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False}, callbacks=[usage_handler])
-    llm_turbo = ChatOpenAI(model="qwen-turbo", base_url=_dashscope_base, api_key=_dashscope_key, extra_body={"enable_thinking": False}, callbacks=[usage_handler])
-    # 共识节点可独立配置更强模型(如 qwen-max), 默认与质控共用 qwen-plus
-    consensus_model = os.getenv("CONSENSUS_MODEL", "").strip() or "qwen-plus"
-    llm_consensus = (
-        llm_plus if consensus_model == "qwen-plus" else
-        ChatOpenAI(model=consensus_model, base_url=_dashscope_base, api_key=_dashscope_key,
-                   extra_body={"enable_thinking": False}, callbacks=[usage_handler])
-    )
-    
-    logger.info(f"  ✅ 模型加载完成: qwen-plus(主推理/质控), qwen-plus(快速), qwen-turbo(摘要/命名/工具)")
+    # 多模型路由器: main(主推理) / fast(质控) / turbo(轻量) / consensus(主持人)
+    # 型号可通过 MODEL_MAIN / MODEL_FAST / MODEL_TURBO / MODEL_CONSENSUS 环境变量覆盖
+    router = ModelRouter(usage_handler=usage_handler)
+    llm_max = router.get_llm("main")
+    llm_plus = router.get_llm("fast")
+    llm_turbo = router.get_llm("turbo")
+    llm_consensus = router.get_llm("consensus")
+    logger.info(f"  ✅ 模型加载完成: {router.describe()}")
+    resources["model_router"] = router
     
     # 步骤3: 初始化上下文摘要服务
     logger.info("💬 [3/7] 初始化上下文摘要服务...")

@@ -102,6 +102,11 @@ services:
       # 阶段3: LangGraph 检查点持久化(Sqlite, 支撑 HITL 人工复核挂起/续跑)
       CHECKPOINTER_PATH: /app/data/checkpoints.sqlite
       HITL_MAX_REJECTS: ${HITL_MAX_REJECTS:-2}
+      # 阶段4: 多模型解耦 - 按角色覆盖型号(默认 qwen-plus/qwen-plus/qwen-turbo/qwen-plus)
+      MODEL_MAIN: ${MODEL_MAIN:-}
+      MODEL_FAST: ${MODEL_FAST:-}
+      MODEL_TURBO: ${MODEL_TURBO:-}
+      MODEL_CONSENSUS: ${MODEL_CONSENSUS:-}
     volumes:
       - model-data:/app/data
       - model-cache:/app/model_cache
