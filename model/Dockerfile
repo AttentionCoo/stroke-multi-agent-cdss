@@ -10,8 +10,10 @@ RUN sed -i "s|http://deb.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir --index-url "${PIP_INDEX_URL}" -r requirements.txt
+COPY requirements.txt requirements.lock ./
+# uv + 锁文件: 完全可复现构建(requirements.lock 由 uv pip compile 生成)
+RUN pip install --no-cache-dir uv \
+    && uv pip install --system --no-cache --index-url "${PIP_INDEX_URL}" -r requirements.lock
 
 COPY . .
 

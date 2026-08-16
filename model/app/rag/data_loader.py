@@ -4,7 +4,7 @@ import logging
 import re
 from typing import Dict, List
 import numpy as np
-from langchain_community.document_loaders import PyPDFLoader
+from pypdf import PdfReader
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -253,17 +253,19 @@ def load_pdfs_from_dir(dir_path: str):
         category = classify_document(filename)
         logger.info(f"📄 加载 PDF: {filename} [类别: {category}]")
         try:
-            loader = PyPDFLoader(pdf_path)
-            pages = loader.load()
-            for page in pages:
-                cleaned = clean_text(page.page_content)
+            # langchain-community 已 sunset: 改用 pypdf 直读(行为等价)
+            # metadata["page"] 保持 0 基索引, 与旧 PyPDFLoader 语义一致(证据页码显示 p.{page+1})
+            reader = PdfReader(pdf_path)
+            for page_index, page in enumerate(reader.pages):
+                text = page.extract_text() or ""
+                cleaned = clean_text(text)
                 if len(cleaned) < 50:
                     continue
                 documents.append(Document(
                     page_content=cleaned,
                     metadata={
                         "source": filename,
-                        "page": page.metadata.get("page", -1),
+                        "page": page_index,
                         "category": category,
                         # Evidence Metadata 增强
                         **enrich_metadata(filename, cleaned, category),

@@ -10,7 +10,7 @@ from langchain_core.embeddings import Embeddings
 from http import HTTPStatus
 import dashscope
 from langchain_core.documents import Document
-from langchain_community.retrievers import BM25Retriever
+from rank_bm25 import BM25Okapi
 
 # Monkey-patch chromadb to prevent ONNX embedding function initialization
 # chromadb 1.x 中该模块结构可能变化, patch 失败时静默降级(本项目始终显式传入 embedding_function)
@@ -356,6 +356,36 @@ def _clean_bm25_query(query: str) -> str:
     return re.sub(r'\s+', ' ', cleaned).strip()
 
 
+def _default_bm25_tokenize(text: str) -> List[str]:
+    """与 langchain BM25Retriever 默认预处理等价: 小写 + 空白分词。"""
+    return str(text).lower().split()
+
+
+class BM25RetrieverCompat:
+    """langchain-community BM25Retriever 的等价实现(基于 rank_bm25)。
+
+    langchain-community 已 sunset, 本类按原行为(默认空白分词/k 参数/invoke 接口)
+    平替, 保证检索结果不变。默认空白分词对中文不敏感, 中文分词增强在阶段2单独做。
+    """
+
+    def __init__(self, documents: List[Document], k: int = 4):
+        self.docs = list(documents)
+        self.k = k
+        self._corpus = [_default_bm25_tokenize(d.page_content) for d in self.docs]
+        self._bm25 = BM25Okapi(self._corpus) if self._corpus else None
+
+    def invoke(self, query: str, **kwargs) -> List[Document]:
+        if self._bm25 is None or not query:
+            return []
+        tokens = _default_bm25_tokenize(query)
+        if not tokens:
+            return []
+        scores = self._bm25.get_scores(tokens)
+        # 与 langchain 原版一致: 直接取 top-k, 不过滤非正分(负 IDF 时原版仍返回)
+        top = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[: self.k]
+        return [self.docs[i] for i in top]
+
+
 def _add_docs_in_batches(vectordb, docs_to_insert, batch_size: int = 32):
     """批量写入文档到 collection(清理 None metadata, 打印进度)。"""
     total_docs = len(docs_to_insert)
@@ -564,8 +594,7 @@ class HybridRetriever:
         self.reranker = BGEReranker(top_k=CONFIG.get("top_k_final", 3))
 
         if documents and len(documents) > 0:
-            self.bm25 = BM25Retriever.from_documents(documents)
-            self.bm25.k = k
+            self.bm25 = BM25RetrieverCompat(documents, k=k)
         else:
             self.bm25 = None
             logger.warning("⚠️ [HybridRetriever] 文档为空，BM25 未初始化")
