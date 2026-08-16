@@ -147,6 +147,7 @@ langchain-core==1.5.4
     #   langchain
     #   langchain-chroma
     #   langchain-openai
+    #   langchain-text-splitters
     #   langgraph
     #   langgraph-checkpoint
     #   langgraph-prebuilt
@@ -157,6 +158,8 @@ langchain-protocol==0.0.18
     # via
     #   langchain-core
     #   langgraph-sdk
+langchain-text-splitters==1.1.2
+    # via -r requirements.txt
 langgraph==1.2.11
     # via
     #   -r requirements.txt
