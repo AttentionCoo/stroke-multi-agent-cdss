@@ -107,6 +107,10 @@ services:
       MODEL_FAST: ${MODEL_FAST:-}
       MODEL_TURBO: ${MODEL_TURBO:-}
       MODEL_CONSENSUS: ${MODEL_CONSENSUS:-}
+      # 阶段7: 安全合规 - 并发闸与 CORS(默认关闭)
+      MODEL_MAX_CONCURRENT_PER_USER: ${MODEL_MAX_CONCURRENT_PER_USER:-2}
+      MODEL_MAX_CONCURRENT_GLOBAL: ${MODEL_MAX_CONCURRENT_GLOBAL:-8}
+      MODEL_CORS_ORIGINS: ${MODEL_CORS_ORIGINS:-}
     volumes:
       - model-data:/app/data
       - model-cache:/app/model_cache

@@ -30,16 +30,21 @@ def classify_exception(exc: Exception) -> ModelErrorCode:
 
 
 def build_error_event(exc: Exception, talk_id=None) -> dict:
+    """构建对外错误事件(阶段7: 脱敏, 不向客户端暴露内部异常细节)。
+
+    客户端只见错误码与通用提示; 完整异常由调用方记录在服务端日志。
+    """
     error_code = classify_exception(exc)
+    message = error_code.default_message
     return {
         "type": "error",
         "talkId": talk_id,
-        "content": str(exc),
+        "content": message,
         "error": {
             "code": error_code.code,
-            "message": error_code.default_message,
+            "message": message,
             "retryable": error_code.retryable,
-            "detail": str(exc),
+            "detail": message,
             "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         }
     }

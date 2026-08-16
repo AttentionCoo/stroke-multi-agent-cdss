@@ -12,6 +12,7 @@ import time
 from typing import List
 
 from fastapi import FastAPI, HTTPException, Header
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 import uvicorn
@@ -33,6 +34,7 @@ from app.config.config_loader import (
 )
 from app.config.model_router import ModelRouter
 from app.services.vision_service import VisionAnalysisService
+from app.utils.security import mask_sensitive, RequestConcurrencyGuard
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage
@@ -65,15 +67,15 @@ resources = {"model": None, "naming_model": None, "executor": None, "context_sum
 
 
 class QueryRequest(BaseModel):
-    question: str
+    question: str = Field(max_length=20000, description="患者问题(阶段7: 上限2万字符)")
     round: int = 2
-    all_info: str = ""
+    all_info: str = Field(default="", max_length=100000, description="历史上下文(上限10万字符)")
     patient_id: int | None = None
     patient_memory: dict[str, str] = Field(default_factory=dict)
     token: str
     report_mode: str = "emergency"
     show_thinking: bool = True
-    images: list[str] = Field(default_factory=list)
+    images: list[str] = Field(default_factory=list, max_length=5, description="影像base64(最多5张)")
     human_review: bool = Field(default=False, description="阶段3 HITL: 报告生成前挂起等待医生复核")
 
 
@@ -254,6 +256,11 @@ def init_all_resources(checkpointer=None):
 async def lifespan(app: FastAPI):
     logging.info(">>> 正在初始化资源及加载模型...")
     resources["executor"] = concurrent.futures.ThreadPoolExecutor(max_workers=10)
+    # 阶段7: 请求并发闸(单用户/全局), 防滥用拖垮模型服务
+    resources["request_guard"] = RequestConcurrencyGuard(
+        per_user_limit=int(os.getenv("MODEL_MAX_CONCURRENT_PER_USER", "2") or "2"),
+        global_limit=int(os.getenv("MODEL_MAX_CONCURRENT_GLOBAL", "8") or "8"),
+    )
     loop = asyncio.get_running_loop()
 
     try:
@@ -285,6 +292,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# 阶段7: CORS 默认关闭(前端经网关同源代理访问); 设置 MODEL_CORS_ORIGINS 时按逗号分隔放行
+_cors_origins = [o.strip() for o in os.getenv("MODEL_CORS_ORIGINS", "").split(",") if o.strip()]
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
 
 @app.get("/health")
 async def health_check():
@@ -295,9 +313,10 @@ async def health_check():
     }
 
 
-def verify_token(token: str):
+def verify_token(token: str) -> dict:
+    """校验 JWT 并返回解码 payload(含用户 id, 供并发闸/审计使用)。"""
     try:
-        jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
@@ -305,10 +324,16 @@ def verify_token(token: str):
 @app.post("/model/get_result")
 async def get_model_result(request: QueryRequest):
     """临床推理接口 - 增强日志版本"""
-    verify_token(request.token)
+    payload = verify_token(request.token)
+    uid = str(payload.get("id", "anon"))
 
     if not resources["model"]:
         raise HTTPException(status_code=503, detail="Model service not ready")
+
+    # 阶段7: 并发闸(单用户/全局上限), 超限直接 429, 不进入流
+    guard = resources.get("request_guard")
+    if guard is not None and not guard.try_acquire(uid):
+        raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
 
     async def generate():
         req_id = uuid.uuid4().hex[:12]
@@ -320,7 +345,7 @@ async def get_model_result(request: QueryRequest):
             logger.info("=" * 80)
             logger.info(f"🔵 [请求 {req_id}] 开始处理临床推理请求")
             logger.info("=" * 80)
-            logger.info(f"📝 问题内容: {request.question[:100]}{'...' if len(request.question) > 100 else ''}")
+            logger.info(f"📝 问题内容(脱敏): {mask_sensitive(request.question)[:200]}")
             logger.info(f"🎯 报告模式: {request.report_mode}")
             logger.info(f"🖼️  影像数量: {len(request.images)}")
             logger.info(f"💬 历史信息: {len(request.all_info) if request.all_info else 0} 字符")
@@ -545,6 +570,9 @@ async def get_model_result(request: QueryRequest):
             logger.error(f"     错误信息: {str(e)}")
             logger.error("=" * 80)
             yield json.dumps(build_error_event(e, talk_id=None), ensure_ascii=False)
+        finally:
+            if guard is not None:
+                guard.release(uid)
 
     return EventSourceResponse(generate(), ping=15)
 
@@ -627,7 +655,7 @@ async def analyze_patient_health_risk(request: AnalyzeRequest):
     logger.info("=" * 80)
     logger.info(f"👤 患者ID: {request.patientId}")
     logger.info(f"📋 数据长度: {len(patient_text)} 字符")
-    logger.info(f"📝 数据内容: {patient_text[:200]}{'...' if len(patient_text) > 200 else ''}")
+    logger.info(f"📝 数据内容(脱敏): {mask_sensitive(patient_text)[:200]}")
     logger.info("-" * 80)
 
     try:
@@ -840,10 +868,20 @@ class KbUploadRequest(BaseModel):
     files: List[dict] = Field(description="[{name, base64}] PDF 文件列表")
 
 
+def _validate_kb_files(files: List[dict]) -> None:
+    """知识库上传防护(阶段7): 单文件 base64 ≤ 20MB, 最多 10 个。"""
+    if len(files) > 10:
+        raise HTTPException(status_code=413, detail="单次最多上传 10 个文件")
+    for f in files:
+        if len(str(f.get("base64", "") or "")) > 28_000_000:  # base64 约 20MB PDF
+            raise HTTPException(status_code=413, detail=f"文件 {f.get('name', '')} 超过 20MB 限制")
+
+
 @app.post("/model/kb/upload")
 async def kb_upload(request: KbUploadRequest):
     """上传指南 PDF → 保存到文档目录 → 后台热更新知识库。"""
     verify_token(request.token)
+    _validate_kb_files(request.files)
     retriever = resources.get("retriever")
     if not retriever:
         raise HTTPException(status_code=503, detail="Retriever not ready")
@@ -913,6 +951,7 @@ async def model_info(token: str = Header("")):
     retriever = resources.get("retriever")
     kb = retriever.stats() if retriever else {}
     uptime_s = int(time.time() - float(resources.get("started_at", time.time())))
+    guard = resources.get("request_guard")
     return {
         "code": 1,
         "msg": "success",
@@ -925,6 +964,7 @@ async def model_info(token: str = Header("")):
                 "health_warnings": kb.get("health_warnings", []),
             },
             "uptime_seconds": uptime_s,
+            "in_flight_requests": guard.active() if guard else 0,
         },
     }
 
