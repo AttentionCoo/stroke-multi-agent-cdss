@@ -48,6 +48,11 @@ CONFIG = {
 
 
 class DashScopeEmbeddings(Embeddings):
+    """DashScope 文本向量 + 批量缓存(相同文本批不再重复调用 API)。"""
+
+    # 缓存上限: 超过后整体清空(简单 LRU 近似, 避免内存无限增长)
+    CACHE_MAX_ENTRIES = 512
+
     def __init__(self, model: str = "text-embedding-v2"):
         self.model = model
         # 防御性加载:确保任何初始化时机都能拿到 API key(不依赖模块导入顺序)
@@ -56,33 +61,42 @@ class DashScopeEmbeddings(Embeddings):
         if not self.api_key:
             logger.error("❌ DASHSCOPE_API_KEY 未设置,embedding 将失败")
             raise ValueError("DASHSCOPE_API_KEY 环境变量未设置")
+        self._cache: dict = {}
+
+    def _embed_batch(self, batch: List[str]) -> List[List[float]]:
+        resp = dashscope.TextEmbedding.call(
+            model=self.model,
+            input=batch,
+            api_key=self.api_key,
+        )
+        if resp.status_code != HTTPStatus.OK:
+            raise ValueError(f"DashScope embedding 失败: {resp.code} - {resp.message}")
+        return [item["embedding"] for item in resp.output["embeddings"]]
+
+    def _cached_batch(self, batch: List[str]) -> List[List[float]]:
+        key = tuple(batch)
+        if key in self._cache:
+            logger.debug("⚡ [EmbeddingCache] 命中 %d 条文本", len(batch))
+            return self._cache[key]
+        if len(self._cache) >= self.CACHE_MAX_ENTRIES:
+            self._cache.clear()
+            logger.info("🗑️ [EmbeddingCache] 缓存满(%d), 已清空", self.CACHE_MAX_ENTRIES)
+        result = self._embed_batch(batch)
+        self._cache[key] = result
+        return result
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         result = []
         for i in range(0, len(texts), 25):
             batch = texts[i:i + 25]
-            resp = dashscope.TextEmbedding.call(
-                model=self.model,
-                input=batch,
-                api_key=self.api_key,
-            )
-            if resp.status_code == HTTPStatus.OK:
-                for item in resp.output["embeddings"]:
-                    result.append(item["embedding"])
-            else:
-                raise ValueError(f"DashScope embedding 失败: {resp.code} - {resp.message}")
+            result.extend(self._cached_batch(batch))
         return result
 
     def embed_query(self, text: str) -> List[float]:
-        resp = dashscope.TextEmbedding.call(
-            model=self.model,
-            input=text,
-            api_key=self.api_key,
-        )
-        if resp.status_code == HTTPStatus.OK:
-            return resp.output["embeddings"][0]["embedding"]
-        else:
-            raise ValueError(f"DashScope embedding 失败: {resp.code} - {resp.message}")
+        return self._cached_batch([text])[0]
+
+    def clear_cache(self):
+        self._cache.clear()
 
 
 class BGEReranker:
@@ -109,6 +123,12 @@ class BGEReranker:
             d.metadata["relevance_score"] = round(s / max_s, 4)
         return docs
 
+    @staticmethod
+    def _mark_layer(docs: List[Document], layer: str) -> None:
+        """降级链标记: 记录本次重排实际使用的层级, 供检索质量看板/日志追溯。"""
+        for d in docs:
+            d.metadata["rerank_layer"] = layer
+
     def _fallback_medical_rank(self, docs: List[Document], query: str,
                                evidence_type: str | None,
                                actual_top_k: int) -> List[Document]:
@@ -119,6 +139,7 @@ class BGEReranker:
         """
         self._normalize_rrf_to_relevance(docs)
         reranked = self._apply_medical_score(docs, query, evidence_type)
+        self._mark_layer(reranked, "rule_fallback")
         logger.info(f"⚠️ 使用规则回退排序(无 Rerank API): {len(docs)} → {len(reranked)} 条")
         return reranked[:actual_top_k]
 
@@ -152,6 +173,7 @@ class BGEReranker:
                     reranked.append(original_doc)
                 # Medical Evidence Score:语义分 + 证据类型匹配 + 指南权威 + 时效 + 人群
                 reranked = self._apply_medical_score(reranked, query, evidence_type)
+                self._mark_layer(reranked, "gte_api")
                 logger.info(f"✅ Rerank 完成，{len(docs)} → {len(reranked)} 条")
                 return reranked[:actual_top_k]
             elif resp.code == "Throttling.RateQuota":
@@ -174,6 +196,7 @@ class BGEReranker:
                             original_doc.metadata["relevance_score"] = item.relevance_score
                             reranked.append(original_doc)
                         reranked = self._apply_medical_score(reranked, query, evidence_type)
+                        self._mark_layer(reranked, "gte_api")
                         logger.info(f"✅ Rerank 重试成功，{len(docs)} → {len(reranked)} 条")
                         return reranked[:actual_top_k]
                 except Exception as e2:
@@ -743,6 +766,32 @@ class UnifiedSearchEngine:
         self._cache: dict = {}
         self._cache_ttl = 300
 
+        # 向量库健康检查: 分块数与 collection 条数一致性(防"库空但服务正常"的静默故障)
+        self.health_warnings = self._check_store_health(buckets)
+
+    def _check_store_health(self, buckets: Dict[str, List[Document]]) -> List[str]:
+        """校验各 collection 条数与该桶分块数是否一致, 返回告警列表。"""
+        warnings = []
+        for key in COLLECTION_KEYS:
+            expected = len(buckets.get(key, []))
+            try:
+                actual = self.collections[key]._collection.count()
+            except Exception:
+                actual = -1
+            if actual < 0:
+                warnings.append(f"{key}: collection 不可读")
+            elif expected == 0 and actual > 0:
+                warnings.append(f"{key}: 分块为空但库中有 {actual} 条(可能残留旧文档)")
+            elif expected > 0 and actual == 0:
+                logger.error(f"❌ [KB健康] {key}: 分块 {expected} 条但库为空 —— 检索将静默失效!")
+                warnings.append(f"{key}: 分块 {expected} 条但库为空(检索静默失效)")
+            elif actual < expected:
+                logger.warning(f"⚠️ [KB健康] {key}: 库中 {actual} 条 < 分块 {expected} 条(可能写入不完整)")
+                warnings.append(f"{key}: 库中 {actual} 条 < 分块 {expected} 条")
+            else:
+                logger.debug(f"✅ [KB健康] {key}: {actual} 条 ✓")
+        return warnings
+
     def reload(self) -> dict:
         """知识库热更新: 重新加载文档、重建分块/向量库/BM25, 返回最新统计。"""
         logger.info("🔄 [KB] 知识库热更新开始...")
@@ -763,6 +812,7 @@ class UnifiedSearchEngine:
             for key in COLLECTION_KEYS
         }
         self.clear_cache()
+        self.health_warnings = self._check_store_health(buckets)
         logger.info("✅ [KB] 知识库热更新完成")
         return self.stats()
 
@@ -780,6 +830,7 @@ class UnifiedSearchEngine:
             "document_count": len(doc_names),
             "chunk_count": len(self.chunks),
             "collections": collection_counts,
+            "health_warnings": list(getattr(self, "health_warnings", [])),
         }
 
     def search(self, query: str, top_k_final: int = 3, category_filter: List[str] = None,
