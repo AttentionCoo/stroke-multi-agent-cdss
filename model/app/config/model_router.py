@@ -65,20 +65,42 @@ class ModelRouter:
         if not api_key:
             raise ValueError(f"模型角色 '{role}' 缺少 API 密钥: 环境变量 {key_env} 未设置")
 
+        # 阶段5: 超时与重试(provider 级默认, role 级可覆盖)
+        timeout = _first_number(cfg.get("request_timeout"), provider.get("request_timeout"), default=120)
+        retries = _first_number(cfg.get("max_retries"), provider.get("max_retries"), default=3)
+
         llm = ChatOpenAI(
             model=model,
             base_url=base_url,
             api_key=api_key,
             extra_body={"enable_thinking": False},
+            request_timeout=timeout,
+            max_retries=int(retries),
             callbacks=[self._usage_handler] if self._usage_handler else None,
         )
         self._clients[role] = llm
-        logger.info(f"🤖 [ModelRouter] 角色 {role} → {model} ({base_url})")
+        logger.info(
+            f"🤖 [ModelRouter] 角色 {role} → {model} ({base_url}, timeout={timeout}s, retries={int(retries)})"
+        )
         return llm
 
     def describe(self) -> Dict[str, str]:
         """各角色当前型号(供启动日志/健康展示)。"""
         return {role: self.resolve_model(role) for role in _DEFAULT_MODELS}
+
+    def info(self) -> Dict[str, Dict]:
+        """各角色完整运行配置(型号/超时/重试), 供 /model/info 展示。"""
+        result = {}
+        providers = self._data.get("provider_defaults", {}) or {}
+        for role in _DEFAULT_MODELS:
+            cfg = self._role_config(role)
+            provider = providers.get(str(cfg.get("provider", "dashscope") or "dashscope"), {}) or {}
+            result[role] = {
+                "model": self.resolve_model(role),
+                "request_timeout": _first_number(cfg.get("request_timeout"), provider.get("request_timeout"), default=120),
+                "max_retries": int(_first_number(cfg.get("max_retries"), provider.get("max_retries"), default=3)),
+            }
+        return result
 
     def _role_config(self, role: str) -> Dict:
         cfg = (self._data.get("roles", {}) or {}).get(role)
@@ -89,3 +111,15 @@ class ModelRouter:
             cfg = (self._data.get("roles", {}) or {}).get("main")
             return cfg if isinstance(cfg, dict) else {}
         return {}
+
+
+def _first_number(*values, default):
+    """取第一个非空数值配置, 全部缺失返回 default。"""
+    for value in values:
+        if value is None:
+            continue
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            continue
+    return default

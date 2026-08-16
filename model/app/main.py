@@ -268,6 +268,7 @@ async def lifespan(app: FastAPI):
         resources["vision_service"] = vision_service
         resources["llm_turbo"] = llm_turbo
         resources["retriever"] = retriever
+        resources["started_at"] = time.time()
         logging.info(">>> 所有模型组装完成，服务已就绪")
     except Exception as e:
         logging.error(f"!!! 模型初始化严重失败: {e}")
@@ -898,6 +899,34 @@ async def kb_status(token: str = Header("")):
     stats = retriever.stats() if retriever else {"documents": [], "document_count": 0, "chunk_count": 0, "collections": {}}
     active = next((v for v in _KbJobs.values() if v.get("status") == "running"), None)
     return {"code": 1, "msg": "success", "data": {"stats": stats, "active_job": active}}
+
+
+@app.get("/model/info")
+async def model_info(token: str = Header("")):
+    """运行时信息(阶段5): 多模型路由配置、检查点存储类型、知识库规模、运行时长。"""
+    verify_token(token)
+    router = resources.get("model_router")
+    checkpointer = None
+    if resources.get("model") is not None:
+        graph = getattr(resources["model"], "graph", None)
+        checkpointer = type(getattr(graph, "checkpointer", None)).__name__ if graph is not None else None
+    retriever = resources.get("retriever")
+    kb = retriever.stats() if retriever else {}
+    uptime_s = int(time.time() - float(resources.get("started_at", time.time())))
+    return {
+        "code": 1,
+        "msg": "success",
+        "data": {
+            "models": router.info() if router else {},
+            "checkpointer": checkpointer or "unknown",
+            "kb": {
+                "documents": kb.get("document_count", 0),
+                "chunks": kb.get("chunk_count", 0),
+                "health_warnings": kb.get("health_warnings", []),
+            },
+            "uptime_seconds": uptime_s,
+        },
+    }
 
 
 @app.post("/model/lab_extract")

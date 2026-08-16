@@ -84,5 +84,50 @@ def test_describe_lists_all_roles(clean_env):
     assert desc["turbo"] == "qwen-turbo"
 
 
+def test_get_llm_applies_timeout_and_retries(clean_env):
+    """阶段5: provider 默认 request_timeout=120 / max_retries=3 应落到客户端。"""
+    router = ModelRouter()
+    llm = router.get_llm("main")
+    assert llm.request_timeout == 120
+    assert llm.max_retries == 3
+    info = router.info()
+    assert info["main"]["request_timeout"] == 120
+    assert info["main"]["max_retries"] == 3
+
+
+def test_role_level_timeout_override(tmp_path, clean_env):
+    """role 级配置可覆盖 provider 默认超时。"""
+    import yaml as _yaml
+    cfg_path = tmp_path / "models.yaml"
+    cfg_path.write_text(_yaml.safe_dump({
+        "provider_defaults": {
+            "dashscope": {"base_url": "https://x", "api_key_env": "DASHSCOPE_API_KEY",
+                          "request_timeout": 120, "max_retries": 3},
+        },
+        "roles": {
+            "main": {"model": "qwen-plus", "request_timeout": 30, "max_retries": 1},
+            "fast": {"model": "qwen-plus"},
+            "turbo": {"model": "qwen-turbo"},
+            "consensus": {"model": "qwen-plus"},
+        },
+    }), encoding="utf-8")
+    router = ModelRouter(config_file=str(cfg_path))
+    llm = router.get_llm("main")
+    assert llm.request_timeout == 30
+    assert llm.max_retries == 1
+    # 未覆盖角色保持 provider 默认
+    assert router.get_llm("fast").request_timeout == 120
+
+
+def test_info_reports_all_roles_config(clean_env):
+    router = ModelRouter()
+    info = router.info()
+    assert set(info.keys()) == {"main", "fast", "turbo", "consensus"}
+    for role in info:
+        assert "model" in info[role]
+        assert info[role]["request_timeout"] == 120
+        assert info[role]["max_retries"] == 3
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

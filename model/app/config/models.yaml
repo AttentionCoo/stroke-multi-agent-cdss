@@ -18,6 +18,9 @@ provider_defaults:
   dashscope:
     base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
     api_key_env: DASHSCOPE_API_KEY
+    # 阶段5 性能可靠性: 单请求超时(秒)与 429/5xx 自动重试次数
+    request_timeout: 120
+    max_retries: 3
 
 roles:
   main:
