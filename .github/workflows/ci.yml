@@ -85,10 +85,22 @@ jobs:
           cache: pip
           cache-dependency-path: model/requirements.lock
       - run: pip install uv && uv pip install --system -r requirements.lock
-      # 离线测试子集: 不依赖 DashScope 密钥/外网与 PDF 语料
+      # 离线测试全集: 不依赖 DashScope 密钥/外网与 PDF 语料
       # (test_rag / test_analyze_* / test_api_client 等需要密钥与在线服务, 仅在本地回归)
       - run: |
           python -m pytest tests/test_tools.py tests/test_collection_routing.py \
             tests/test_evidence_router.py tests/test_decision_planner.py \
             tests/test_medical_reranker.py tests/test_tool_use_integration.py \
-            tests/test_evaluation_benchmark.py -q
+            tests/test_evaluation_benchmark.py tests/test_structured_outputs.py \
+            tests/test_hitl_checkpointer.py tests/test_model_router.py \
+            tests/test_model_info.py tests/test_new_architecture.py \
+            tests/test_health_endpoint.py tests/test_evaluation_gate.py -q
+      # 阶段6 评测闭环: RAGAS 基线快照硬门禁(检索指标不降级)
+      - run: python -m app.evaluation.gate --ragas evaluation/ragas_snapshot.json
+      # 阶段6 评测闭环: 离线安全/引用规则评测门禁(冻结预测回归金丝雀)
+      - run: |
+          python -m app.evaluation.benchmark \
+            --cases evaluation/offline_cases.jsonl \
+            --predictions evaluation/offline_predictions.jsonl \
+            --output /tmp/offline_report.json \
+            --gate --min-coverage 1.0 --min-pass-rate 0.8

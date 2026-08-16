@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import re
+import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -158,6 +159,9 @@ def main() -> None:
     parser.add_argument("--cases", type=Path, required=True, help="JSONL 病例文件")
     parser.add_argument("--predictions", type=Path, required=True, help="JSONL 模型输出文件")
     parser.add_argument("--output", type=Path, required=True, help="JSON 报告输出路径")
+    parser.add_argument("--gate", action="store_true", help="启用阶段6门禁: 阈值不达标时以非零码退出")
+    parser.add_argument("--min-coverage", type=float, default=1.0, help="覆盖率门禁(默认 1.0)")
+    parser.add_argument("--min-pass-rate", type=float, default=0.8, help="规则通过率门禁(默认 0.8)")
     args = parser.parse_args()
 
     cases = load_jsonl(args.cases)
@@ -169,6 +173,14 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     args.output.with_suffix(".md").write_text(render_markdown(report), encoding="utf-8")
+
+    if args.gate:
+        from app.evaluation.gate import check_offline_gate
+        gate_result = check_offline_gate(report, args.min_coverage, args.min_pass_rate)
+        if not gate_result.passed:
+            print("[GATE FAIL] 离线评测门禁失败: " + "; ".join(gate_result.failures), file=sys.stderr)
+            raise SystemExit(1)
+        print(f"[GATE PASS] 离线评测门禁通过 (coverage={report['coverage']}, pass_rate={report['pass_rate']})")
 
 
 if __name__ == "__main__":
