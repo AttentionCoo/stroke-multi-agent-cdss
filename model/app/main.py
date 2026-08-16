@@ -20,6 +20,7 @@ from app.agents.assistant import MedicalAssistant
 from app.agents.tools.registry import call_tool, get_tool_schemas, TOOL_GROUPS
 from app.services.pubmed_service import PubMedService
 from app.agents.orchestrators.qwen_agent import QwenAgent
+from app.agents.orchestrators.checkpoint import open_checkpointer
 from app.utils.error_codes import build_error_event, format_error_log
 from app.utils.naming_model import NamingModel
 from app.rag.retrievers import UnifiedSearchEngine, CONFIG
@@ -73,6 +74,14 @@ class QueryRequest(BaseModel):
     report_mode: str = "emergency"
     show_thinking: bool = True
     images: list[str] = Field(default_factory=list)
+    human_review: bool = Field(default=False, description="阶段3 HITL: 报告生成前挂起等待医生复核")
+
+
+class ReviewResumeRequest(BaseModel):
+    token: str
+    thread_id: str = Field(description="human_review 事件返回的 thread_id")
+    approved: bool = Field(default=False, description="医生是否批准会诊结论")
+    feedback: str = Field(default="", description="驳回时的修改意见, 反馈给专家重新会诊")
 
 
 class AnalyzeRequest(BaseModel):
@@ -109,8 +118,8 @@ class QuickAnalyzeResponse(BaseModel):
     data: QuickAnalyzeResult
 
 
-def init_all_resources():
-    """初始化所有资源"""
+def init_all_resources(checkpointer=None):
+    """初始化所有资源(可选注入 LangGraph checkpointer)。"""
     start_time = time.time()
     logger.info("=" * 80)
     logger.info("🚀 开始初始化系统资源")
@@ -225,6 +234,7 @@ def init_all_resources():
         report_manager=report_mgr,
         llm_turbo=llm_turbo,
         llm_consensus=llm_consensus,
+        checkpointer=checkpointer,
     )
     logger.info("  ✅ 临床推理智能体初始化完成")
     
@@ -251,8 +261,10 @@ async def lifespan(app: FastAPI):
     loop = asyncio.get_running_loop()
 
     try:
+        # 阶段3: 检查点存储必须在应用主事件循环内创建(aiosqlite 连接绑定事件循环)
+        checkpointer = await open_checkpointer()
         agent, naming, context_summary, vision_service, llm_turbo, retriever = await loop.run_in_executor(
-            resources["executor"], init_all_resources
+            resources["executor"], init_all_resources, checkpointer
         )
         resources["model"] = agent
         resources["naming_model"] = naming
@@ -402,6 +414,8 @@ async def get_model_result(request: QueryRequest):
             
             current_node = None
             node_chunk_counts = {}
+            review_pending = False
+            review_thread_id = None
 
             async for event in resources["model"].run_clinical_reasoning(
                 case_text=request.question,
@@ -409,6 +423,7 @@ async def get_model_result(request: QueryRequest):
                 patient_memory=request.patient_memory,
                 report_mode=request.report_mode,
                 show_thinking=request.show_thinking,
+                human_review=request.human_review,
             ):
                 if not isinstance(event, dict):
                     continue
@@ -417,6 +432,11 @@ async def get_model_result(request: QueryRequest):
                     logger.error(f"❌ 推理错误: {event.get('content', 'Unknown error')}")
                     yield json.dumps(event, ensure_ascii=False)
                     return
+
+                if event.get("type") == "human_review":
+                    # HITL: 推理挂起等待医生复核, 记录 thread_id 供 /model/resume 续跑
+                    review_pending = True
+                    review_thread_id = event.get("thread_id")
 
                 if event.get("type") == "node_start":
                     node_count += 1
@@ -436,6 +456,20 @@ async def get_model_result(request: QueryRequest):
 
             reasoning_time = time.time() - node_start_time["clinical_reasoning"]
             logger.info(f"✅ 临床推理链完成 - 耗时: {reasoning_time:.2f}秒")
+
+            if review_pending:
+                # 挂起: 不生成答案/摘要/命名, 等待医生复核后由 /model/resume 续跑
+                logger.info(f"⏸️  [请求 {req_id}] HITL 挂起, 等待医生复核 (thread_id={review_thread_id})")
+                yield json.dumps({
+                    "type": "done",
+                    "request_id": req_id,
+                    "name": None,
+                    "all_info": request.all_info,
+                    "status": "human_review_pending",
+                    "thread_id": review_thread_id,
+                    "usage": end_request(),
+                }, ensure_ascii=False)
+                return
             logger.info(f"📊 节点统计: {node_count} 个节点")
             for node, count in node_chunk_counts.items():
                 logger.info(f"     - {node}: {count} 个片段")
@@ -513,6 +547,69 @@ async def get_model_result(request: QueryRequest):
             logger.error(f"     错误类型: {type(e).__name__}")
             logger.error(f"     错误信息: {str(e)}")
             logger.error("=" * 80)
+            yield json.dumps(build_error_event(e, talk_id=None), ensure_ascii=False)
+
+    return EventSourceResponse(generate(), ping=15)
+
+
+@app.post("/model/resume")
+async def resume_model_result(request: ReviewResumeRequest):
+    """HITL 复核续跑接口(阶段3) - 医生对挂起的会诊结论做出决定后恢复推理流。
+
+    请求体: {token, thread_id, approved, feedback}
+    - approved=True  → 继续生成最终报告;
+    - approved=False → 医生意见反馈给专家重新会诊(可能再次挂起等待复核)。
+    """
+    verify_token(request.token)
+
+    if not resources["model"]:
+        raise HTTPException(status_code=503, detail="Model service not ready")
+
+    async def generate():
+        req_id = uuid.uuid4().hex[:12]
+        start_time = time.time()
+        begin_request()
+        final_answer_parts = []
+        review_pending = False
+        try:
+            logger.info(f"▶️  [请求 {req_id}] HITL 续跑开始 (thread_id={request.thread_id[:12]}..., "
+                        f"approved={request.approved})")
+
+            async for event in resources["model"].resume_clinical_reasoning(
+                request.thread_id,
+                {"approved": request.approved, "feedback": request.feedback},
+            ):
+                if not isinstance(event, dict):
+                    continue
+                if event.get("type") == "error":
+                    logger.error(f"❌ 续跑错误: {event.get('content', 'Unknown error')}")
+                    yield json.dumps(event, ensure_ascii=False)
+                    return
+                if event.get("type") == "human_review":
+                    review_pending = True
+                if event.get("type") == "token":
+                    content_str = str(event.get("content", ""))
+                    if content_str:
+                        final_answer_parts.append(content_str)
+                yield json.dumps(event, ensure_ascii=False)
+
+            answer_text = "".join(final_answer_parts).strip()
+            usage_summary = end_request()
+            total_time = time.time() - start_time
+            logger.info(f"✅ [请求 {req_id}] HITL 续跑完成 - 耗时: {total_time:.2f}秒, "
+                        f"生成: {len(answer_text)} 字符, 状态: {'再次挂起' if review_pending else '完成'}")
+            yield json.dumps({
+                "type": "done",
+                "request_id": req_id,
+                "name": "咨询",
+                "all_info": "",
+                "status": "human_review_pending" if review_pending else "completed",
+                "thread_id": request.thread_id if review_pending else None,
+                "usage": usage_summary,
+            }, ensure_ascii=False)
+        except Exception as e:
+            end_request()
+            logger.error(f"❌ [请求 {req_id}] HITL 续跑失败: {e}")
             yield json.dumps(build_error_event(e, talk_id=None), ensure_ascii=False)
 
     return EventSourceResponse(generate(), ping=15)

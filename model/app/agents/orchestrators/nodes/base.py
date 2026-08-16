@@ -31,6 +31,33 @@ async def astream_text(llm, messages, label: str, expert: str | None = None) -> 
     return "".join(parts)
 
 
+def make_structured_runner(llm, schema):
+    """构建结构化输出 Runner(阶段3); 不可用时返回 None, 调用方回退文本解析路径。
+
+    - Mock 对象(unittest.mock)与不具备 with_structured_output 的伪 LLM → None;
+    - with_structured_output 构建失败(如 provider 不支持) → None。
+    """
+    if llm is None:
+        return None
+    if type(llm).__name__ == "Mock":  # 单元测试的 Mock LLM: 所有属性都存在但无真实语义
+        return None
+    if not hasattr(llm, "with_structured_output"):
+        return None
+    try:
+        return llm.with_structured_output(schema)
+    except Exception:
+        return None
+
+
+def try_get_stream_writer():
+    """获取 LangGraph 流写入器(脱离图运行/测试时返回 None)。"""
+    try:
+        from langgraph.config import get_stream_writer
+        return get_stream_writer()
+    except Exception:
+        return None
+
+
 class BaseNode(ABC):
     """节点基类"""
 

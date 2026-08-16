@@ -16,8 +16,9 @@ from typing import Dict, List
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.agents.core.schema import ClinicalState
-from app.agents.orchestrators.nodes.base import BaseNode, astream_text
+from app.agents.orchestrators.nodes.base import BaseNode, astream_text, make_structured_runner, try_get_stream_writer
 from app.agents.utils.json_utils import parse_json_output
+from app.agents.schemas import EvidenceRoutes
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,8 @@ class EvidenceRouterNode(BaseNode):
 
     def __init__(self, llm):
         self.llm = llm
+        # 阶段3: 结构化输出快路径(LLM 支持时), 失败自动回退文本解析
+        self._structured_runner = make_structured_runner(llm, EvidenceRoutes)
 
     async def run(self, state: ClinicalState) -> Dict:
         queries = [str(q).strip() for q in state.get("retrieval_queries", []) if str(q).strip()]
@@ -77,18 +80,36 @@ class EvidenceRouterNode(BaseNode):
 query 必须与输入完全一致。"""
 
         data = None
-        try:
-            content = await astream_text(
-                self.llm,
-                [
+        # ── 快路径: 结构化输出(JSON Schema 约束) ──
+        if self._structured_runner is not None:
+            try:
+                structured = await self._structured_runner.ainvoke([
                     SystemMessage(content="你是严谨的医学证据路由专家,只根据查询的临床意图路由,不编造。"),
                     HumanMessage(content=prompt),
-                ],
-                label="evidence_router",
-            )
-            data = parse_json_output(content, None)
-        except Exception as exc:
-            logger.warning("Evidence Router 调用失败,使用规则兜底: %s", exc)
+                ])
+            except Exception as exc:  # noqa: BLE001 - 校验失败/接口异常 → 回退
+                logger.warning("Evidence Router 结构化输出失败, 回退文本解析: %s", exc)
+                structured = None
+            if isinstance(structured, EvidenceRoutes):
+                data = {"routes": [r.model_dump() for r in structured.routes]}
+                writer = try_get_stream_writer()
+                if writer is not None:
+                    writer({"node": "evidence_router", "chunk": json.dumps(data, ensure_ascii=False)})
+
+        # ── 回退路径: 流式生成 + 文本解析(保留原有行为) ──
+        if data is None:
+            try:
+                content = await astream_text(
+                    self.llm,
+                    [
+                        SystemMessage(content="你是严谨的医学证据路由专家,只根据查询的临床意图路由,不编造。"),
+                        HumanMessage(content=prompt),
+                    ],
+                    label="evidence_router",
+                )
+                data = parse_json_output(content, None)
+            except Exception as exc:
+                logger.warning("Evidence Router 调用失败,使用规则兜底: %s", exc)
 
         routes = self._normalize_routes(data, queries, decisions)
         return {

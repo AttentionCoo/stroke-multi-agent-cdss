@@ -5,14 +5,16 @@
 required_evidence/priority/evidence_type),并由 Evidence Router 按决策类型路由检索源。
 """
 
+import json
 import logging
 from typing import Dict, List
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.agents.core.schema import ClinicalState
-from app.agents.orchestrators.nodes.base import BaseNode, astream_text
+from app.agents.orchestrators.nodes.base import BaseNode, astream_text, make_structured_runner, try_get_stream_writer
 from app.agents.utils.json_utils import parse_json_output
+from app.agents.schemas import ResearchPlanResult
 
 
 logger = logging.getLogger(__name__)
@@ -38,6 +40,8 @@ class ResearchPlanNode(BaseNode):
         self.llm = llm
         self.max_queries = max_queries
         self.max_decisions = max_decisions
+        # 阶段3: 结构化输出快路径(LLM 支持时), 失败自动回退文本解析
+        self._structured_runner = make_structured_runner(llm, ResearchPlanResult)
 
     async def run(self, state: ClinicalState) -> Dict:
         questions = state.get("clinical_questions", [])
@@ -111,18 +115,36 @@ class ResearchPlanNode(BaseNode):
 - 不给出最终治疗结论"""
 
         data = None
-        try:
-            content = await astream_text(
-                self.llm,
-                [
+        # ── 快路径: 结构化输出(JSON Schema 约束决策节点/检索任务/缺失信息) ──
+        if self._structured_runner is not None:
+            try:
+                structured = await self._structured_runner.ainvoke([
                     SystemMessage(content="你是医学临床决策规划与循证检索专家。"),
                     HumanMessage(content=prompt),
-                ],
-                label="research_plan",
-            )
-            data = parse_json_output(content, None)
-        except Exception as exc:
-            logger.warning("决策规划失败，使用临床问题回退: %s", exc)
+                ])
+            except Exception as exc:  # noqa: BLE001 - 校验失败/接口异常 → 回退
+                logger.warning("决策规划结构化输出失败, 回退文本解析: %s", exc)
+                structured = None
+            if isinstance(structured, ResearchPlanResult):
+                data = structured.model_dump()
+                writer = try_get_stream_writer()
+                if writer is not None:
+                    writer({"node": "research_plan", "chunk": json.dumps(data, ensure_ascii=False)})
+
+        # ── 回退路径: 流式生成 + 文本解析(保留原有行为) ──
+        if data is None:
+            try:
+                content = await astream_text(
+                    self.llm,
+                    [
+                        SystemMessage(content="你是医学临床决策规划与循证检索专家。"),
+                        HumanMessage(content=prompt),
+                    ],
+                    label="research_plan",
+                )
+                data = parse_json_output(content, None)
+            except Exception as exc:
+                logger.warning("决策规划失败，使用临床问题回退: %s", exc)
 
         if not isinstance(data, dict):
             data = {}

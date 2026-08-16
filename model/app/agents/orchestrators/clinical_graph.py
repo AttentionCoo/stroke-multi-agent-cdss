@@ -28,10 +28,11 @@
 """
 
 import logging
+import os
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import SystemMessage, HumanMessage
-from langgraph.checkpoint.memory import InMemorySaver
 from app.agents.core.schema import ClinicalState
+from app.agents.orchestrators.checkpoint import build_checkpointer
 from app.agents.orchestrators.nodes.intent_node import IntentNode
 from app.agents.orchestrators.nodes.analysis_node import AnalysisNode
 from app.agents.orchestrators.nodes.memory_node import MemoryNode
@@ -86,6 +87,7 @@ class ClinicalGraphBuilder:
         evidence_router_node=None,
         llm_critic=None,
         report_manager=None,
+        checkpointer=None,
     ):
         """
         初始化临床推理图构建器
@@ -121,9 +123,11 @@ class ClinicalGraphBuilder:
         self.validation_manager = get_validation_manager()
         self.max_reflection_count = self.validation_manager.get_max_reflection_count()
         
-        # 实例化持久化内存用于断点等待
-        # 支持状态持久化和断点续传
-        self.checkpointer = InMemorySaver()
+        # 状态持久化: 优先 Sqlite(支持 HITL 中断/续跑), 不可用时回退内存
+        # CHECKPOINTER_PATH 未配置(本地开发/单元测试)时同样回退内存
+        self.checkpointer = checkpointer or build_checkpointer()
+        # 医生复核最大驳回次数(超过后强制生成报告, 保证流程终止)
+        self.max_review_retries = int(os.getenv("HITL_MAX_REJECTS", "2") or "2")
 
     def build(self):
         """
@@ -218,19 +222,28 @@ class ClinicalGraphBuilder:
         
         # 步骤6: 配置中层到后层的流程（支持反思循环）
         if self.validate_node:
-            # 有校验节点：推理 → 校验 → (通过/重试/失败) → 报告
+            # 有校验节点：推理 → 校验 → 人工复核(HITL) → (通过/驳回重审/强制) → 报告
+            graph.add_node("human_review", self._human_review_node)
             graph.add_edge("consensus_agent", "validate")
             graph.add_conditional_edges(
                 "validate",
                 self._route_validation,
                 {
-                    "pass": "generate_report",  # 通过校验 → 生成报告
-                    "retry": "reason",          # 未通过 → 重新会诊（反思循环）
-                    "fail": "generate_report"   # 多次失败 → 强制输出（附带警告）
+                    "pass": "human_review",  # 通过校验 → 医生复核(可选, 默认直通)
+                    "retry": "reason",       # 未通过 → 重新会诊（反思循环）
+                    "fail": "human_review",  # 多次失败 → 强制输出(同样可经医生复核)
                 }
             )
-            logger.info("[graph] 已添加校验节点和反思循环路由")
-            logger.info("[graph] 路由映射: pass -> generate_report, retry -> reason, fail -> generate_report")
+            graph.add_conditional_edges(
+                "human_review",
+                self._route_review,
+                {
+                    "report": "generate_report",  # 无需复核/已批准/驳回达上限 → 生成报告
+                    "reason": "reason",           # 医生驳回 → 携反馈重新会诊
+                }
+            )
+            logger.info("[graph] 已添加校验节点、HITL 人工复核节点与反思循环路由")
+            logger.info("[graph] 路由映射: validate pass/fail -> human_review, retry -> reason; review -> report/reason")
         else:
             # 无校验节点：推理 → 直接生成报告
             graph.add_edge("consensus_agent", "generate_report")
@@ -328,6 +341,67 @@ class ClinicalGraphBuilder:
 
         return {"report": content}
         
+    async def _human_review_node(self, state: ClinicalState) -> dict:
+        """HITL 人工复核节点(阶段3)。
+
+        - human_review_required=False(默认) → 直通, 不影响原有流程;
+        - True → 在报告生成前 interrupt 挂起, 等待医生 /model/resume 决定:
+            approved=True  → 生成报告;
+            approved=False → 医生意见写入 validation_feedback, 路由回 reason 重新会诊;
+            驳回次数达 HITL_MAX_REJECTS 上限 → 强制生成报告(附医生意见)。
+        """
+        if not state.get("human_review_required"):
+            return {"human_review_done": True}
+
+        decision = state.get("review_decision") or None
+        if not decision:
+            from langgraph.types import interrupt as _interrupt
+            payload = {
+                "type": "human_review_required",
+                "title": "会诊结论待医生复核",
+                "consensus": str(state.get("consensus", "") or "")[:3000],
+                "proposal": str(state.get("proposal", "") or "")[:3000],
+                "key_risks": list(state.get("key_risks", []) or [])[:10],
+                "validation_feedback": str(state.get("validation_feedback", "") or "")[:2000],
+            }
+            decision = _interrupt(payload)
+
+        if not isinstance(decision, dict):
+            decision = {"approved": False, "feedback": "复核输入无效, 默认驳回重新会诊。"}
+        approved = bool(decision.get("approved", False))
+        feedback = str(decision.get("feedback", "") or "").strip()
+        review_count = int(state.get("review_count", 0) or 0) + (0 if approved else 1)
+
+        update = {
+            "review_decision": decision,
+            "review_approved": approved,
+            "review_feedback": feedback,
+            "human_review_done": True,
+            "review_count": review_count,
+        }
+        if not approved and feedback:
+            # 医生意见注入校验反馈, reason 节点的反思提示会消费它
+            update["validation_feedback"] = feedback
+        logger.info(
+            "[human_review] 医生复核: %s (累计驳回 %d 次)",
+            "通过" if approved else f"驳回: {feedback[:80]}", review_count,
+        )
+        return update
+
+    def _route_review(self, state: ClinicalState) -> str:
+        """人工复核路由: 直通/批准/驳回达上限 → 报告; 驳回 → 携反馈重新会诊。"""
+        if not state.get("human_review_required"):
+            return "report"
+        if state.get("review_approved"):
+            return "report"
+        if int(state.get("review_count", 0) or 0) >= self.max_review_retries:
+            logger.warning(
+                "[human_review] 驳回次数达上限 %d, 强制生成报告(附医生意见)",
+                self.max_review_retries,
+            )
+            return "report"
+        return "reason"
+
     def _route_validation(self, state: ClinicalState) -> str:
         """
         路由校验结果与反思循环

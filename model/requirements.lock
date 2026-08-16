@@ -8,6 +8,10 @@ aiohttp==3.14.3
     #   kubernetes
 aiosignal==1.4.0
     # via aiohttp
+aiosqlite==0.21.0
+    # via
+    #   -r requirements.txt
+    #   langgraph-checkpoint-sqlite
 annotated-doc==0.0.5
     # via
     #   fastapi
@@ -167,7 +171,10 @@ langgraph==1.2.11
 langgraph-checkpoint==4.2.0
     # via
     #   langgraph
+    #   langgraph-checkpoint-sqlite
     #   langgraph-prebuilt
+langgraph-checkpoint-sqlite==3.1.1
+    # via -r requirements.txt
 langgraph-prebuilt==1.1.0
     # via langgraph
 langgraph-sdk==0.4.2
@@ -335,6 +342,8 @@ sniffio==1.3.1
     # via
     #   langsmith
     #   openai
+sqlite-vec==0.1.9
+    # via langgraph-checkpoint-sqlite
 sse-starlette==3.4.8
     # via -r requirements.txt
 starlette==1.6.0
@@ -367,6 +376,7 @@ typing-extensions==4.16.0
     # via
     #   aiohttp
     #   aiosignal
+    #   aiosqlite
     #   anyio
     #   chromadb
     #   fastapi

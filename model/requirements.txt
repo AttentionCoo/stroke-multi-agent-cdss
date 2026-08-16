@@ -17,6 +17,7 @@ langchain-chroma==1.1.0
 langchain-text-splitters==1.1.2
 
 langgraph==1.2.11
+langgraph-checkpoint-sqlite==3.1.1
 
 # =========================
 # Vector Database (1.x)
@@ -53,6 +54,7 @@ httpx==0.28.1
 httpcore==1.0.9
 requests==2.34.2
 anyio==4.14.2
+aiosqlite==0.21.0
 
 # =========================
 # PDF / Document Parsing

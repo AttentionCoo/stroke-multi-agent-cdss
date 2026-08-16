@@ -23,7 +23,8 @@ from langchain_core.messages import HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from app.agents.core.schema import ClinicalState
-from app.agents.orchestrators.nodes.base import BaseNode
+from app.agents.orchestrators.nodes.base import BaseNode, make_structured_runner, try_get_stream_writer
+from app.agents.schemas import IntentResult
 
 logger = logging.getLogger(__name__)
 
@@ -76,31 +77,40 @@ class IntentNode(BaseNode):
         参数：
         - llm: 大语言模型，用于意图分类
         """
-        # 构建处理链：Prompt → LLM → 输出解析器
+        # 构建处理链：Prompt → LLM → 输出解析器(回退路径)
         self.chain = _INTENT_PROMPT | llm | StrOutputParser()
+        # 阶段3: 结构化输出快路径(LLM 支持时), 失败自动回退文本解析
+        self._structured_runner = make_structured_runner(llm, IntentResult)
 
     async def run(self, state: ClinicalState) -> Dict:
         """
         执行意图分类
 
         工作流程：
-        1. 调用LLM进行意图分类
-        2. 解析JSON格式的分类结果
+        1. 优先调用结构化输出(JSON Schema 约束, 无解析脆弱性)
+        2. 失败/不支持时回退: 调用LLM进行意图分类 + 解析JSON
         3. 返回意图类型用于路由决策
-
-        参数：
-        - state: 临床状态对象，包含用户输入文本
-
-        返回：
-        - Dict: 包含意图类型的字典
         """
-        # 调用LLM进行意图分类(实时流式打印到思考链)
+        messages = _INTENT_PROMPT.format_messages(case_text=state["case_text"])
+
+        # ── 快路径: 结构化输出(Literal 校验, 非法枚举自动触发回退) ──
+        if self._structured_runner is not None:
+            result = None
+            try:
+                result = await self._structured_runner.ainvoke(messages)
+            except Exception as exc:  # noqa: BLE001 - 校验失败/接口异常 → 回退
+                logger.warning("[intent] 结构化输出失败, 回退文本解析: %s", exc)
+            if isinstance(result, IntentResult):
+                intent_type = result.type
+                writer = try_get_stream_writer()
+                if writer is not None:
+                    writer({"node": "intent", "chunk": f"分类: {result.type} ({result.reason})"})
+                logger.info(f"[intent] 结构化分类结果: {intent_type}")
+                return {"intent_type": intent_type}
+
+        # ── 回退路径: 流式生成 + JSON 解析(保留原有行为) ──
         pieces = []
-        try:
-            from langgraph.config import get_stream_writer
-            writer = get_stream_writer()
-        except Exception:
-            writer = None
+        writer = try_get_stream_writer()
         async for piece in self.chain.astream({"case_text": state["case_text"]}):
             if piece:
                 pieces.append(str(piece))

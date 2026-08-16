@@ -99,6 +99,9 @@ services:
       # 首次冷启动会为全部指南分块做 embedding; 关闭 QA 衍生可大幅缩短启动时间
       # (开启后首次启动需数百次 LLM 调用, 建议本地离线时段执行)
       ENABLE_QA_GENERATION: ${ENABLE_QA_GENERATION:-false}
+      # 阶段3: LangGraph 检查点持久化(Sqlite, 支撑 HITL 人工复核挂起/续跑)
+      CHECKPOINTER_PATH: /app/data/checkpoints.sqlite
+      HITL_MAX_REJECTS: ${HITL_MAX_REJECTS:-2}
     volumes:
       - model-data:/app/data
       - model-cache:/app/model_cache

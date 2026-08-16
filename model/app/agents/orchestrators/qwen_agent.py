@@ -1,8 +1,10 @@
 import logging
 import asyncio
 import json
+import uuid
 from typing import AsyncGenerator, Dict
 from langchain_core.messages import SystemMessage, HumanMessage
+from langgraph.types import Command
 from app.agents.core.schema import ClinicalState
 from app.agents.orchestrators.clinical_graph import ClinicalGraphBuilder
 from app.agents.orchestrators.nodes.intent_node import IntentNode
@@ -36,6 +38,7 @@ _NODE_DISPLAY: Dict[str, Dict[str, str]] = {
     "debate": {"running": "正在进行专家交叉质询...", "done": "多专家交叉质询"},
     "consensus_agent": {"running": "正在形成会诊共识...", "done": "会诊主持人共识"},
     "validate": {"running": "正在进行校验反思...", "done": "安全校验与反思"},
+    "human_review": {"running": "等待医生复核结论...", "done": "医生复核"},
     "generate_report": {"running": "正在生成临床报告...", "done": "临床报告生成"},
     "knowledge_answer": {"running": "正在回答知识问题...", "done": "医学知识回答"},
 }
@@ -61,6 +64,7 @@ class QwenAgent:
         report_manager,
         llm_turbo=None,
         llm_consensus=None,
+        checkpointer=None,
     ):
         self.llm_proposer = llm_proposer
         self.llm_critic = llm_critic
@@ -103,6 +107,7 @@ class QwenAgent:
             evidence_router_node=self.evidence_router_node,
             llm_critic=self.llm_critic,
             report_manager=self.reports,
+            checkpointer=checkpointer,
         ).build()
 
     async def run_clinical_reasoning(
@@ -112,8 +117,14 @@ class QwenAgent:
         patient_memory: Dict[str, str] | None = None,
         report_mode: str = "emergency",
         show_thinking: bool = True,
+        human_review: bool = False,
+        thread_id: str | None = None,
     ) -> AsyncGenerator[Dict, None]:
-        """运行临床推理"""
+        """运行临床推理。
+
+        human_review=True 时在报告生成前 interrupt 挂起(阶段3 HITL),
+        流内会产出 {"type": "human_review", "thread_id": ...} 事件, 由 /model/resume 续跑。
+        """
         initial_state: ClinicalState = {
             "case_text": case_text,
             "all_info": all_info,
@@ -155,7 +166,77 @@ class QwenAgent:
             "router_categories": [],
             "router_keywords": [],
             "router_routes": [],
+            # 阶段3 HITL 人工复核
+            "human_review_required": bool(human_review),
+            "review_decision": {},
+            "review_approved": False,
+            "review_feedback": "",
+            "human_review_done": False,
+            "review_count": 0,
         }
+
+        # 为每次请求生成唯一 thread_id(检查点持久化 + HITL 续跑依赖它)
+        tid = thread_id or uuid.uuid4().hex
+        config = {
+            "recursion_limit": 60,  # 提高递归上限,避免反思/检索循环超限
+            "configurable": {
+                "thread_id": tid
+            }
+        }
+
+        try:
+            # LangGraph 1.x 已移除 astream_events, 改用 astream 三流模式:
+            #   updates  节点完成时产出 {node: output} → node_start/node_done
+            #   messages 节点内 LLM token 流 (chunk, metadata) → token 事件(报告打字机)
+            #   custom   各节点 astream_text 实时写入的生成过程 → node_token 事件(思考链实时打印)
+            stream = self.graph.astream(
+                initial_state, config=config, stream_mode=["updates", "messages", "custom"]
+            )
+            async for item in self._consume_graph_stream(stream, show_thinking, tid):
+                yield item
+        except Exception as e:
+            logger.error(f"临床推理管线异常 | {format_error_log(e)}")
+            yield build_error_event(e, talk_id=None)
+
+    async def resume_clinical_reasoning(
+        self,
+        thread_id: str,
+        decision: Dict | None = None,
+    ) -> AsyncGenerator[Dict, None]:
+        """续跑被 HITL 中断挂起的临床推理(阶段3)。
+
+        decision = {"approved": bool, "feedback": str} —— 医生复核决定。
+        批准 → 生成报告; 驳回 → 携反馈重新会诊(可能再次 interrupt 挂起)。
+        """
+        config = {
+            "recursion_limit": 60,
+            "configurable": {"thread_id": thread_id},
+        }
+        resume_value = decision if isinstance(decision, dict) else {"approved": False, "feedback": ""}
+        try:
+            stream = self.graph.astream(
+                Command(resume=resume_value),
+                config=config,
+                stream_mode=["updates", "messages", "custom"],
+            )
+            async for item in self._consume_graph_stream(stream, True, thread_id):
+                yield item
+        except Exception as e:
+            logger.error(f"临床推理续跑异常 | {format_error_log(e)}")
+            yield build_error_event(e, talk_id=None)
+
+    async def _consume_graph_stream(
+        self,
+        stream_iterable,
+        show_thinking: bool,
+        thread_id: str,
+    ) -> AsyncGenerator[Dict, None]:
+        """统一的流翻译循环(初始运行与 HITL 续跑共用)。
+
+        - updates 中的 __interrupt__ → human_review 事件(记录 thread_id, 供 /model/resume);
+        - 正常结束后删除线程检查点(仅待复核线程保留);
+        - 咨询类会话结束后产出信息缺口追问(ask_doctor)。
+        """
         streamed_nodes: set = set()
         started_nodes: set = set()
         # 各节点实时生成缓冲: {node: {expert_or_node: 累计文本}}, 供思考链实时打印
@@ -163,62 +244,82 @@ class QwenAgent:
         # 信息缺口追问: 记录会诊路径与各节点最终输出
         is_consultation = False
         last_outputs: dict = {}
+        pending_review = False
 
         try:
-            # 为每次请求生成唯一的thread_id
-            import uuid
-            config = {
-                "recursion_limit": 60,  # 提高递归上限,避免反思/检索循环超限
-                "configurable": {
-                    "thread_id": uuid.uuid4().hex
-                }
-            }
-            
-            # LangGraph 1.x 已移除 astream_events, 改用 astream 三流模式:
-            #   updates  节点完成时产出 {node: output} → node_start/node_done
-            #   messages 节点内 LLM token 流 (chunk, metadata) → token 事件(报告打字机)
-            #   custom   各节点 astream_text 实时写入的生成过程 → node_token 事件(思考链实时打印)
-            async for stream_mode, chunk in self.graph.astream(
-                initial_state, config=config, stream_mode=["updates", "messages", "custom"]
-            ):
+            async for stream_mode, chunk in stream_iterable:
                 if stream_mode == "messages":
                     events = self._on_message_chunk(chunk, show_thinking, started_nodes, streamed_nodes)
                 elif stream_mode == "custom":
                     events = self._on_custom_event(chunk, show_thinking, started_nodes)
                 else:  # updates
+                    events = []
                     for name, output in chunk.items():
-                        if isinstance(output, dict):
+                        if name == "__interrupt__":
+                            # HITL 挂起: 产出复核事件(thread_id 供前端/后端续跑)
+                            pending_review = True
+                            for item in output:
+                                payload = getattr(item, "value", None)
+                                yield {
+                                    "type": "human_review",
+                                    "status": "pending",
+                                    "thread_id": thread_id,
+                                    "payload": payload if isinstance(payload, dict) else {},
+                                }
+                        elif isinstance(output, dict):
                             last_outputs[name] = output
-                        if name == "intent" and output.get("intent_type") == "consultation":
-                            is_consultation = True
-                    events = self._on_node_updates(chunk, show_thinking, started_nodes, streamed_nodes)
+                            if name == "intent" and output.get("intent_type") == "consultation":
+                                is_consultation = True
+                    events += self._on_node_updates(chunk, show_thinking, started_nodes, streamed_nodes)
                 for item in events:
                     yield item
 
             # ── 信息缺口追问闭环: 会诊结束后列出关键信息缺口, 供前端"补充后重新会诊" ──
-            if is_consultation:
-                missing = []
-                evidence_judge = last_outputs.get("evidence_judge") or {}
-                if not evidence_judge.get("need_retrieve", True) and evidence_judge.get("missing_information"):
-                    missing = [str(x).strip() for x in evidence_judge["missing_information"] if str(x).strip()]
-                if not missing:
-                    research_plan = last_outputs.get("research_plan") or {}
-                    missing = [str(x).strip() for x in research_plan.get("missing_information", []) if str(x).strip()]
-                if not missing:
-                    validate = last_outputs.get("validate") or {}
-                    feedback = str(validate.get("validation_feedback", "") or "").strip()
-                    if not validate.get("validation_passed", True) and feedback:
-                        missing = [feedback[:300]]
-                if missing:
-                    yield {
-                        "type": "ask_doctor",
-                        "questions": missing[:6],
-                        "message": "以下信息缺口影响决策质量，补充后可重新发起会诊：",
-                    }
+            if is_consultation and not pending_review:
+                for item in self._ask_doctor_events(last_outputs):
+                    yield item
+        finally:
+            # 仅 HITL 待复核线程保留检查点(等待 /model/resume); 其余即时清理, 防 sqlite 膨胀
+            if not pending_review:
+                await self._cleanup_thread(thread_id)
 
-        except Exception as e:
-            logger.error(f"临床推理管线异常 | {format_error_log(e)}")
-            yield build_error_event(e, talk_id=None)
+    @staticmethod
+    def _ask_doctor_events(last_outputs: dict) -> list[Dict]:
+        """由各节点输出提炼信息缺口, 生成 ask_doctor 追问事件。"""
+        missing = []
+        evidence_judge = last_outputs.get("evidence_judge") or {}
+        if not evidence_judge.get("need_retrieve", True) and evidence_judge.get("missing_information"):
+            missing = [str(x).strip() for x in evidence_judge["missing_information"] if str(x).strip()]
+        if not missing:
+            research_plan = last_outputs.get("research_plan") or {}
+            missing = [str(x).strip() for x in research_plan.get("missing_information", []) if str(x).strip()]
+        if not missing:
+            validate = last_outputs.get("validate") or {}
+            feedback = str(validate.get("validation_feedback", "") or "").strip()
+            if not validate.get("validation_passed", True) and feedback:
+                missing = [feedback[:300]]
+        if not missing:
+            return []
+        return [{
+            "type": "ask_doctor",
+            "questions": missing[:6],
+            "message": "以下信息缺口影响决策质量，补充后可重新发起会诊：",
+        }]
+
+    async def _cleanup_thread(self, thread_id: str):
+        """删除已结束推理线程的检查点(兼容同步/异步 delete_thread 两种实现)。"""
+        try:
+            saver = getattr(self.graph, "checkpointer", None)
+            if saver is None:
+                return
+            delete = getattr(saver, "adelete_thread", None) or getattr(saver, "delete_thread", None)
+            if not callable(delete):
+                return
+            result = delete(thread_id)
+            if asyncio.iscoroutine(result):
+                await result
+        except Exception as e:  # noqa: BLE001 - 清理失败不影响主流程
+            logger.warning(f"[checkpoint] 清理线程 {thread_id} 失败: {e}")
 
     @staticmethod
     def _node_stats_event(node: str, output: dict) -> Dict | None:
@@ -359,6 +460,11 @@ class QwenAgent:
         translated: list[Dict] = []
         for name, output in updates.items():
             if name not in _NODE_DISPLAY:
+                continue
+
+            # 人工复核节点仅在真实发生复核(有 review_decision)时进入思考链,
+            # 未开启 HITL 的直通执行不产生多余步骤
+            if name == "human_review" and not (isinstance(output, dict) and output.get("review_decision")):
                 continue
 
             logger.info(f"[event] 节点完成: {name}, 输出类型: {type(output)}")
@@ -637,6 +743,11 @@ class QwenAgent:
                 "反思次数": output.get("reflection_count", 0),
                 "校验反馈": self._short_text(output.get("validation_feedback", ""), 360)
                 or "规则引擎与医学逻辑审查均未发现严重冲突",
+            }
+        elif node == "human_review":
+            summary = {
+                "复核结果": "通过" if output.get("review_approved") else "驳回重新会诊",
+                "医生意见": self._short_text(output.get("review_feedback", ""), 200) or "无",
             }
         elif node == "generate_report":
             report = output.get("report", "")

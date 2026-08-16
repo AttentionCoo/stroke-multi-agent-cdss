@@ -68,3 +68,11 @@ class ClinicalState(TypedDict):
     router_categories: List[List[str]]
     router_keywords: List[List[str]]
     router_routes: List[Dict]
+
+    # 新增：HITL 人工复核(报告生成前可选医生审批, 阶段3)
+    human_review_required: bool
+    review_decision: Dict
+    review_approved: bool
+    review_feedback: str
+    human_review_done: bool
+    review_count: int
