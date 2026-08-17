@@ -70,6 +70,8 @@ const isStreaming = ref(false)
 const isThinking = ref(false)
 // thinkingHint：thinking 事件中的 title/step 字段，用于显示当前推理步骤
 const thinkingHint = ref('')
+// 当前问答是否被医生打断(展示"可补充信息后继续"提示)
+const interrupted = ref(false)
 // thinkingHistoryList：每条 AI 回答对应一个思考记录 {events, elapsedSeconds, startTime}
 const thinkingHistoryList = ref([])
 // 流代际: 发送/切换对话时递增。在途流的 UI 写回仅在代际未变时生效,
@@ -89,6 +91,7 @@ function detachActiveStream() {
   isStreaming.value = false
   isThinking.value = false
   thinkingHint.value = ''
+  interrupted.value = false
 }
 
 // 真正中止在途流(删除被流式写入的对话时调用): 停止生成, 释放连接
@@ -103,6 +106,24 @@ function abortActiveStream() {
   activeStream = null
   activeStreamTalkId = null
   streamSeq += 1
+  isStreaming.value = false
+  isThinking.value = false
+  thinkingHint.value = ''
+  interrupted.value = false
+}
+
+// 医生打断当前生成(不切换对话): 中止在途流, 保留已输出内容,
+// 由 handleSendMessage 的 catch 收尾并打上"已打断"标记, 随后可补充信息继续。
+// 注意: 此处不递增 streamSeq, 让 catch 以当前代际正常收尾(标记消息)。
+function handleInterrupt() {
+  if (!isStreaming.value && !isThinking.value) return
+  if (activeStream && typeof activeStream.abort === 'function') {
+    try {
+      activeStream.abort()
+    } catch (e) {
+      console.warn('打断生成失败', e)
+    }
+  }
   isStreaming.value = false
   isThinking.value = false
   thinkingHint.value = ''
@@ -458,6 +479,9 @@ function findSafeBoundary(text) {
 async function handleSendMessage({ text, images } = {}) {
   if (!text || isStreaming.value) return
 
+  // 新一轮发送: 清除"已打断"提示(医生补充信息后继续)
+  interrupted.value = false
+
   // 本次发送的代际标识: 切换对话(detachActiveStream)后旧流的一切写回/清理失效
   const mySeq = ++streamSeq
 
@@ -651,8 +675,16 @@ async function handleSendMessage({ text, images } = {}) {
     // 主动取消(切换对话触发的中止): 已切换则列表已被替换、不做任何写回; 未切换则保留已输出内容, 静默结束
     if (error?.isAborted) {
       if (!superseded) {
-        flushSafe(true)
-        currentTalkList.value[aiIndex] = { role: 'assistant', content: displayText || '', images: [] }
+        // 医生打断: 保留已输出的全部内容, 打上"已打断"标记, 提示可补充信息后继续
+        const partial = displayText + pendingBuffer + charBuffer.join('')
+        currentTalkList.value[aiIndex] = {
+          role: 'assistant',
+          content: partial
+            ? `${partial}\n\n> ⏸️ 已由医生打断，可在下方补充信息后继续。`
+            : '> ⏸️ 已由医生打断，可在下方补充信息后继续。',
+          images: [],
+        }
+        interrupted.value = true
       }
       return
     }
@@ -1100,11 +1132,12 @@ async function handleGreenwayAnalyze(caseText) {
       <ChatWorkspace v-if="activeTab === 'chat'" v-model:sync-patient-id="syncPatientId"
         :talk-title-list="talkTitleList" :current-talk-id="currentTalkId" :current-talk-list="currentTalkList"
         :is-streaming="isStreaming" :is-thinking="isThinking" :thinking-hint="thinkingHint"
+        :interrupted="interrupted"
         :thinking-history-list="thinkingHistoryList" :chat-loading="chatLoading" :patients="patients"
         :sync-patient="syncPatient" :conversation-preview="conversationPreview"
         :can-sync-conversation="canSyncConversation" :sync-result="syncResult" @select-talk="handleSelectTalk"
         @new-chat="handleNewChat" @delete-chat="handleDeleteChat" @delete-all="handleDeleteAll"
-        @send-message="handleSendMessage" @sync-conversation="handleSyncConversation"
+        @send-message="handleSendMessage" @interrupt="handleInterrupt" @sync-conversation="handleSyncConversation"
         @open-patient-workspace="openPatientWorkspace" @create-patient="openCreatePatient" />
 
       <PatientWorkspace v-else-if="activeTab === 'patients'" v-model:query="patientQuery"

@@ -49,6 +49,11 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  // 当前问答是否被医生打断(输入区展示"可补充信息后继续"提示)
+  interrupted: {
+    type: Boolean,
+    default: false,
+  },
   chatLoading: {
     type: Boolean,
     default: false,
@@ -92,6 +97,7 @@ const emit = defineEmits([
   'delete-chat',
   'delete-all',
   'send-message',
+  'interrupt',
   'sync-conversation',
   'open-patient-workspace',
   'create-patient',
@@ -855,8 +861,19 @@ function evidenceCardsFor(msg, index) {
           <input ref="fileInputRef" type="file" accept="image/jpeg,image/png,image/webp" multiple style="display:none"
             @change="handleImageSelect" />
 
+          <!-- ⏹ 打断生成按钮(AI 生成/思考中显示): 医生可随时打断, 补充信息后继续 -->
+          <button
+            v-if="isStreaming || isThinking"
+            type="button"
+            class="interrupt-btn"
+            title="打断当前生成"
+            @click="emit('interrupt')"
+          >⏹ 打断</button>
+
           <textarea ref="inputRef" v-model="draftMessage" rows="1"
-            :placeholder="imageList.length ? '可补充文字描述（直接发送将询问图片内容）' : '请输入症状、病史或希望AI分析的问题'" @input="autoResize"
+            :placeholder="interrupted
+              ? 'AI 已暂停，请输入补充信息（如 INR、血小板、影像结果…）后发送，继续会诊'
+              : imageList.length ? '可补充文字描述（直接发送将询问图片内容）' : '请输入症状、病史或希望AI分析的问题'" @input="autoResize"
             @keydown.enter.exact.prevent="handleSendMessage" />
 
           <!-- 🎤 语音录入按钮（Web Speech API, 中文识别） -->
@@ -878,6 +895,11 @@ function evidenceCardsFor(msg, index) {
             @click="handleSendMessage">
             <SendSVG size="24" color="currentColor" />
           </button>
+        </div>
+
+        <!-- ⏸️ 打断后提示: 医生可直接补充信息继续 -->
+        <div v-if="interrupted" class="interrupted-hint">
+          ⏸️ AI 已暂停。直接在输入框补充信息（或输入新问题）后发送即可继续会诊。
         </div>
       </div>
     </div>
@@ -1645,6 +1667,37 @@ function evidenceCardsFor(msg, index) {
   &:hover {
     background: rgba(17, 150, 127, 0.1);
   }
+}
+
+/* ⏹ 打断生成按钮(AI 生成/思考中显示) */
+.interrupt-btn {
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  border-radius: var(--radius-sm, 8px);
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: rgba(220, 38, 38, 0.16);
+  }
+}
+
+/* ⏸️ 打断后提示(补充信息继续) */
+.interrupted-hint {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm, 8px);
+  background: rgba(220, 38, 38, 0.06);
+  border: 1px solid rgba(220, 38, 38, 0.15);
+  color: var(--color-text-medium, #4b5563);
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 
 /* ─────────────────── Sync panel internals ─────────────────── */
