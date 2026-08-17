@@ -58,11 +58,21 @@ if _cors_origins:
 
 @app.get("/health")
 async def health_check():
-    """容器健康检查接口"""
-    return {
-        "status": "ready" if resources.get("model") else "starting",
-        "model_loaded": resources.get("model") is not None,
-    }
+    """容器健康检查接口。
+
+    模型未就绪时返回 503(而非 200), 使 docker healthcheck 与
+    depends_on: service_healthy 真正等到推理服务加载完成,
+    避免后端在模型冷启动期间转发请求导致"AI 服务暂时不可用"。
+    """
+    from fastapi.responses import JSONResponse
+    ready = resources.get("model") is not None
+    return JSONResponse(
+        status_code=200 if ready else 503,
+        content={
+            "status": "ready" if ready else "starting",
+            "model_loaded": ready,
+        },
+    )
 
 
 # 路由注册
