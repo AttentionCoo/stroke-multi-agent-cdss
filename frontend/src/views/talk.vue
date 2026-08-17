@@ -72,16 +72,27 @@ const isThinking = ref(false)
 const thinkingHint = ref('')
 // thinkingHistoryList：每条 AI 回答对应一个思考记录 {events, elapsedSeconds, startTime}
 const thinkingHistoryList = ref([])
-// 流代际: 发送/切换对话时递增。在途流的写回与清理仅在代际未变时生效,
+// 流代际: 发送/切换对话时递增。在途流的 UI 写回仅在代际未变时生效,
 // 防止"流式期间切换对话"把新对话列表写坏(打字机/完成回调按旧下标写回)。
 let streamSeq = 0
 // 当前在途流 promise(带 abort 方法, 由 talk.js 提供)
 let activeStream = null
+// 在途流所属对话(未知时为 null): 删除该对话时才真正中止流
+let activeStreamTalkId = null
 const chatLoading = ref(false)
 const deleteAllLoading = ref(false)
 
-// 切换对话/新建对话前调用: 中止在途流, 使旧流的回调失效, 并复位流状态
-function cancelActiveStream() {
+// 分离在途流(切换/新建对话时调用): 不中止连接, 让回答在后台继续生成并持久化;
+// 仅使旧流的 UI 写回失效, 并复位流状态, 避免"切回来对话是空的"。
+function detachActiveStream() {
+  streamSeq += 1
+  isStreaming.value = false
+  isThinking.value = false
+  thinkingHint.value = ''
+}
+
+// 真正中止在途流(删除被流式写入的对话时调用): 停止生成, 释放连接
+function abortActiveStream() {
   if (activeStream && typeof activeStream.abort === 'function') {
     try {
       activeStream.abort()
@@ -90,6 +101,7 @@ function cancelActiveStream() {
     }
   }
   activeStream = null
+  activeStreamTalkId = null
   streamSeq += 1
   isStreaming.value = false
   isThinking.value = false
@@ -371,13 +383,13 @@ async function fetchTalkHistory(talkId = currentTalkId.value) {
 
 function handleSelectTalk(talkId) {
   if (talkId === currentTalkId.value) return
-  cancelActiveStream()
+  detachActiveStream()
   currentTalkId.value = talkId
   fetchTalkHistory(talkId)
 }
 
 function handleNewChat() {
-  cancelActiveStream()
+  detachActiveStream()
   userRequestedNewChat.value = true
   currentTalkId.value = NEW_TALK_ID
   currentTalkList.value = []
@@ -446,7 +458,7 @@ function findSafeBoundary(text) {
 async function handleSendMessage({ text, images } = {}) {
   if (!text || isStreaming.value) return
 
-  // 本次发送的代际标识: 切换对话(cancelActiveStream)后旧流的一切写回/清理失效
+  // 本次发送的代际标识: 切换对话(detachActiveStream)后旧流的一切写回/清理失效
   const mySeq = ++streamSeq
 
   isStreaming.value = true
@@ -468,7 +480,10 @@ async function handleSendMessage({ text, images } = {}) {
 
   // thinking 事件回调：开始事件新增步骤，完成事件补全该步骤的结果摘要
   const onThinking = (thinking) => {
-    thinkingHint.value = thinking.title || thinking.step || 'AI 思考中...'
+    // 仅当前代际(未分离)时更新全局提示; 思考记录本身按流隔离, 分离后写入无害
+    if (mySeq === streamSeq) {
+      thinkingHint.value = thinking.title || thinking.step || 'AI 思考中...'
+    }
     mergeThinkingEvent(thinkingEntry.events, thinking)
   }
 
@@ -525,6 +540,11 @@ async function handleSendMessage({ text, images } = {}) {
   function startTypewriter() {
     if (timerId !== null) return  // 已在运行，不重复启动
     function tick() {
+      // 流已分离(切换对话)或已取消: 停止打字机, 不再按旧下标写当前列表
+      if (mySeq !== streamSeq) {
+        timerId = null
+        return
+      }
       if (charBuffer.length === 0) {
         timerId = null
         return
@@ -542,7 +562,7 @@ async function handleSendMessage({ text, images } = {}) {
 
   // chunk 事件回调：收到第一个 chunk 即结束 thinking 阶段，记录思考用时
   const onChunk = (chunk) => {
-    if (isThinking.value) {
+    if (isThinking.value && mySeq === streamSeq) {
       isThinking.value = false
       thinkingHint.value = ''
       thinkingEntry.elapsedSeconds = Math.round((Date.now() - thinkingEntry.startTime) / 1000)
@@ -569,9 +589,18 @@ async function handleSendMessage({ text, images } = {}) {
           onNodeStats,
         )
     activeStream = streamPromise
+    activeStreamTalkId = currentTalkId.value === NEW_TALK_ID ? null : currentTalkId.value
     const finalResult = await streamPromise
-    // 流期间已切换对话(cancelActiveStream 递增了 streamSeq): 丢弃本次结果, 不写回新列表
-    if (mySeq !== streamSeq) return
+    // 流期间已切换对话(detachActiveStream 递增了 streamSeq): 丢弃 UI 写回, 但回答已在后台完成并持久化
+    if (mySeq !== streamSeq) {
+      await refreshTitleList()  // 仅刷新标题列表(新对话标题等), 不触碰当前列表
+      // 若用户此刻正查看该对话(切回后), 自动重新加载历史, 让已完成的回答直接出现
+      const streamTalkId = normalizeTalkId(finalResult.data?.talkId)
+      if (streamTalkId && currentTalkId.value === streamTalkId) {
+        await fetchTalkHistory(streamTalkId)
+      }
+      return
+    }
 
     const { title, content } = finalResult.data || {}
     const talkId = normalizeTalkId(finalResult.data?.talkId)
@@ -639,7 +668,10 @@ async function handleSendMessage({ text, images } = {}) {
     const retryTip = error.retryable ? '\n请稍后重试。' : ''
     alert(error?.msg || error?.message || `发送失败，请稍后再试${retryTip}`)
   } finally {
-    if (activeStream === streamPromise) activeStream = null
+    if (activeStream === streamPromise) {
+      activeStream = null
+      activeStreamTalkId = null
+    }
     if (mySeq === streamSeq) {
       isStreaming.value = false
       isThinking.value = false
@@ -657,11 +689,15 @@ async function handleDeleteChat(talkId) {
   if (!window.confirm('确定要删除此对话吗？')) return
 
   try {
+    // 删除的正是当前在途流所属对话 → 真正中止该流(否则它还会继续生成并尝试写回已删除的对话)
+    if (activeStream && (activeStreamTalkId === null || activeStreamTalkId === talkId)) {
+      abortActiveStream()
+    }
     await deleteChatAPI(talkId)
     talkTitleList.value = talkTitleList.value.filter((talk) => talk.talkId !== talkId)
 
     if (currentTalkId.value === talkId) {
-      cancelActiveStream()
+      detachActiveStream()
       const nextTalk = talkTitleList.value.find((talk) => talk.talkId !== NEW_TALK_ID)
       currentTalkId.value = nextTalk?.talkId || NEW_TALK_ID
       if (nextTalk) {
