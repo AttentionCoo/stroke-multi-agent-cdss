@@ -151,6 +151,11 @@ class QwenAgent:
             "review_feedback": "",
             "human_review_done": False,
             "review_count": 0,
+            # 合规审计(validate 之后)
+            "compliance_passed": True,
+            "compliance_issues": [],
+            "compliance_warnings": [],
+            "compliance_audit": {},
         }
 
         # 为每次请求生成唯一 thread_id(检查点持久化 + HITL 续跑依赖它)

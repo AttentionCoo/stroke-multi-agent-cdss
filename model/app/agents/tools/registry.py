@@ -13,6 +13,8 @@ from langchain_core.tools import BaseTool, StructuredTool
 
 from app.agents.tools.assessment_extra import EXTRA_TOOLS
 from app.agents.tools.contraindications import CONTRAINDICATION_TOOLS
+from app.agents.tools.drug_interaction import DDI_TOOLS
+from app.agents.tools.icd10_coder import ICD_TOOLS
 from app.agents.tools.lvo_screening import LVO_TOOLS
 from app.agents.tools.scales import SCALE_TOOLS
 from app.agents.tools.subtype import SUBTYPE_TOOLS
@@ -22,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # 全部工具
 TOOLS: List[BaseTool] = (
-    SCALE_TOOLS + THROMBOLYSIS_TOOLS + CONTRAINDICATION_TOOLS + SUBTYPE_TOOLS + LVO_TOOLS + EXTRA_TOOLS
+    SCALE_TOOLS + THROMBOLYSIS_TOOLS + CONTRAINDICATION_TOOLS + SUBTYPE_TOOLS + LVO_TOOLS + EXTRA_TOOLS + DDI_TOOLS + ICD_TOOLS
 )
 
 # 名称 → 工具
@@ -36,6 +38,8 @@ TOOL_GROUPS: Dict[str, List[str]] = {
     "诊断分型": [t.name for t in SUBTYPE_TOOLS],
     "大血管闭塞筛查": [t.name for t in LVO_TOOLS],
     "附加评估(ASPECTS/风险评分/护理清单)": [t.name for t in EXTRA_TOOLS],
+    "药物安全(DDI检查)": [t.name for t in DDI_TOOLS],
+    "诊断编码(ICD-10)": [t.name for t in ICD_TOOLS],
 }
 
 

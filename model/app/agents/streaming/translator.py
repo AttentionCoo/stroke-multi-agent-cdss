@@ -27,6 +27,7 @@ _NODE_DISPLAY: Dict[str, Dict[str, str]] = {
     "debate": {"running": "正在进行专家交叉质询...", "done": "多专家交叉质询"},
     "consensus_agent": {"running": "正在形成会诊共识...", "done": "会诊主持人共识"},
     "validate": {"running": "正在进行校验反思...", "done": "安全校验与反思"},
+    "compliance": {"running": "正在执行合规审计...", "done": "合规审计"},
     "human_review": {"running": "等待医生复核结论...", "done": "医生复核"},
     "generate_report": {"running": "正在生成临床报告...", "done": "临床报告生成"},
     "knowledge_answer": {"running": "正在回答知识问题...", "done": "医学知识回答"},
@@ -473,6 +474,14 @@ class StreamEventTranslator:
                 "反思次数": output.get("reflection_count", 0),
                 "校验反馈": self._short_text(output.get("validation_feedback", ""), 360)
                 or "规则引擎与医学逻辑审查均未发现严重冲突",
+            }
+        elif node == "compliance":
+            issues = output.get("compliance_issues", []) or []
+            warnings = output.get("compliance_warnings", []) or []
+            summary = {
+                "审计结果": "通过" if output.get("compliance_passed", False) else "发现风险",
+                "风险项": self._short_list(issues, 5, 120) or "无",
+                "提示项": self._short_list(warnings, 3, 120) or "无",
             }
         elif node == "human_review":
             summary = {

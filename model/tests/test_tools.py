@@ -39,7 +39,9 @@ def test_registry_aggregates_expected_tools():
             "swallow_screen", "rtpa_monitoring_checklist",
             "vte_pressure_ulcer_prevention", "hemorrhage_transformation_risk",
             "followup_plan"} <= names
-    assert len(get_all_tools()) == 16
+    # 药物安全(DDI)与 ICD-10 编码
+    assert {"drug_interaction_check", "icd10_coding"} <= names
+    assert len(get_all_tools()) == 18
 
 
 def test_tool_groups_cover_all_tools():
@@ -49,7 +51,7 @@ def test_tool_groups_cover_all_tools():
 
 def test_schemas_are_serializable():
     schemas = get_tool_schemas()
-    assert len(schemas) == 16
+    assert len(schemas) == 18
     for s in schemas:
         assert s["name"] and s["description"]
         assert "properties" in s["parameters"]

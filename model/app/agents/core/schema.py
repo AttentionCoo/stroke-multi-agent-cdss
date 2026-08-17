@@ -76,3 +76,9 @@ class ClinicalState(TypedDict):
     review_feedback: str
     human_review_done: bool
     review_count: int
+
+    # 新增：合规审计(validate 之后, PHI/绝对化断言/剂量 + 免责声明留痕)
+    compliance_passed: bool
+    compliance_issues: List[str]
+    compliance_warnings: List[str]
+    compliance_audit: Dict

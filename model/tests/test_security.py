@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 sys.path.insert(0, ".")
 
-from app.utils.security import mask_sensitive, RequestConcurrencyGuard
+from app.utils.security import mask_sensitive, detect_phi, RequestConcurrencyGuard
 from app.utils.error_codes import build_error_event
 from app.main import QueryRequest, _validate_kb_files
 from fastapi import HTTPException
@@ -35,13 +35,68 @@ def test_mask_phone_and_bank_card():
 
 
 def test_mask_preserves_medical_content():
-    text = "NIHSS 16分, 血压185/100mmHg, 发病90分钟"
+    text = "NIHSS 16分, 血压185/100mmHg, 发病90分钟, 发病时间3小时"
     assert mask_sensitive(text) == text
 
 
 def test_mask_empty_and_none():
     assert mask_sensitive("") == ""
     assert mask_sensitive(None) is None
+
+
+# ── HIPAA 18 类扩展类别 ──
+
+def test_mask_email_ip_url():
+    text = "邮箱 a.b_c@example.com, IP 192.168.1.10, 网址 https://hosp.cn/x?a=1 或 www.hosp.cn"
+    masked = mask_sensitive(text)
+    assert "a.b_c@example.com" not in masked
+    assert "192.168.1.10" not in masked
+    assert "hosp.cn" not in masked
+    assert "邮箱[已脱敏]" in masked
+    assert "IP地址[已脱敏]" in masked
+    assert "网址[已脱敏]" in masked
+
+
+def test_mask_full_date_and_age_over_89():
+    text = "出生日期2024年5月12日, 入院5月12日, 年龄93岁, 血压2024/5/12, 统计年份2024年"
+    masked = mask_sensitive(text)
+    assert "2024年5月12日" not in masked
+    assert "5月12日" not in masked
+    assert "93岁" not in masked
+    assert "2024/5/12" not in masked
+    # 年份单独保留(HIPAA 允许保留年份)
+    assert "2024年" in masked
+
+
+def test_mask_plate_and_medical_record():
+    text = "车牌京A12345, 病历号:ZY2026-0001, 医保卡号 100123456789"
+    masked = mask_sensitive(text)
+    assert "京A12345" not in masked
+    assert "ZY2026-0001" not in masked
+    assert "100123456789" not in masked
+    assert "车牌号[已脱敏]" in masked
+    assert "病历号[已脱敏]" in masked
+    assert "医保号[已脱敏]" in masked
+
+
+def test_mask_landline_license_serial():
+    text = "电话010-88886666, 驾驶证号BJ123456789, SN:ABC-XYZ-2024"
+    masked = mask_sensitive(text)
+    assert "010-88886666" not in masked
+    assert "座机号[已脱敏]" in masked
+    assert "证件号[已脱敏]" in masked
+    assert "序列号[已脱敏]" in masked
+
+
+def test_detect_phi_labels():
+    text = "联系电话13812345678, 身份证110101199003074518, 邮箱x@y.com"
+    labels = detect_phi(text)
+    assert "手机号" in labels
+    assert "身份证" in labels
+    assert "邮箱" in labels
+    # 纯医学文本无 PHI
+    assert detect_phi("NIHSS 16分, 发病90分钟, 时间窗内, 溶栓") == []
+
 
 
 # ── 错误事件脱敏 ──

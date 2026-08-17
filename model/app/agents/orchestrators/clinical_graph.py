@@ -43,6 +43,7 @@ from app.agents.orchestrators.nodes.reason_node import ReasonNode
 from app.agents.orchestrators.nodes.debate_node import DebateNode, ConsensusNode
 from app.agents.orchestrators.nodes.report_node import ReportNode
 from app.agents.orchestrators.nodes.validate_node import ValidateNode
+from app.agents.orchestrators.nodes.compliance_node import ComplianceNode
 from app.config.config_loader import get_validation_manager
 
 logger = logging.getLogger(__name__)
@@ -222,18 +223,20 @@ class ClinicalGraphBuilder:
         
         # 步骤6: 配置中层到后层的流程（支持反思循环）
         if self.validate_node:
-            # 有校验节点：推理 → 校验 → 人工复核(HITL) → (通过/驳回重审/强制) → 报告
+            # 有校验节点：推理 → 校验 → 合规审计 → 人工复核(HITL) → (通过/驳回重审/强制) → 报告
+            graph.add_node("compliance", ComplianceNode().run)
             graph.add_node("human_review", self._human_review_node)
             graph.add_edge("consensus_agent", "validate")
             graph.add_conditional_edges(
                 "validate",
                 self._route_validation,
                 {
-                    "pass": "human_review",  # 通过校验 → 医生复核(可选, 默认直通)
-                    "retry": "reason",       # 未通过 → 重新会诊（反思循环）
-                    "fail": "human_review",  # 多次失败 → 强制输出(同样可经医生复核)
+                    "pass": "compliance",  # 通过校验 → 合规审计
+                    "retry": "reason",     # 未通过 → 重新会诊（反思循环）
+                    "fail": "compliance",  # 多次失败 → 强制输出(仍走合规审计)
                 }
             )
+            graph.add_edge("compliance", "human_review")
             graph.add_conditional_edges(
                 "human_review",
                 self._route_review,
@@ -242,8 +245,8 @@ class ClinicalGraphBuilder:
                     "reason": "reason",           # 医生驳回 → 携反馈重新会诊
                 }
             )
-            logger.info("[graph] 已添加校验节点、HITL 人工复核节点与反思循环路由")
-            logger.info("[graph] 路由映射: validate pass/fail -> human_review, retry -> reason; review -> report/reason")
+            logger.info("[graph] 已添加校验/合规审计/HITL 人工复核节点与反思循环路由")
+            logger.info("[graph] 路由映射: validate pass/fail -> compliance -> human_review, retry -> reason; review -> report/reason")
         else:
             # 无校验节点：推理 → 直接生成报告
             graph.add_edge("consensus_agent", "generate_report")
