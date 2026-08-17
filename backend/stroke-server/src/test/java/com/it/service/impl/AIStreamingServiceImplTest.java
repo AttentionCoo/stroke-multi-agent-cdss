@@ -107,7 +107,9 @@ class AIStreamingServiceImplTest {
                 1L,
                 new String[]{"测试会话"},
                 new String[]{""},
-                new StringBuilder());
+                new StringBuilder(),
+                new AIStreamingServiceImpl.RoundAccumulator(),
+                new java.util.HashMap[]{null});
         List<String> responses = responseFlux.collectList().block();
 
         assertEquals(1, responses.size());

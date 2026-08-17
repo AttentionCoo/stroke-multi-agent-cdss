@@ -327,6 +327,14 @@ public class AIStreamingServiceImpl implements AIStreamingService {
             request.put("images", images);
         }
 
+        // 流开始即落库用户问题(幂等): 即使流被打断/刷新/切走未完成,
+        // 对话也不会是空的; done 到达后只追加回答
+        try {
+            conversationPersistenceService.persistQuestionNow(userId, finalTalkId, question, images);
+        } catch (Exception e) {
+            log.warn("流开始落库用户问题失败(不阻断流): talkId={}, err={}", finalTalkId, e.getMessage());
+        }
+
         StringBuilder fullAnswer = new StringBuilder();
         final String[] generatedTitle = {null};
         final String[] updatedAllInfo = {historyText};

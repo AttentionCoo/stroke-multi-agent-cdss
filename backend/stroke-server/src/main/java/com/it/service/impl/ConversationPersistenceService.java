@@ -31,26 +31,23 @@ public class ConversationPersistenceService {
                                     String summary, String title, List<String> images,
                                     String thinkingJson) {
         LocalDateTime now = LocalDateTime.now();
+        String imagesJson = serializeImages(images);
 
-        // 将图片列表序列化为 JSON 字符串，无图片时存 null
-        String imagesJson = null;
-        if (images != null && !images.isEmpty()) {
-            try {
-                imagesJson = objectMapper.writeValueAsString(images);
-            } catch (JsonProcessingException e) {
-                log.warn("图片列表序列化失败，将跳过图片存储: talkId={}, err={}", talkId, e.getMessage());
-            }
+        // 用户问题: 幂等写入(流开始时 persistQuestionNow 可能已插入, 避免重复)
+        boolean questionExists = contService.exists(new LambdaQueryWrapper<Cont>()
+                .eq(Cont::getUserId, userId)
+                .eq(Cont::getTalkId, talkId)
+                .eq(Cont::getRole, "user"));
+        if (!questionExists) {
+            Cont userCont = new Cont();
+            userCont.setUserId(userId);
+            userCont.setTalkId(talkId);
+            userCont.setContent(question);
+            userCont.setRole("user");
+            userCont.setImages(imagesJson);
+            userCont.setCreateTime(now);
+            contService.save(userCont);
         }
-
-        // 保存用户问题（附带图片）
-        Cont userCont = new Cont();
-        userCont.setUserId(userId);
-        userCont.setTalkId(talkId);
-        userCont.setContent(question);
-        userCont.setRole("user");
-        userCont.setImages(imagesJson);
-        userCont.setCreateTime(now);
-        contService.save(userCont);
 
         // 保存AI回答（无图片）
         Cont aiCont = new Cont();
@@ -94,6 +91,48 @@ public class ConversationPersistenceService {
         }
         // 清除历史缓存
         String historyKey = "chat:history:" + userId + ":" + talkId;
+    }
+
+    /**
+     * 流开始时立即落库用户问题(幂等)。
+     *
+     * 目的: 防止"流被打断/刷新/切走未完成"时对话在数据库中没有任何消息,
+     * 导致刷新或切回后对话内容为空。done 到达后 persistConversation 只追加回答,
+     * 不重复写入问题。
+     */
+    @Transactional
+    public void persistQuestionNow(Long userId, Long talkId, String question, List<String> images) {
+        if (userId == null || talkId == null || question == null || question.isBlank()) {
+            return;
+        }
+        boolean questionExists = contService.exists(new LambdaQueryWrapper<Cont>()
+                .eq(Cont::getUserId, userId)
+                .eq(Cont::getTalkId, talkId)
+                .eq(Cont::getRole, "user"));
+        if (questionExists) {
+            return;
+        }
+        Cont userCont = new Cont();
+        userCont.setUserId(userId);
+        userCont.setTalkId(talkId);
+        userCont.setContent(question);
+        userCont.setRole("user");
+        userCont.setImages(serializeImages(images));
+        userCont.setCreateTime(LocalDateTime.now());
+        contService.save(userCont);
+        log.info("流开始即落库用户问题: talkId={}, userId={}", talkId, userId);
+    }
+
+    private String serializeImages(List<String> images) {
+        if (images == null || images.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(images);
+        } catch (JsonProcessingException e) {
+            log.warn("图片列表序列化失败，将跳过图片存储: err={}", e.getMessage());
+            return null;
+        }
     }
 
     /**
