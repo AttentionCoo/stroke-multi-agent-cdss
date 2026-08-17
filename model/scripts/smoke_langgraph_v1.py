@@ -12,6 +12,7 @@ from langgraph.graph import StateGraph, END, START
 
 sys.path.insert(0, ".")
 from app.agents.orchestrators.qwen_agent import QwenAgent, _NODE_DISPLAY
+from app.agents.streaming.translator import StreamEventTranslator
 
 
 class FakeChunk:
@@ -66,11 +67,11 @@ async def check_astream():
 
 def check_event_handlers():
     agent = object.__new__(QwenAgent)  # 绕过 __init__, 不触碰 LLM
-    agent._live_buffers = {}
+    agent.translator = StreamEventTranslator()
     started, streamed = set(), set()
 
     # 节点完成 → node_start + node_done (+tool_call 展开)
-    events = agent._on_node_updates(
+    events = agent.translator._on_node_updates(
         {"tool_use": {"tool_calls": [{"tool": "nihss_score", "arguments": {}, "result": {}}]}},
         show_thinking=True, started_nodes=started, streamed_nodes=streamed,
     )
@@ -79,34 +80,34 @@ def check_event_handlers():
     print("  tool_use 事件:", types, [e.get("node") for e in events])
 
     # 流式 token → 首次 node_start + token
-    events = agent._on_message_chunk(
+    events = agent.translator._on_message_chunk(
         (FakeChunk("片段1"), {"langgraph_node": "generate_report"}),
         show_thinking=True, started_nodes=started, streamed_nodes=streamed,
     )
     assert [e["type"] for e in events] == ["node_start", "token"], events
     # 后续 token 不再重复 node_start
-    events = agent._on_message_chunk(
+    events = agent.translator._on_message_chunk(
         (FakeChunk("片段2"), {"langgraph_node": "generate_report"}),
         show_thinking=True, started_nodes=started, streamed_nodes=streamed,
     )
     assert [e["type"] for e in events] == ["token"], events
 
     # 非流式节点回退 token(reject 路径)
-    events = agent._on_node_updates(
+    events = agent.translator._on_node_updates(
         {"reject": {"report": "与脑卒中无关"}},
         show_thinking=True, started_nodes=started, streamed_nodes=streamed,
     )
     assert [e["type"] for e in events] == ["node_start", "node_done", "token"], [e["type"] for e in events]
 
     # content block 列表拼接
-    events = agent._on_message_chunk(
+    events = agent.translator._on_message_chunk(
         (FakeChunk([type("B", (), {"text": "a"}), type("B", (), {"text": "b"})]), {"langgraph_node": "knowledge_answer"}),
         show_thinking=True, started_nodes=started, streamed_nodes=streamed,
     )
     assert events[-1]["content"] == "ab", events
 
     # 非展示节点 token 忽略
-    events = agent._on_message_chunk(
+    events = agent.translator._on_message_chunk(
         (FakeChunk("x"), {"langgraph_node": "analysis"}),
         show_thinking=True, started_nodes=started, streamed_nodes=streamed,
     )
@@ -117,6 +118,7 @@ def check_event_handlers():
 def check_full_content():
     """零成本验证: 所有节点的全文渲染均有内容且不截断。"""
     agent = object.__new__(QwenAgent)
+    agent.translator = StreamEventTranslator()
     samples = {
         "intent": {"intent_type": "consultation", "type": "consultation"},
         "memory": {"patient_memory": {"short_term": "会话摘要", "episodic": "历史事件", "semantic": "稳定病史"}, "active_memory": "激活上下文全文"},
@@ -136,7 +138,7 @@ def check_full_content():
         "reject": {"report": "与脑卒中无关"},
     }
     for node, output in samples.items():
-        content = agent._node_full_content(node, output)
+        content = agent.translator._node_full_content(node, output)
         assert content and len(content) > 10, f"{node} 全文渲染为空: {content!r}"
         print(f"  {node}: {len(content)} 字符 -> {content.splitlines()[0][:40]}")
     # evidence_router 必须在展示表中(所有过程都要打印)
@@ -147,31 +149,31 @@ def check_full_content():
 def check_live_stream():
     """零成本验证: custom 流实时快照(node_token)逻辑。"""
     agent = object.__new__(QwenAgent)
-    agent._live_buffers = {}
+    agent.translator = StreamEventTranslator()
     started = set()
 
     # 单节点自定义流: 首次补 node_start, 快照逐段累积
-    events = agent._on_custom_event({"node": "analysis", "chunk": "片段一"}, True, started)
+    events = agent.translator._on_custom_event({"node": "analysis", "chunk": "片段一"}, True, started)
     assert [e["type"] for e in events] == ["node_start", "node_token"], events
     assert events[-1]["content"] == "片段一"
-    events = agent._on_custom_event({"node": "analysis", "chunk": "片段二"}, True, started)
+    events = agent.translator._on_custom_event({"node": "analysis", "chunk": "片段二"}, True, started)
     assert len(events) == 1 and events[0]["type"] == "node_token"
     assert events[0]["content"] == "片段一片段二", events[0]["content"]
 
     # 专家标签: reason 节点三位专家各自累积
-    agent._on_custom_event({"node": "reason", "chunk": "意见A", "expert": "全科医生"}, True, started)
-    events = agent._on_custom_event({"node": "reason", "chunk": "意见B", "expert": "神经专科医生"}, True, started)
+    agent.translator._on_custom_event({"node": "reason", "chunk": "意见A", "expert": "全科医生"}, True, started)
+    events = agent.translator._on_custom_event({"node": "reason", "chunk": "意见B", "expert": "神经专科医生"}, True, started)
     content = events[-1]["content"]
     assert "【全科医生】" in content and "【神经专科医生】" in content, content
 
     # tuple 形式兼容与未知节点忽略
-    events = agent._on_custom_event(({"node": "debate", "chunk": "质询"}, {}), True, started)
+    events = agent.translator._on_custom_event(({"node": "debate", "chunk": "质询"}, {}), True, started)
     assert events and events[-1]["type"] == "node_token"
-    assert agent._on_custom_event({"node": "nope", "chunk": "x"}, True, started) == []
+    assert agent.translator._on_custom_event({"node": "nope", "chunk": "x"}, True, started) == []
 
     # 节点完成后清缓冲, 反思回环重新积累
-    agent._live_buffers.pop("analysis", None)
-    events = agent._on_custom_event({"node": "analysis", "chunk": "新一轮"}, True, started)
+    agent.translator._live_buffers.pop("analysis", None)
+    events = agent.translator._on_custom_event({"node": "analysis", "chunk": "新一轮"}, True, started)
     assert events[-1]["content"] == "新一轮", events[-1]["content"]
     print("PASS 实时流(custom)处理")
 

@@ -20,7 +20,9 @@ def test_list_endpoint_returns_tools():
     r = _client().get("/model/tools/list")
     assert r.status_code == 200
     data = r.json()["data"]
-    assert data["count"] == 8
+    # count 与列表长度一致, 且不低于基础工具集(工具持续扩充, 不硬编码总数)
+    assert data["count"] == len(data["tools"])
+    assert data["count"] >= 8
     names = {t["name"] for t in data["tools"]}
     assert "nihss_score" in names and "rtpa_dose_calc" in names
     assert "lvo_screening" in names

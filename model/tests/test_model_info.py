@@ -16,8 +16,8 @@ from app.main import model_info, resources
 
 @pytest.fixture
 def fake_resources(monkeypatch):
-    """注入轻量假资源, 并绕过 JWT 校验。"""
-    monkeypatch.setattr(main_mod, "verify_token", lambda token: None)
+    """注入轻量假资源, 并绕过 JWT 校验(路由模块内的 verify_token 绑定)。"""
+    monkeypatch.setattr("app.api.routes_model.verify_token", lambda token: None)
     monkeypatch.setitem(resources, "model", None)
     monkeypatch.setitem(resources, "started_at", time.time() - 125)
     monkeypatch.setitem(resources, "retriever", None)
