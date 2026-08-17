@@ -60,6 +60,16 @@ async def test_compliance_flags_certainty():
 
 
 @pytest.mark.asyncio
+async def test_compliance_does_not_flag_absolute_contraindication():
+    """'绝对禁忌证'是合法临床术语, 不应被误判为绝对化断言。"""
+    node = ComplianceNode()
+    state = _state(proposal="rt-PA 绝对禁忌证包括近期颅内手术史; 应评估绝对适应证后个体化决策。")
+    result = await node.run(state)
+    assert result["compliance_passed"] is True
+    assert result["compliance_issues"] == []
+
+
+@pytest.mark.asyncio
 async def test_compliance_dose_warning_only():
     """具体剂量为警告级: 不判失败, 但写入提示。"""
     node = ComplianceNode()

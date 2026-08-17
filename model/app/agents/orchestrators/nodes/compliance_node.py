@@ -12,6 +12,7 @@
 """
 
 import logging
+import re
 import time
 from typing import Dict, List
 
@@ -27,11 +28,16 @@ DISCLAIMER = (
     "由具备资质的临床医生做最终判断。"
 )
 
-# 绝对化断言(误判风险高, 仅列临床语境中应避免的口径)
-_CERTAINTY_PATTERNS = ["100%", "绝对", "必定", "保证治愈", "包治", "必死"]
+# 绝对化断言(编译后的正则, 排除"绝对禁忌证/绝对适应证"等合法临床术语)
+_CERTAINTY_PATTERNS = [
+    re.compile(r"100\s*%"),
+    re.compile(r"绝对(?!禁忌|适应)"),
+    re.compile(r"必定"),
+    re.compile(r"保证治愈|包治|必死"),
+]
 
 # 剂量模式(警告级: 命中即提示, 不判失败)
-_DOSE_PATTERN = r"\d+(?:\.\d+)?\s*(?:mg/kg|mg|g|IU|U)\s*(?:每|/)?(?:日|天|次)?"
+_DOSE_RE = re.compile(r"\d+(?:\.\d+)?\s*(?:mg/kg|mg|g|IU|U)\s*(?:每|/)?(?:日|天|次)?")
 
 
 class ComplianceNode(BaseNode):
@@ -53,14 +59,13 @@ class ComplianceNode(BaseNode):
         if phi:
             issues.append("检测到 PHI: " + "、".join(phi))
 
-        # 2) 绝对化断言
-        certainty_hits = [p for p in _CERTAINTY_PATTERNS if p in draft]
+        # 2) 绝对化断言(排除"绝对禁忌/绝对适应"等合法术语)
+        certainty_hits = [p.pattern for p in _CERTAINTY_PATTERNS if p.search(draft)]
         if certainty_hits:
             issues.append("绝对化断言: " + "、".join(certainty_hits))
 
         # 3) 具体剂量(警告级)
-        import re as _re
-        if _re.search(_DOSE_PATTERN, draft):
+        if _DOSE_RE.search(draft):
             warnings.append("草稿包含具体剂量表述, 请复核是否符合'禁止具体剂量'口径")
 
         passed = not issues
