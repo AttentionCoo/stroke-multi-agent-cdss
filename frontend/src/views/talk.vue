@@ -72,8 +72,29 @@ const isThinking = ref(false)
 const thinkingHint = ref('')
 // thinkingHistoryList：每条 AI 回答对应一个思考记录 {events, elapsedSeconds, startTime}
 const thinkingHistoryList = ref([])
+// 流代际: 发送/切换对话时递增。在途流的写回与清理仅在代际未变时生效,
+// 防止"流式期间切换对话"把新对话列表写坏(打字机/完成回调按旧下标写回)。
+let streamSeq = 0
+// 当前在途流 promise(带 abort 方法, 由 talk.js 提供)
+let activeStream = null
 const chatLoading = ref(false)
 const deleteAllLoading = ref(false)
+
+// 切换对话/新建对话前调用: 中止在途流, 使旧流的回调失效, 并复位流状态
+function cancelActiveStream() {
+  if (activeStream && typeof activeStream.abort === 'function') {
+    try {
+      activeStream.abort()
+    } catch (e) {
+      console.warn('取消在途流失败', e)
+    }
+  }
+  activeStream = null
+  streamSeq += 1
+  isStreaming.value = false
+  isThinking.value = false
+  thinkingHint.value = ''
+}
 
 const patientQuery = ref({ page: 1, size: 8, name: '', diseases: '' })
 const patients = ref([])
@@ -350,11 +371,13 @@ async function fetchTalkHistory(talkId = currentTalkId.value) {
 
 function handleSelectTalk(talkId) {
   if (talkId === currentTalkId.value) return
+  cancelActiveStream()
   currentTalkId.value = talkId
   fetchTalkHistory(talkId)
 }
 
 function handleNewChat() {
+  cancelActiveStream()
   userRequestedNewChat.value = true
   currentTalkId.value = NEW_TALK_ID
   currentTalkList.value = []
@@ -422,6 +445,9 @@ function findSafeBoundary(text) {
 
 async function handleSendMessage({ text, images } = {}) {
   if (!text || isStreaming.value) return
+
+  // 本次发送的代际标识: 切换对话(cancelActiveStream)后旧流的一切写回/清理失效
+  const mySeq = ++streamSeq
 
   isStreaming.value = true
   isThinking.value = true   // 流开始前先进入 thinking 阶段
@@ -527,13 +553,14 @@ async function handleSendMessage({ text, images } = {}) {
     flushSafe()
   }
 
+  let streamPromise = null
   try {
     // 选择患者后，服务端会安全加载该患者的分层记忆。
     const requestPayload = buildPatientAwareRequest(text, syncPatientId.value, images)
-    const finalResult =
+    streamPromise =
       currentTalkId.value === NEW_TALK_ID
-        ? await newChatStreamAPI(requestPayload, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats)
-        : await sendQuestionStreamAPI(
+        ? newChatStreamAPI(requestPayload, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats)
+        : sendQuestionStreamAPI(
           { ...requestPayload, talkId: currentTalkId.value },
           onChunk,
           onThinking,
@@ -541,6 +568,10 @@ async function handleSendMessage({ text, images } = {}) {
           onAskDoctor,
           onNodeStats,
         )
+    activeStream = streamPromise
+    const finalResult = await streamPromise
+    // 流期间已切换对话(cancelActiveStream 递增了 streamSeq): 丢弃本次结果, 不写回新列表
+    if (mySeq !== streamSeq) return
 
     const { title, content } = finalResult.data || {}
     const talkId = normalizeTalkId(finalResult.data?.talkId)
@@ -584,6 +615,20 @@ async function handleSendMessage({ text, images } = {}) {
 
     await refreshTitleList()
   } catch (error) {
+    // 无论是否已切换对话, 先停掉打字机, 防止其按旧下标继续写坏当前列表
+    if (timerId !== null) { clearTimeout(timerId); timerId = null }
+    const superseded = mySeq !== streamSeq
+
+    // 主动取消(切换对话触发的中止): 已切换则列表已被替换、不做任何写回; 未切换则保留已输出内容, 静默结束
+    if (error?.isAborted) {
+      if (!superseded) {
+        flushSafe(true)
+        currentTalkList.value[aiIndex] = { role: 'assistant', content: displayText || '', images: [] }
+      }
+      return
+    }
+    if (superseded) return
+
     console.error('发送消息失败', error)
     currentTalkList.value.splice(aiIndex, 1)
     currentTalkList.value.pop()
@@ -594,9 +639,12 @@ async function handleSendMessage({ text, images } = {}) {
     const retryTip = error.retryable ? '\n请稍后重试。' : ''
     alert(error?.msg || error?.message || `发送失败，请稍后再试${retryTip}`)
   } finally {
-    isStreaming.value = false
-    isThinking.value = false
-    thinkingHint.value = ''
+    if (activeStream === streamPromise) activeStream = null
+    if (mySeq === streamSeq) {
+      isStreaming.value = false
+      isThinking.value = false
+      thinkingHint.value = ''
+    }
   }
 }
 
@@ -613,6 +661,7 @@ async function handleDeleteChat(talkId) {
     talkTitleList.value = talkTitleList.value.filter((talk) => talk.talkId !== talkId)
 
     if (currentTalkId.value === talkId) {
+      cancelActiveStream()
       const nextTalk = talkTitleList.value.find((talk) => talk.talkId !== NEW_TALK_ID)
       currentTalkId.value = nextTalk?.talkId || NEW_TALK_ID
       if (nextTalk) {

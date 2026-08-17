@@ -34,8 +34,10 @@ const MAX_RETRIES = 3
 function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats) {
   const userStore = useUserStore()
   const token = userStore.token
+  // 中止控制器: 供调用方在切换对话等场景主动取消在途流
+  const controller = new AbortController()
 
-  return new Promise((resolve, reject) => {
+  const promise = new Promise((resolve, reject) => {
     let fullAnswer = ''
     let realTalkId = null
     let title = '回答'
@@ -54,6 +56,12 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
       if (finished) return
       finished = true
       reject(error)
+    }
+
+    function abortError() {
+      const err = new Error('流已取消')
+      err.isAborted = true
+      return err
     }
 
     function buildResult() {
@@ -232,6 +240,7 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
         method: 'POST',
         headers,
         body: JSON.stringify(connectParams),
+        signal: controller.signal,
       })
 
       if (!res.ok) {
@@ -333,6 +342,12 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
         } catch (err) {
           if (finished) return
 
+          // 主动取消(切换对话等): 立即以 isAborted 结束, 不重试、不视为错误
+          if (controller.signal.aborted || err?.isAborted || err?.name === 'AbortError') {
+            safeReject(abortError())
+            return
+          }
+
           // 网络断开 + 有续传锚点 + 未超出重试上限 → 等待后重连
           if (err.isNetworkError && lastEventId && retryCount < MAX_RETRIES) {
             retryCount++
@@ -340,7 +355,15 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
             console.warn(
               `[SSE] 连接断开，${delay / 1000}s 后重试 (${retryCount}/${MAX_RETRIES})，Last-Event-ID: ${lastEventId}`,
             )
-            await new Promise((r) => setTimeout(r, delay))
+            try {
+              await new Promise((r) => setTimeout(r, delay))
+            } catch {
+              // ignore
+            }
+            if (controller.signal.aborted) {
+              safeReject(abortError())
+              return
+            }
             continue
           }
 
@@ -352,6 +375,10 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
 
     run().catch(safeReject)
   })
+
+  // 暴露中止方法, 调用方可在切换对话/新建对话时主动取消在途流
+  promise.abort = () => controller.abort()
+  return promise
 }
 
 export const sendQuestionStreamAPI = (params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats) =>
