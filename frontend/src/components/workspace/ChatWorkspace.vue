@@ -893,6 +893,18 @@ function evidenceCardsFor(msg, index) {
                     </div>
                   </article>
                 </section>
+                <!-- 答案操作: 复制答案按钮(方便整段复制) -->
+                <div
+                  v-if="msgText(msg) && !(isStreaming && index === currentTalkList.length - 1)"
+                  class="answer-actions"
+                >
+                  <button
+                    type="button"
+                    class="copy-btn"
+                    :class="{ copied: copiedMsgIndex === index }"
+                    @click="handleCopy(msg, index)"
+                  >{{ copiedMsgIndex === index ? '✓ 已复制' : '📋 复制答案' }}</button>
+                </div>
               </template>
             </div>
           </article>
@@ -903,11 +915,6 @@ function evidenceCardsFor(msg, index) {
 
       <div class="input-box" :class="{ 'drag-over': isDragOver }" @dragenter="handleDragEnter"
         @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleFileDrop">
-        <!-- 上下拖动调整输入框高度 -->
-        <div class="input-resize-grip" title="上下拖动调整输入框高度"
-          @mousedown.prevent="startResizeInput">
-          <span class="grip-dots">⠿</span>
-        </div>
         <!-- 图片预览区（有图片时显示） -->
         <div v-if="imageList.length" class="image-preview-bar">
           <div v-for="(item, idx) in imageList" :key="idx" class="image-thumb-wrap">
@@ -960,6 +967,12 @@ function evidenceCardsFor(msg, index) {
         <!-- ⏸️ 打断后提示: 医生可直接补充信息继续 -->
         <div v-if="interrupted" class="interrupted-hint">
           ⏸️ AI 已暂停。直接在输入框补充信息（或输入新问题）后发送即可继续会诊。
+        </div>
+
+        <!-- 上下拖动调整输入框高度(手柄在底部, 向下拖=增高, 向上拖=降低) -->
+        <div class="input-resize-grip" title="上下拖动调整输入框高度"
+          @mousedown.prevent="startResizeInput">
+          <span class="grip-dots">⠿</span>
         </div>
       </div>
     </div>
@@ -1620,16 +1633,16 @@ function evidenceCardsFor(msg, index) {
   color: var(--color-text-muted);
 }
 
-/* 输入框上下拉伸手柄 */
+/* 输入框上下拉伸手柄(位于输入区底部) */
 .input-resize-grip {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 16px;
+  margin-top: 2px;
   cursor: ns-resize;
   color: var(--color-text-weak, #9ca3af);
   user-select: none;
-  margin-bottom: 2px;
   transition: color 0.2s ease;
 
   .grip-dots {
@@ -1640,6 +1653,18 @@ function evidenceCardsFor(msg, index) {
 
   &:hover {
     color: var(--color-primary-dark, #0d7a68);
+  }
+}
+
+/* AI 答案底部操作区(复制按钮) */
+.answer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+
+  .copy-btn {
+    font-size: 12px;
+    padding: 4px 10px;
   }
 }
 
