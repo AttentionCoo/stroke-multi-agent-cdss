@@ -106,6 +106,52 @@ const emit = defineEmits([
 const draftMessage = ref('')
 const inputRef = ref(null)
 const chatContainerRef = ref(null)
+
+// ── 输入框上下拉伸 ─────────────────────────────
+// 医生可拖动输入区上方的 grip 手柄调整对话框高度(48~320px), 并记住到 localStorage。
+const MIN_INPUT_HEIGHT = 48
+const MAX_INPUT_HEIGHT = 320
+let inputHeight = MIN_INPUT_HEIGHT
+let inputManuallyResized = false
+try {
+  const saved = localStorage.getItem('chat-input-height')
+  if (saved) {
+    const h = Number(saved)
+    if (h >= MIN_INPUT_HEIGHT && h <= MAX_INPUT_HEIGHT) {
+      inputHeight = h
+      inputManuallyResized = true
+    }
+  }
+} catch {
+  // localStorage 不可用时静默降级
+}
+
+// 按住 grip 上下拖动: 动态调整 textarea 高度
+function startResizeInput(event) {
+  event.preventDefault()
+  const startY = event.clientY
+  const startH = inputRef.value ? inputRef.value.offsetHeight : inputHeight
+  inputManuallyResized = true
+  const onMove = (ev) => {
+    const h = Math.min(MAX_INPUT_HEIGHT, Math.max(MIN_INPUT_HEIGHT, startH + (ev.clientY - startY)))
+    inputHeight = h
+    if (inputRef.value) inputRef.value.style.height = `${h}px`
+  }
+  const onUp = () => {
+    window.removeEventListener('mousemove', onMove)
+    window.removeEventListener('mouseup', onUp)
+    document.body.style.cursor = ''
+    try {
+      localStorage.setItem('chat-input-height', String(inputHeight))
+    } catch {
+      // ignore
+    }
+  }
+  window.addEventListener('mousemove', onMove)
+  window.addEventListener('mouseup', onUp)
+  document.body.style.cursor = 'ns-resize'
+}
+
 // 影像识别：待上传图片列表 [{ dataUrl, name }]，最多 3 张
 const imageList = ref([])
 const fileInputRef = ref(null)
@@ -411,7 +457,16 @@ function autoResize() {
   const element = inputRef.value
   if (!element) return
   element.style.height = 'auto'
-  element.style.height = `${Math.min(element.scrollHeight, 220)}px`
+  const needed = Math.min(element.scrollHeight, MAX_INPUT_HEIGHT)
+  if (inputManuallyResized) {
+    // 已手动拉伸: 内容超高时继续长高, 否则保持手动高度(不自动缩回)
+    const target = Math.max(needed, inputHeight)
+    element.style.height = `${target}px`
+    inputHeight = target
+  } else {
+    element.style.height = `${needed}px`
+    inputHeight = needed
+  }
 }
 
 // force=true 时忽略 userScrolled，用于新消息出现等必须滚到底的场景
@@ -848,6 +903,11 @@ function evidenceCardsFor(msg, index) {
 
       <div class="input-box" :class="{ 'drag-over': isDragOver }" @dragenter="handleDragEnter"
         @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleFileDrop">
+        <!-- 上下拖动调整输入框高度 -->
+        <div class="input-resize-grip" title="上下拖动调整输入框高度"
+          @mousedown.prevent="startResizeInput">
+          <span class="grip-dots">⠿</span>
+        </div>
         <!-- 图片预览区（有图片时显示） -->
         <div v-if="imageList.length" class="image-preview-bar">
           <div v-for="(item, idx) in imageList" :key="idx" class="image-thumb-wrap">
@@ -1560,6 +1620,29 @@ function evidenceCardsFor(msg, index) {
   color: var(--color-text-muted);
 }
 
+/* 输入框上下拉伸手柄 */
+.input-resize-grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  cursor: ns-resize;
+  color: var(--color-text-weak, #9ca3af);
+  user-select: none;
+  margin-bottom: 2px;
+  transition: color 0.2s ease;
+
+  .grip-dots {
+    font-size: 12px;
+    letter-spacing: 3px;
+    line-height: 1;
+  }
+
+  &:hover {
+    color: var(--color-primary-dark, #0d7a68);
+  }
+}
+
 /* 输入行：📎 + textarea + 发送按钮 */
 .input-row {
   display: grid;
@@ -1572,7 +1655,7 @@ function evidenceCardsFor(msg, index) {
     outline: none;
     resize: none;
     min-height: 48px;
-    max-height: 180px;
+    max-height: 320px;
     background: transparent;
     line-height: 1.6;
     font: inherit;
