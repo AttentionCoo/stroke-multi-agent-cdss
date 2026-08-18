@@ -24,11 +24,11 @@ provider_defaults:
 
 roles:
   main:
-    model: qwen-plus
+    model: qwen-turbo
     provider: dashscope
     env_override: MODEL_MAIN
   fast:
-    model: qwen-plus
+    model: qwen-turbo
     provider: dashscope
     env_override: MODEL_FAST
   turbo:
@@ -36,6 +36,6 @@ roles:
     provider: dashscope
     env_override: MODEL_TURBO
   consensus:
-    model: qwen-plus
+    model: qwen-turbo
     provider: dashscope
     env_override: MODEL_CONSENSUS

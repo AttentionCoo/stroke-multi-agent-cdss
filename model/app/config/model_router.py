@@ -20,10 +20,10 @@ logger = logging.getLogger(__name__)
 _DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 _DEFAULT_API_KEY_ENV = "DASHSCOPE_API_KEY"
 _DEFAULT_MODELS = {
-    "main": "qwen-plus",
-    "fast": "qwen-plus",
+    "main": "qwen-turbo",
+    "fast": "qwen-turbo",
     "turbo": "qwen-turbo",
-    "consensus": "qwen-plus",
+    "consensus": "qwen-turbo",
 }
 # 旧环境变量兼容(阶段3 之前只有 CONSENSUS_MODEL 可覆盖)
 _LEGACY_ENV_OVERRIDES = {"consensus": "CONSENSUS_MODEL"}

@@ -23,10 +23,11 @@ def clean_env(monkeypatch):
 
 def test_default_models(clean_env):
     router = ModelRouter()
-    assert router.resolve_model("main") == "qwen-plus"
-    assert router.resolve_model("fast") == "qwen-plus"
+    # 当前统一使用 qwen-turbo(全角色默认)
+    assert router.resolve_model("main") == "qwen-turbo"
+    assert router.resolve_model("fast") == "qwen-turbo"
     assert router.resolve_model("turbo") == "qwen-turbo"
-    assert router.resolve_model("consensus") == "qwen-plus"
+    assert router.resolve_model("consensus") == "qwen-turbo"
 
 
 def test_env_override_per_role(clean_env):
@@ -35,8 +36,8 @@ def test_env_override_per_role(clean_env):
     router = ModelRouter()
     assert router.resolve_model("main") == "qwen-max"
     assert router.resolve_model("turbo") == "qwen-plus"
-    # 未覆盖的角色保持默认
-    assert router.resolve_model("fast") == "qwen-plus"
+    # 未覆盖的角色保持默认(qwen-turbo)
+    assert router.resolve_model("fast") == "qwen-turbo"
 
 
 def test_legacy_consensus_env_compat(clean_env):
@@ -74,7 +75,7 @@ def test_get_llm_env_override_applied(clean_env):
 
 def test_unknown_role_falls_back_to_main(clean_env):
     router = ModelRouter()
-    assert router.resolve_model("nonexistent") == "qwen-plus"
+    assert router.resolve_model("nonexistent") == "qwen-turbo"
 
 
 def test_describe_lists_all_roles(clean_env):
