@@ -5,6 +5,7 @@ from langchain_core.messages import HumanMessage
 from app.agents.core.schema import ClinicalState
 from app.agents.orchestrators.nodes.base import BaseNode, astream_text
 from app.agents.constants import MAX_SUB_QUESTIONS
+from app.agents.utils.question_extractor import extract_user_questions
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +29,17 @@ class AnalysisNode(BaseNode):
             if filtered:
                 clinical_questions = filtered
 
+        # 用户直接提问(必须命中): LLM 提取优先, 规则兜底保证不遗漏普通问句
+        user_questions = analysis.get("user_questions", [])
+        if not isinstance(user_questions, list) or not user_questions:
+            user_questions = extract_user_questions(state["case_text"])
+
         return {
             "context": analysis.get("structured_context", {"原始病例": state["case_text"]}),
             "clinical_questions": clinical_questions[:MAX_SUB_QUESTIONS],
             "key_risks": analysis.get("key_risks", []),
             "complexity": analysis.get("complexity", "high"),
-            "user_questions": analysis.get("user_questions", []),
+            "user_questions": user_questions[:MAX_SUB_QUESTIONS],
         }
 
     async def _unified_analysis(self, case_text: str, all_info: str) -> Dict[str, Any]:
@@ -82,7 +88,7 @@ class AnalysisNode(BaseNode):
         "服务于用户问题方向的检索子问题3"
     ],
     "user_questions": [
-        "如果输入中包含"请回答以下问题："或类似明确的问题列表，请将每个问题原文提取出来；若没有，则返回空列表"
+        "用户直接提出的问题原文(问句), 如'该患者是否需要溶栓?'; 没有提问则返回空列表"
     ]
 }}
 
@@ -90,7 +96,7 @@ class AnalysisNode(BaseNode):
 - structured_context: 提取所有临床信息
 - complexity: critical=危及生命
 - clinical_questions: 【重要】{intent_hint} 问题必须用中文，每条30字以内，用于检索医学文献
-- user_questions: 若输入中用户明确提出了若干具体问题（例如以"请回答以下问题："引导的列表），请将每个问题原文提取为字符串数组；若无，则返回空数组。"""
+- user_questions: 【重要】提取用户在本轮输入中直接提出的全部问题——显式编号列表('请回答以下问题：1. xxx 2. yyy')或自然语言问句(以'?'/'？'/'吗'/'呢'结尾, 或以'是否/如何/为什么/能不能'等开头)都算, 逐条原文提取; 若输入只是病例描述而没有提问, 返回空数组。"""
 
         content = await astream_text(self.llm, [HumanMessage(content=prompt)], label="analysis")
         result = self._parse_json(content, None)

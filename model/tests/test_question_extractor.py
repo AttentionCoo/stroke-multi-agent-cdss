@@ -1,0 +1,63 @@
+"""用户直接提问提取器测试(纯逻辑, 无需真实 API)。
+
+运行: pytest tests/test_question_extractor.py -v
+"""
+import sys
+
+import pytest
+
+sys.path.insert(0, ".")
+
+from app.agents.utils.question_extractor import extract_user_questions
+
+
+def test_extracts_plain_question():
+    qs = extract_user_questions("这个患者需要抗凝治疗吗？")
+    assert qs == ["这个患者需要抗凝治疗吗"]
+
+
+def test_extracts_numbered_list():
+    text = "请回答以下问题：1. 是否适合静脉溶栓 2. 什么时候取栓 3. 抗凝何时启动"
+    qs = extract_user_questions(text)
+    assert qs == ["是否适合静脉溶栓", "什么时候取栓", "抗凝何时启动"]
+
+
+def test_extracts_multiple_sentences():
+    text = "患者是否需要溶栓？如果溶栓，时间窗是多少？请给出建议。"
+    qs = extract_user_questions(text)
+    assert "患者是否需要溶栓" in qs
+    assert "如果溶栓，时间窗是多少" in qs
+    # 陈述句"请给出建议。"不应被提取
+    assert not any("请给出建议" in q for q in qs)
+
+
+def test_case_description_no_question():
+    text = "患者男69岁突发右侧肢体无力2小时，NIHSS 16分，血压185/100，无出血史"
+    assert extract_user_questions(text) == []
+
+
+def test_supplement_statement_not_extracted():
+    text = "补充信息：INR 1.1、血小板180、CTA未见大血管闭塞"
+    assert extract_user_questions(text) == []
+
+
+def test_question_word_start():
+    qs = extract_user_questions("是否应该先做CTA评估大血管闭塞？")
+    assert len(qs) == 1
+    assert qs[0].startswith("是否应该先做CTA")
+
+
+def test_deduplicates_and_caps():
+    text = "需要抗凝吗？需要抗凝吗？需要抗凝吗？溶栓还是取栓？"
+    qs = extract_user_questions(text)
+    assert len(qs) == 2
+    assert qs.count("需要抗凝吗") == 1
+
+
+def test_empty_and_none():
+    assert extract_user_questions("") == []
+    assert extract_user_questions(None) == []
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

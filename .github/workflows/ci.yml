@@ -95,7 +95,8 @@ jobs:
             tests/test_hitl_checkpointer.py tests/test_model_router.py \
             tests/test_model_info.py tests/test_new_architecture.py \
             tests/test_health_endpoint.py tests/test_evaluation_gate.py \
-            tests/test_security.py tests/test_usage_tracking.py -q
+            tests/test_security.py tests/test_usage_tracking.py \
+            tests/test_question_extractor.py -q
       # 阶段6 评测闭环: RAGAS 基线快照硬门禁(检索指标不降级)
       - run: python -m app.evaluation.gate --ragas evaluation/ragas_snapshot.json
       # 阶段6 评测闭环: 离线安全/引用规则评测门禁(冻结预测回归金丝雀)
