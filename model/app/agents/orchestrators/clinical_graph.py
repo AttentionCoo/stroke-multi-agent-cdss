@@ -317,13 +317,20 @@ class ClinicalGraphBuilder:
         if not self.llm_critic:
             return {"report": "知识回答服务未就绪"}
 
+        # 历史患者上下文: 若问题引用了该患者, 知识问答也必须结合患者信息回答
+        history_ctx = str(state.get("active_memory") or state.get("all_info") or "").strip()
+
         # 构建知识问答的prompt
-        knowledge_prompt = f"""你是三甲医院神经内科主任医师。请基于循证医学知识，直接回答以下脑卒中相关通用问题。
+        knowledge_prompt = f"""你是三甲医院神经内科主任医师。请基于循证医学知识，直接回答以下脑卒中相关问题。
 
 问题：{state['case_text']}
 
+【历史患者信息(如问题引用了'该患者/这个患者/他/她'等, 必须结合以下信息回答, 不得脱离患者泛泛而谈; 无则忽略)】
+{history_ctx if history_ctx else "无"}
+
 回答要求：
 - 用中文，简洁专业
+- 直接针对问题给出结论与依据，不要答非所问，也不要扩展无关章节
 - 禁止确诊语气
 - 禁止具体剂量
 - 如果需要，引用权威指南

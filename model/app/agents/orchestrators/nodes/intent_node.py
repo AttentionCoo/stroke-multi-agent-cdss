@@ -32,9 +32,12 @@ logger = logging.getLogger(__name__)
 _INTENT_PROMPT = ChatPromptTemplate.from_messages([
     ("human", """你是意图分类专家。请判断以下输入的类型：
 
-- consultation: 具体患者问诊或病例分析（包含患者症状、检查等细节）
-- knowledge: 脑卒中通用知识询问（如症状、药品作用、禁忌、预防等，无具体患者细节）
+- consultation: 具体患者问诊、病例分析，或对历史上下文中该患者的追问（即使本条输入没有重复患者细节）
+- knowledge: 脑卒中通用知识询问（如症状、药品作用、禁忌、预防等，无具体患者细节，也未引用历史患者）
 - irrelevant: 非脑卒中医疗相关
+
+【历史上下文（同一对话中此前的问答，可能包含该患者信息；无则为"无"）】
+{all_info}
 
 输入：{case_text}
 
@@ -45,7 +48,11 @@ _INTENT_PROMPT = ChatPromptTemplate.from_messages([
     "reason": "简要原因"
 }}
 
-严格区分：如果有患者具体信息，为consultation；如果是一般性问题，为knowledge；否则irrelevant。""")
+严格区分：
+- 输入包含患者具体信息 → consultation；
+- 输入引用历史患者（如"该患者/这个患者/这个病人/此患者/他/她"等指代）且历史上下文含患者信息 → consultation（对该患者的追问，不能因本条缺少患者细节而误判为知识问答）；
+- 输入是完全通用的医学问题、未引用任何患者 → knowledge；
+- 否则 → irrelevant。""")
 ])
 
 
@@ -89,9 +96,12 @@ class IntentNode(BaseNode):
         工作流程：
         1. 优先调用结构化输出(JSON Schema 约束, 无解析脆弱性)
         2. 失败/不支持时回退: 调用LLM进行意图分类 + 解析JSON
-        3. 返回意图类型用于路由决策
+        3. 规则兜底: 引用历史患者的追问强制走 consultation(该患者/这个患者等 + 有历史上下文)
+        4. 返回意图类型用于路由决策
         """
-        messages = _INTENT_PROMPT.format_messages(case_text=state["case_text"])
+        case_text = state["case_text"]
+        all_info = str(state.get("all_info") or state.get("active_memory") or "").strip()
+        messages = _INTENT_PROMPT.format_messages(case_text=case_text, all_info=all_info or "无")
 
         # ── 快路径: 结构化输出(Literal 校验, 非法枚举自动触发回退) ──
         if self._structured_runner is not None:
@@ -102,29 +112,44 @@ class IntentNode(BaseNode):
                 logger.warning("[intent] 结构化输出失败, 回退文本解析: %s", exc)
             if isinstance(result, IntentResult):
                 intent_type = result.type
+                if intent_type != "consultation":
+                    intent_type = self._force_consultation(case_text, all_info, intent_type)
                 writer = try_get_stream_writer()
                 if writer is not None:
-                    writer({"node": "intent", "chunk": f"分类: {result.type} ({result.reason})"})
+                    writer({"node": "intent", "chunk": f"分类: {intent_type} ({result.reason})"})
                 logger.info(f"[intent] 结构化分类结果: {intent_type}")
                 return {"intent_type": intent_type}
 
         # ── 回退路径: 流式生成 + JSON 解析(保留原有行为) ──
         pieces = []
         writer = try_get_stream_writer()
-        async for piece in self.chain.astream({"case_text": state["case_text"]}):
+        async for piece in self.chain.astream({"case_text": case_text, "all_info": all_info or "无"}):
             if piece:
                 pieces.append(str(piece))
                 if writer is not None:
                     writer({"node": "intent", "chunk": str(piece)})
         content = "".join(pieces)
-        
+
         # 解析JSON格式的分类结果
         result = self._parse_json(content)
         intent_type = result.get("type", "irrelevant")
-        
+        intent_type = self._force_consultation(case_text, all_info, intent_type)
+
         # 记录分类结果
         logger.info(f"[intent] 分类结果: {intent_type}")
         return {"intent_type": intent_type}
+
+    @staticmethod
+    def _force_consultation(case_text: str, all_info: str, intent_type: str) -> str:
+        """规则兜底: 输入引用了历史患者且历史上下文含患者信息时, 强制视为对该患者的追问。"""
+        if intent_type == "consultation":
+            return intent_type
+        if all_info and any(
+            ref in case_text for ref in ("该患者", "这个患者", "这个病人", "此患者", "该病人", "他", "她")
+        ):
+            logger.info("[intent] 检测到对历史患者的追问(有历史上下文), 强制 consultation")
+            return "consultation"
+        return intent_type
 
     def _parse_json(self, text: str):
         """

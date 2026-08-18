@@ -59,5 +59,20 @@ def test_empty_and_none():
     assert extract_user_questions(None) == []
 
 
+# ── 意图路由: 引用历史患者的追问强制走 consultation ──
+
+def test_intent_force_consultation_rule():
+    from app.agents.orchestrators.nodes.intent_node import IntentNode
+    # 引用历史患者 + 有历史上下文 → 强制 consultation(不能误判为知识问答)
+    assert IntentNode._force_consultation("该患者需要抗凝吗？", "患者男69岁房颤, 突发偏瘫2小时", "knowledge") == "consultation"
+    assert IntentNode._force_consultation("这个患者什么时候可以下床？", "脑梗死急性期", "knowledge") == "consultation"
+    # 无患者引用 → 保持原判
+    assert IntentNode._force_consultation("脑卒中的二级预防措施有哪些？", "患者男69岁...", "knowledge") == "knowledge"
+    # 无历史上下文 → 不强制(没有患者可追问)
+    assert IntentNode._force_consultation("该患者需要抗凝吗？", "", "knowledge") == "knowledge"
+    # 已是 consultation → 不变
+    assert IntentNode._force_consultation("任意输入", "上下文", "consultation") == "consultation"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
