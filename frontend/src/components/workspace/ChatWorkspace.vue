@@ -127,13 +127,15 @@ try {
 }
 
 // 按住 grip 上下拖动: 动态调整 textarea 高度
+// 方向约定: 上拉 = 增高, 下拉 = 降低(与用户直觉一致)
 function startResizeInput(event) {
   event.preventDefault()
   const startY = event.clientY
   const startH = inputRef.value ? inputRef.value.offsetHeight : inputHeight
   inputManuallyResized = true
   const onMove = (ev) => {
-    const h = Math.min(MAX_INPUT_HEIGHT, Math.max(MIN_INPUT_HEIGHT, startH + (ev.clientY - startY)))
+    // 上拉(ev.clientY < startY) → 高度增加; 下拉 → 高度减小
+    const h = Math.min(MAX_INPUT_HEIGHT, Math.max(MIN_INPUT_HEIGHT, startH - (ev.clientY - startY)))
     inputHeight = h
     if (inputRef.value) inputRef.value.style.height = `${h}px`
   }
@@ -969,8 +971,8 @@ function evidenceCardsFor(msg, index) {
           ⏸️ AI 已暂停。直接在输入框补充信息（或输入新问题）后发送即可继续会诊。
         </div>
 
-        <!-- 上下拖动调整输入框高度(手柄在底部, 向下拖=增高, 向上拖=降低) -->
-        <div class="input-resize-grip" title="上下拖动调整输入框高度"
+        <!-- 上下拖动调整输入框高度(上拉=增高, 下拉=降低) -->
+        <div class="input-resize-grip" title="上拉增高 / 下拉降低"
           @mousedown.prevent="startResizeInput">
           <span class="grip-dots">⠿</span>
         </div>
