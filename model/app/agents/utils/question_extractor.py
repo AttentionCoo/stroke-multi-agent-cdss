@@ -25,6 +25,14 @@ _QUESTION_STARTS = (
 # 显式提问引导词
 _LIST_HINTS = ("请回答以下问题", "回答下列问题", "请回答下面", "依次回答", "请分别回答")
 
+# "请写出该患者的：（1）xxx；（2）yyy；..." 式结构化题目(临床综合分析题/考题)
+_INSTRUCTION_VERB = r"(?:请写出|请回答|请说明|请列出|请给出|请分析|请评估|回答|写出|简述)"
+_PATIENT_INSTRUCTION = re.compile(
+    _INSTRUCTION_VERB + r".{0,12}?(?:该患者|该病人|此患者|该病例|以下问题|如下问题).{0,8}?[:：]"
+)
+# 下一个大题标题(如 "2.（30分）" / "问题3"), 用于截断题目区间
+_NEXT_SECTION = re.compile(r"\n?\s*\d+[.、]?[（(]\d+\s*分[)）]|\n?\s*问题\s*\d+")
+
 # 编号前缀(1. / 1、 / 1． / 1) / 1）)
 # 严格版: 前缀前须为行首/：:。;；/空格, 且前缀后须有空格
 # (避免把化验值 "INR 1.1"、"血小板180、" 误判为编号列表)
@@ -60,10 +68,37 @@ def _extract_numbered(text: str, matches) -> List[str]:
     return out
 
 
+def _extract_patient_instruction_questions(text: str) -> List[str]:
+    """处理'请写出该患者的：（1）定位诊断和定性诊断（含依据）；（2）…；（3）…' 式结构化题目。
+
+    这类题目的小问以 （N）/ N. / N、 编号、以 分号/句号 结尾, 不含问号,
+    是临床综合分析题/考题的常见形态, 必须提取为逐问回答。
+    """
+    m = _PATIENT_INSTRUCTION.search(text or "")
+    if not m:
+        return []
+    rest = text[m.end():]
+    # 截断到下一个大题标题("2.（30分）"/"问题3"), 避免串到其他大题
+    rest = _NEXT_SECTION.split(rest)[0]
+    # 按 （N）/ N. / N、 编号切分
+    parts = re.split(r"[（(]\d+[)）]|\d+[.、．)）]", rest)
+    out: List[str] = []
+    for p in parts:
+        q = re.sub(r"[。；;，,\s]+$", "", p).strip()
+        if len(q) >= 2 and q not in out:
+            out.append(q)
+    return out
+
+
 def extract_user_questions(text) -> List[str]:
     """提取用户直接提出的问题(原文), 无提问返回空列表。"""
     if not text:
         return []
+
+    # 0) 结构化题目(请写出该患者的：（1）…（2）…) 优先
+    structured = _extract_patient_instruction_questions(text)
+    if structured:
+        return structured[:_MAX_QUESTIONS]
 
     # 1) 显式编号列表优先: 有引导词时用宽松编号, 否则严格编号需 ≥2 项
     has_hint = any(h in text for h in _LIST_HINTS)

@@ -59,6 +59,45 @@ def test_empty_and_none():
     assert extract_user_questions(None) == []
 
 
+def test_exam_structured_questions():
+    """临床综合分析题: '请写出该患者的：（1）…（2）…（3）…' 应逐问提取。"""
+    exam = (
+        "患者，男性，65岁。因'突发言语含糊、右侧肢体无力2小时'急诊入院。\n"
+        "问题（共100分）\n"
+        "1.（40分）诊断与评估\n"
+        "请写出该患者的：（1）定位诊断和定性诊断（含依据）；（2）最可能的TOAST病因分型（简述理由）；"
+        "（3）主要的脑卒中危险因素（至少列出4项）。"
+    )
+    qs = extract_user_questions(exam)
+    assert qs == [
+        "定位诊断和定性诊断（含依据）",
+        "最可能的TOAST病因分型（简述理由）",
+        "主要的脑卒中危险因素（至少列出4项）",
+    ]
+
+
+def test_exam_does_not_hallucinate():
+    """结构化题目下不应提取出题面中不存在的问题(如'该患者是否需要溶栓?')。"""
+    exam = (
+        "请写出该患者的：（1）定位诊断和定性诊断（含依据）；（2）最可能的TOAST病因分型（简述理由）。"
+    )
+    qs = extract_user_questions(exam)
+    assert all("溶栓" not in q for q in qs)
+    assert len(qs) == 2
+
+
+def test_exam_multiple_sections_bounded():
+    """多道大题时只提取引导句后的编号项, 不串到下一道大题。"""
+    text = (
+        "请写出该患者的：（1）定位诊断（含依据）；（2）危险因素（至少4项）。\n"
+        "2.（30分）治疗\n"
+        "请说明该患者的治疗方案。"
+    )
+    qs = extract_user_questions(text)
+    assert len(qs) == 2
+    assert all("治疗方案" not in q for q in qs)
+
+
 # ── 意图路由: 引用历史患者的追问强制走 consultation ──
 
 def test_intent_force_consultation_rule():

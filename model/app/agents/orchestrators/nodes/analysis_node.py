@@ -29,10 +29,12 @@ class AnalysisNode(BaseNode):
             if filtered:
                 clinical_questions = filtered
 
-        # 用户直接提问(必须命中): LLM 提取优先, 规则兜底保证不遗漏普通问句
-        user_questions = analysis.get("user_questions", [])
-        if not isinstance(user_questions, list) or not user_questions:
-            user_questions = extract_user_questions(state["case_text"])
+        # 用户直接提问(必须命中): 确定性规则提取优先(防 LLM 编造/漏提), 规则为空时才用 LLM 结果
+        user_questions = extract_user_questions(state["case_text"])
+        if not user_questions:
+            llm_questions = analysis.get("user_questions", [])
+            if isinstance(llm_questions, list):
+                user_questions = [str(q).strip() for q in llm_questions if str(q).strip()]
 
         return {
             "context": analysis.get("structured_context", {"原始病例": state["case_text"]}),
