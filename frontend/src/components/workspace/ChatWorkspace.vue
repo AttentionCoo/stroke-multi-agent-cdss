@@ -1442,6 +1442,8 @@ function evidenceCardsFor(msg, index) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* 滚动到底/顶时不再带动外层页面(推理流式滚动时不会"滑到外面") */
+  overscroll-behavior: contain;
   padding: 16px 20px;
 }
 
