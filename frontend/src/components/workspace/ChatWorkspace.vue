@@ -490,7 +490,13 @@ function handleSendMessage() {
   })
   draftMessage.value = ''
   imageList.value = []
-  nextTick(autoResize)
+  // 发送完成后输入框恢复默认高度(不再保持手动拉伸过的高度)
+  inputManuallyResized = false
+  inputHeight = MIN_INPUT_HEIGHT
+  nextTick(() => {
+    if (inputRef.value) inputRef.value.style.height = `${MIN_INPUT_HEIGHT}px`
+    autoResize()
+  })
 }
 
 async function handleImageSelect(event) {
