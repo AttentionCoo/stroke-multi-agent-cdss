@@ -923,13 +923,12 @@ function evidenceCardsFor(msg, index) {
           <span class="grip-dots">⠿</span>
         </div>
 
-        <!-- 生成中: 一条紧凑的停止条(不再挤进输入行, 布局稳定) -->
+        <!-- 生成中: 悬浮胶囊(浮在输入框顶边, 不占用布局高度, 输入区高度不变) -->
         <div v-if="isStreaming || isThinking" class="streaming-bar">
-          <span class="streaming-bar-text">
-            <span class="streaming-dot"></span>{{ isThinking ? 'AI 正在思考…' : 'AI 正在生成…' }}
-          </span>
+          <span class="streaming-dot"></span>
+          <span class="streaming-text">{{ isThinking ? '思考中' : '生成中' }}</span>
           <button type="button" class="interrupt-btn" title="停止生成" @click="emit('interrupt')">
-            ⏹ 停止生成
+            ⏹ 停止
           </button>
         </div>
 
@@ -1581,6 +1580,7 @@ function evidenceCardsFor(msg, index) {
 
 /* ─────────────────── Input box ─────────────────── */
 .input-box {
+  position: relative;   /* 悬浮停止胶囊的定位基准 */
   border-top: 1px solid var(--color-border);
   padding: 10px 16px;
   background: var(--color-bg-base);
@@ -1793,21 +1793,23 @@ function evidenceCardsFor(msg, index) {
   }
 }
 
-/* 生成中: 顶部停止条(紧凑一行, 不挤占输入行) */
+/* 生成中: 悬浮胶囊(绝对定位浮在输入框顶边, 不占布局高度) */
 .streaming-bar {
+  position: absolute;
+  top: -16px;
+  right: 16px;
+  z-index: 6;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 2px 2px 0;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 999px;
+  background: var(--color-bg-base, #ffffff);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
   font-size: 12px;
-  color: var(--color-text-weak, #6b7280);
-
-  .streaming-bar-text {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
+  color: var(--color-text-medium, #4b5563);
+  user-select: none;
 
   .streaming-dot {
     width: 8px;
@@ -1823,13 +1825,13 @@ function evidenceCardsFor(msg, index) {
   50% { opacity: 0.3; }
 }
 
-/* ⏹ 停止生成按钮(小尺寸, 用于顶部停止条) */
+/* ⏹ 停止按钮(小尺寸胶囊内按钮) */
 .interrupt-btn {
   flex-shrink: 0;
-  height: 26px;
+  height: 24px;
   padding: 0 10px;
   border: 1px solid rgba(220, 38, 38, 0.35);
-  border-radius: 6px;
+  border-radius: 999px;
   background: rgba(220, 38, 38, 0.08);
   color: #dc2626;
   font-size: 12px;
