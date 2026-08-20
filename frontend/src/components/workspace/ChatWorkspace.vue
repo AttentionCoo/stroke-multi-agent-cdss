@@ -126,15 +126,15 @@ try {
   // localStorage 不可用时静默降级
 }
 
-// 按住 grip 上下拖动: 动态调整 textarea 高度
-// 方向约定: 上拉 = 增高, 下拉 = 降低(与用户直觉一致)
+// 按住输入框顶部边缘上下拖动: 动态调整 textarea 高度
+// ChatGPT 式交互: 输入框底部固定, 顶部边缘跟随光标 —— 上拉=增高(顶边上移), 下拉=降低
 function startResizeInput(event) {
   event.preventDefault()
   const startY = event.clientY
   const startH = inputRef.value ? inputRef.value.offsetHeight : inputHeight
   inputManuallyResized = true
   const onMove = (ev) => {
-    // 上拉(ev.clientY < startY) → 高度增加; 下拉 → 高度减小
+    // 上拉(ev.clientY < startY) → 高度增加, 输入框顶部随之上升; 下拉 → 高度减小
     const h = Math.min(MAX_INPUT_HEIGHT, Math.max(MIN_INPUT_HEIGHT, startH - (ev.clientY - startY)))
     inputHeight = h
     if (inputRef.value) inputRef.value.style.height = `${h}px`
@@ -917,6 +917,11 @@ function evidenceCardsFor(msg, index) {
 
       <div class="input-box" :class="{ 'drag-over': isDragOver }" @dragenter="handleDragEnter"
         @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleFileDrop">
+        <!-- ChatGPT 风格: 顶部边缘拖拽调整输入框高度(悬停出现 ⠿, 上拉=增高/下拉=降低) -->
+        <div class="input-resize-grip" title="上拉增高 / 下拉降低"
+          @mousedown.prevent="startResizeInput">
+          <span class="grip-dots">⠿</span>
+        </div>
         <!-- 图片预览区（有图片时显示） -->
         <div v-if="imageList.length" class="image-preview-bar">
           <div v-for="(item, idx) in imageList" :key="idx" class="image-thumb-wrap">
@@ -969,12 +974,6 @@ function evidenceCardsFor(msg, index) {
         <!-- ⏸️ 打断后提示: 医生可直接补充信息继续 -->
         <div v-if="interrupted" class="interrupted-hint">
           ⏸️ AI 已暂停。直接在输入框补充信息（或输入新问题）后发送即可继续会诊。
-        </div>
-
-        <!-- 上下拖动调整输入框高度(上拉=增高, 下拉=降低) -->
-        <div class="input-resize-grip" title="上拉增高 / 下拉降低"
-          @mousedown.prevent="startResizeInput">
-          <span class="grip-dots">⠿</span>
         </div>
       </div>
     </div>
@@ -1635,26 +1634,27 @@ function evidenceCardsFor(msg, index) {
   color: var(--color-text-muted);
 }
 
-/* 输入框上下拉伸手柄(位于输入区底部) */
+/* ChatGPT 风格: 输入框顶部边缘拖拽条(悬停出现 ns-resize 光标与 ⠿ 提示) */
 .input-resize-grip {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 16px;
-  margin-top: 2px;
+  height: 14px;
+  /* 负上边距让命中区覆盖到输入框顶部分隔线, 负左右边距横向铺满, 更易抓住 */
+  margin: -11px -16px 0;
   cursor: ns-resize;
-  color: var(--color-text-weak, #9ca3af);
   user-select: none;
-  transition: color 0.2s ease;
+  touch-action: none;
+  color: transparent;
+  font-size: 12px;
+  letter-spacing: 3px;
+  border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
 
-  .grip-dots {
-    font-size: 12px;
-    letter-spacing: 3px;
-    line-height: 1;
-  }
-
-  &:hover {
+  &:hover,
+  &:active {
     color: var(--color-primary-dark, #0d7a68);
+    background: rgba(17, 150, 127, 0.07);
   }
 }
 
