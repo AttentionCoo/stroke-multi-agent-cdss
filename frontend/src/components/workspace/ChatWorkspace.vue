@@ -922,6 +922,22 @@ function evidenceCardsFor(msg, index) {
           @mousedown.prevent="startResizeInput">
           <span class="grip-dots">⠿</span>
         </div>
+
+        <!-- 生成中: 一条紧凑的停止条(不再挤进输入行, 布局稳定) -->
+        <div v-if="isStreaming || isThinking" class="streaming-bar">
+          <span class="streaming-bar-text">
+            <span class="streaming-dot"></span>{{ isThinking ? 'AI 正在思考…' : 'AI 正在生成…' }}
+          </span>
+          <button type="button" class="interrupt-btn" title="停止生成" @click="emit('interrupt')">
+            ⏹ 停止生成
+          </button>
+        </div>
+
+        <!-- 打断后: 一行紧凑提示 -->
+        <div v-if="interrupted" class="interrupted-hint">
+          ⏸️ 已打断，可直接在下方补充信息（或输入新问题）后发送继续
+        </div>
+
         <!-- 图片预览区（有图片时显示） -->
         <div v-if="imageList.length" class="image-preview-bar">
           <div v-for="(item, idx) in imageList" :key="idx" class="image-thumb-wrap">
@@ -935,45 +951,33 @@ function evidenceCardsFor(msg, index) {
           <input ref="fileInputRef" type="file" accept="image/jpeg,image/png,image/webp" multiple style="display:none"
             @change="handleImageSelect" />
 
-          <!-- ⏹ 打断生成按钮(AI 生成/思考中显示): 医生可随时打断, 补充信息后继续 -->
-          <button
-            v-if="isStreaming || isThinking"
-            type="button"
-            class="interrupt-btn"
-            title="打断当前生成"
-            @click="emit('interrupt')"
-          >⏹ 打断</button>
-
           <textarea ref="inputRef" v-model="draftMessage" rows="1"
             :placeholder="interrupted
-              ? 'AI 已暂停，请输入补充信息（如 INR、血小板、影像结果…）后发送，继续会诊'
+              ? '请输入补充信息（如 INR、血小板、影像结果…）后发送，继续会诊'
               : imageList.length ? '可补充文字描述（直接发送将询问图片内容）' : '请输入症状、病史或希望AI分析的问题'" @input="autoResize"
             @keydown.enter.exact.prevent="handleSendMessage" />
 
-          <!-- 🎤 语音录入按钮（Web Speech API, 中文识别） -->
-          <button
-            v-if="voiceSupported"
-            type="button"
-            class="attach-btn voice-btn"
-            :class="{ listening: voiceListening }"
-            :title="voiceListening ? '点击停止' : '语音录入'"
-            @click="toggleVoice"
-          >🎤</button>
+          <div class="input-actions">
+            <!-- 🎤 语音录入按钮（Web Speech API, 中文识别） -->
+            <button
+              v-if="voiceSupported"
+              type="button"
+              class="attach-btn voice-btn"
+              :class="{ listening: voiceListening }"
+              :title="voiceListening ? '点击停止' : '语音录入'"
+              @click="toggleVoice"
+            >🎤</button>
 
-          <!-- 📎 上传图片按钮 -->
-          <button type="button" class="attach-btn" :disabled="imageList.length >= 3 || isStreaming" title="上传图片（最多3张）"
-            @click="fileInputRef.click()">
-            <AttachFileSVG size="24" color="currentColor" />
-          </button>
-          <button type="button" class="send-btn" :disabled="(!draftMessage.trim() && !imageList.length) || isStreaming"
-            @click="handleSendMessage">
-            <SendSVG size="24" color="currentColor" />
-          </button>
-        </div>
-
-        <!-- ⏸️ 打断后提示: 医生可直接补充信息继续 -->
-        <div v-if="interrupted" class="interrupted-hint">
-          ⏸️ AI 已暂停。直接在输入框补充信息（或输入新问题）后发送即可继续会诊。
+            <!-- 📎 上传图片按钮 -->
+            <button type="button" class="attach-btn" :disabled="imageList.length >= 3 || isStreaming" title="上传图片（最多3张）"
+              @click="fileInputRef.click()">
+              <AttachFileSVG size="24" color="currentColor" />
+            </button>
+            <button type="button" class="send-btn" :disabled="(!draftMessage.trim() && !imageList.length) || isStreaming"
+              @click="handleSendMessage">
+              <SendSVG size="24" color="currentColor" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1672,14 +1676,15 @@ function evidenceCardsFor(msg, index) {
   }
 }
 
-/* 输入行：📎 + textarea + 发送按钮 */
+/* 输入行: 文本域 flex 伸展 + 右侧固定操作簇(语音/图片/发送) */
 .input-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 48px 48px;
+  display: flex;
+  align-items: flex-end;
   gap: 8px;
-  align-items: start;
 
   textarea {
+    flex: 1;
+    min-width: 0;
     border: none;
     outline: none;
     resize: none;
@@ -1690,9 +1695,16 @@ function evidenceCardsFor(msg, index) {
     font: inherit;
     color: var(--color-text-strong);
     box-sizing: border-box;
-    width: 100%;
     padding: 12px 0 12px 12px;
   }
+}
+
+/* 右侧操作按钮簇(语音/图片/发送), 不再受网格换行影响 */
+.input-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 /* 用户消息气泡中的图片列表 */
@@ -1781,16 +1793,46 @@ function evidenceCardsFor(msg, index) {
   }
 }
 
-/* ⏹ 打断生成按钮(AI 生成/思考中显示) */
+/* 生成中: 顶部停止条(紧凑一行, 不挤占输入行) */
+.streaming-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 2px 0;
+  font-size: 12px;
+  color: var(--color-text-weak, #6b7280);
+
+  .streaming-bar-text {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .streaming-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #dc2626;
+    animation: streaming-blink 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes streaming-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ⏹ 停止生成按钮(小尺寸, 用于顶部停止条) */
 .interrupt-btn {
   flex-shrink: 0;
-  height: 36px;
-  padding: 0 12px;
+  height: 26px;
+  padding: 0 10px;
   border: 1px solid rgba(220, 38, 38, 0.35);
-  border-radius: var(--radius-sm, 8px);
+  border-radius: 6px;
   background: rgba(220, 38, 38, 0.08);
   color: #dc2626;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.2s ease;
@@ -1800,15 +1842,14 @@ function evidenceCardsFor(msg, index) {
   }
 }
 
-/* ⏸️ 打断后提示(补充信息继续) */
+/* ⏸️ 打断后提示(一行紧凑, 不抬高输入区) */
 .interrupted-hint {
-  margin-top: 8px;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm, 8px);
-  background: rgba(220, 38, 38, 0.06);
-  border: 1px solid rgba(220, 38, 38, 0.15);
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(220, 38, 38, 0.05);
+  border: 1px dashed rgba(220, 38, 38, 0.2);
   color: var(--color-text-medium, #4b5563);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
