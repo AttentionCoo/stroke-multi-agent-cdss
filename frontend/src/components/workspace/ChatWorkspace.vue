@@ -109,8 +109,8 @@ const chatContainerRef = ref(null)
 
 // ── 输入框上下拉伸 ─────────────────────────────
 // 医生可拖动输入区上方的 grip 手柄调整对话框高度(48~320px), 并记住到 localStorage。
-const MIN_INPUT_HEIGHT = 48
-const MAX_INPUT_HEIGHT = 320
+const MIN_INPUT_HEIGHT = 40
+const MAX_INPUT_HEIGHT = 300
 let inputHeight = MIN_INPUT_HEIGHT
 let inputManuallyResized = false
 try {
@@ -1582,11 +1582,11 @@ function evidenceCardsFor(msg, index) {
 .input-box {
   position: relative;   /* 悬浮停止胶囊的定位基准 */
   border-top: 1px solid var(--color-border);
-  padding: 10px 16px;
+  padding: 6px 12px 8px;   /* 紧凑: 缩小上下内边距 */
   background: var(--color-bg-base);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;               /* 紧凑: 缩小子元素间距 */
   flex-shrink: 0;
   transition: background var(--transition-fast), border-color var(--transition-fast);
 
@@ -1645,14 +1645,14 @@ function evidenceCardsFor(msg, index) {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 14px;
+  height: 12px;
   /* 负上边距让命中区覆盖到输入框顶部分隔线, 负左右边距横向铺满, 更易抓住 */
-  margin: -11px -16px 0;
+  margin: -7px -12px 0;
   cursor: ns-resize;
   user-select: none;
   touch-action: none;
   color: transparent;
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 3px;
   border-radius: 4px;
   transition: color 0.15s ease, background 0.15s ease;
@@ -1680,7 +1680,7 @@ function evidenceCardsFor(msg, index) {
 .input-row {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
+  gap: 6px;
 
   textarea {
     flex: 1;
@@ -1688,14 +1688,15 @@ function evidenceCardsFor(msg, index) {
     border: none;
     outline: none;
     resize: none;
-    min-height: 48px;
-    max-height: 320px;
+    min-height: 40px;      /* 紧凑: 单行更矮 */
+    max-height: 280px;
     background: transparent;
-    line-height: 1.6;
+    line-height: 1.5;
     font: inherit;
+    font-size: 14px;
     color: var(--color-text-strong);
     box-sizing: border-box;
-    padding: 12px 0 12px 12px;
+    padding: 8px 0 8px 10px;
   }
 }
 
@@ -1703,7 +1704,7 @@ function evidenceCardsFor(msg, index) {
 .input-actions {
   display: flex;
   align-items: flex-end;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
@@ -1757,9 +1758,9 @@ function evidenceCardsFor(msg, index) {
 }
 
 .attach-btn {
-  width: 48px;
-  height: 48px;
-  font-size: 18px;
+  width: 40px;
+  height: 40px;
+  font-size: 16px;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -1783,8 +1784,8 @@ function evidenceCardsFor(msg, index) {
 }
 
 .send-btn {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   color: var(--color-primary-dark);
   border-radius: 50%;
 
