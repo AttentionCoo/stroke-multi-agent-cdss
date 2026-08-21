@@ -184,16 +184,22 @@ for env_name in [n for n in env_names if n]:
 `app/agents/orchestrators/clinical_graph.py` 用 `StateGraph(ClinicalState)` 构建整条推理链：
 
 ```text
-intent ──┬─ irrelevant → reject ────────────────► END
-         ├─ knowledge → knowledge_answer ────────► END
+intent ──┬─ irrelevant → reject ─────────────────► END
+         ├─ knowledge → knowledge_answer ─────────► END
          └─ consultation → memory → analysis → tool_use
-              → research_plan → evidence_router → retrieve
-              → evidence_judge ──不足──► query_rewrite → evidence_router(再检索, 有界)
-              → reason → debate → consensus_agent
-              → validate ──未过(反思, ≤3次)──► reason(回环)
+              → research_plan ──(无需检索/无检索式)──► reason
+                    │(需要检索)
+                    ▼
+              evidence_router → retrieve → evidence_judge
+                    ▲                       │(证据不足)
+                    └────── query_rewrite ◄──┘
+              evidence_judge ──(证据充分)──► reason → debate → consensus_agent
+              → validate ──(retry, ≤3次)──► reason(反思回环)
               → compliance(合规审计) → human_review(HITL, 可选)
               → generate_report ──► END
 ```
+
+> 注：`tool_use`、`evidence_router`、`compliance`、`human_review` 均为**条件挂载**的节点——`tool_use` 有工具时、`evidence_router` 有路由节点时、`compliance`/`human_review` 在 `validate_node` 存在时加入。生产环境这些节点恒在。
 
 **状态**：`ClinicalState`（`app/agents/core/schema.py`）是一个 TypedDict，含病例文本、上下文、检索任务/查询、证据、专家意见、校验状态、合规审计、HITL 复核字段等 40+ 字段。LangGraph 把每个字段当作一个 channel，节点返回的 dict 合并进状态。
 
@@ -313,6 +319,11 @@ translated.append({"type": "node_token", "node": node,
 | `app/rag/retrievers.py` | HybridRetriever / UnifiedSearchEngine / 集合路由 / BM25 兼容（重新导出前两者） |
 | `app/rag/data_loader.py` | PDF 加载、分块、chunk 级元数据、垃圾过滤 |
 | `app/rag/qa_generator.py` | QA 对自建引擎（冷启动可选） |
+| `app/agents/services/query_translator.py` | 医学术语标准化 / 同义词扩展 / Query Abstraction / Source Constraint |
+| `app/agents/services/retrieval_service.py` | EvidenceRetrievalService（类别过滤 / 不匹配剔除 / subtopic 淘汰） |
+| `app/agents/assistant.py` | MedicalAssistant（fast 并行检索 + 流式快速响应，RetrieveNode 委托其执行） |
+
+`app/agents/services/query_service.py`（查询生成）、`synthesis_service.py`（证据综合）、`pipelines/rag_pipeline.py`（RAGPipeline）为 MedicalAssistant 内部 fast 检索路径的既有组件。
 
 ### 8.2 5 Collection 主题隔离
 
@@ -603,12 +614,16 @@ model/
 │   ├── agents/
 │   │   ├── core/schema.py       # ClinicalState(TypedDict)
 │   │   ├── schemas.py           # 结构化输出 Pydantic
+│   │   ├── constants.py         # 共享常量(子问题数/证据字符上限等, 兼容读取 limits_config)
+│   │   ├── assistant.py         # MedicalAssistant(fast 并行检索 + 流式快速响应)
 │   │   ├── orchestrators/
 │   │   │   ├── clinical_graph.py# 推理图(节点/条件边/反思循环/合规/HITL)
 │   │   │   ├── qwen_agent.py    # 门面: run/resume/流消费/缺口追问/检查点清理
 │   │   │   ├── checkpoint.py    # Sqlite 检查点 + TTL 清理
 │   │   │   └── nodes/           # 18 个节点(意图/记忆/分析/工具/规划/路由/检索/评估/改写/推理/辩论/共识/校验/合规/复核/报告/知识/拒绝)
 │   │   ├── streaming/translator.py  # 三流→SSE 事件翻译
+│   │   ├── services/            # query_translator / retrieval_service / query_service / synthesis_service
+│   │   ├── pipelines/           # rag_pipeline(RAGPipeline)
 │   │   ├── tools/               # 18 个医疗工具 + registry
 │   │   └── utils/               # question_extractor / json_utils / text_utils
 │   ├── rag/                     # embeddings / reranker / retrievers / data_loader / qa_generator
@@ -684,9 +699,15 @@ POST /model/resume {thread_id, approved:false, feedback:"请补充CTA评估"}
 
 ```bash
 cd model
-# 全量离线测试(200 个)
-.\.venv\Scripts\python.exe -m pytest tests/ -q --ignore=tests/test_rag.py \
-  --ignore=tests/test_agentic_rag.py --ignore=tests/test_thinking_events.py
+# 离线测试全集(200 个用例, 不含需联网/密钥/在线 PDF 语料的用例)
+.\.venv\Scripts\python.exe -m pytest \
+  tests/test_tools.py tests/test_collection_routing.py tests/test_evidence_router.py \
+  tests/test_decision_planner.py tests/test_medical_reranker.py tests/test_tool_use_integration.py \
+  tests/test_evaluation_benchmark.py tests/test_structured_outputs.py tests/test_hitl_checkpointer.py \
+  tests/test_new_architecture.py tests/test_health_endpoint.py tests/test_model_router.py \
+  tests/test_model_info.py tests/test_evaluation_gate.py tests/test_security.py \
+  tests/test_usage_tracking.py tests/test_tools_api.py tests/test_compliance_node.py \
+  tests/test_tools_safety.py tests/test_question_extractor.py -q
 # 流式冒烟
 .\.venv\Scripts\python.exe scripts/smoke_langgraph_v1.py
 # 评测门禁
