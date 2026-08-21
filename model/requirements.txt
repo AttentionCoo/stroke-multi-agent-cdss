@@ -30,7 +30,7 @@ chromadb==1.5.9
 # embedding(text-embedding-v2)与 rerank(gte-rerank)均走 DashScope API,
 # 无需本地 torch/transformers(曾使镜像膨胀至 ~9.5GB)
 # =========================
-openai==3.0.0
+openai==3.2.0
 dashscope==1.26.7
 
 # =========================
