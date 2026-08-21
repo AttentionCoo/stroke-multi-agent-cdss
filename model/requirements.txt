@@ -60,7 +60,7 @@ aiosqlite==0.21.0
 # PDF / Document Parsing
 # (langchain PyPDFLoader 依赖 pypdf)
 # =========================
-pypdf==6.16.0
+pypdf==6.16.1
 
 # =========================
 # Retrieval
