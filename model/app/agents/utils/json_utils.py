@@ -10,11 +10,13 @@ def parse_json_output(text: str, default: Any = None) -> Any:
     if not content:
         return default
 
+    # 策略1：整体即合法 JSON（模型直接输出裸 JSON）
     try:
         return json.loads(content)
     except (TypeError, ValueError):
         pass
 
+    # 策略2：剥掉 Markdown 代码块围栏（```json ... ``` 或 ``` ... ```）
     for marker in ("```json", "```"):
         if marker not in content:
             continue
@@ -24,6 +26,7 @@ def parse_json_output(text: str, default: Any = None) -> Any:
         except (IndexError, TypeError, ValueError):
             pass
 
+    # 策略3：从带说明文字的输出中截取首尾配对的花括号/方括号区间
     for start_char, end_char in (("{", "}"), ("[", "]")):
         start = content.find(start_char)
         end = content.rfind(end_char)

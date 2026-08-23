@@ -1,4 +1,6 @@
 
+# 影像分析服务: 调用 DashScope qwen-vl-plus 多模态模型。
+# 支持化验单结构化字段提取(extract_lab_fields)与影像流式分析(analyze_stream, 分报告/药品/通用三种意图)。
 import asyncio
 import logging
 import os
@@ -9,12 +11,15 @@ from dashscope import MultiModalConversation
 
 logger = logging.getLogger(__name__)
 
+# 意图分类关键词: 命中"报告/化验"等 → 检验报告分析; 命中"药"等 → 药品包装识别
 _KEYWORDS_REPORT = ["报告", "化验", "检验", "检查", "验血", "血常规", "尿常规", "生化", "结果单", "单子"]
 _KEYWORDS_DRUG = ["药", "药品", "药物", "什么药", "药盒", "说明书", "处方", "片", "胶囊", "药名"]
 
+# 哨兵对象: 后台线程流式输出结束后投递此值, 通知 async 循环停止读取
 _STREAM_DONE = object()
 
 
+# 化验单结构化提取的 system prompt(绿道表单自动回填: 血压/血糖/血小板/INR/PT 等字段)
 _LAB_EXTRACT_SYSTEM = """\
 你是一位严谨的检验报告数据提取器。请从上传的化验单/检验报告图片中提取字段，
 只输出一个 JSON 对象，不要输出任何其他文字。字段不存在时用 null：
@@ -33,6 +38,7 @@ _LAB_EXTRACT_SYSTEM = """\
 }"""
 
 
+# 影像服务: 依赖 DASHSCOPE_API_KEY; 无 key 时仅告警, 实际调用时才报错
 class VisionAnalysisService:
 
     def __init__(self, prompt_manager):
@@ -41,6 +47,7 @@ class VisionAnalysisService:
         if not self._api_key:
             logger.warning("⚠️ 未找到 DASHSCOPE_API_KEY，影像分析功能将不可用")
 
+    # 同步阻塞调用 DashScope, 由路由用 asyncio.to_thread 包装, 避免阻塞事件循环
     def extract_lab_fields(self, images: List[str]) -> dict:
         """化验单结构化字段提取(供绿道表单自动回填)。"""
         import json as _json
@@ -81,6 +88,7 @@ class VisionAnalysisService:
         raise RuntimeError(f"无法从识别结果中解析结构化字段: {raw[:200]}")
 
 
+    # 按问题关键词分类影像意图: 检验报告 / 药品包装 / 通用图片
     def _detect_image_type(self, question: str) -> str:
         q = question.lower()
         if any(kw in q for kw in _KEYWORDS_REPORT):
@@ -89,6 +97,7 @@ class VisionAnalysisService:
             return "image_drug"
         return "image_general"
 
+    # 拼装多模态消息: 可选 system + 多张图片 + 患者上下文/用户指令; base64 自动补 data: 前缀
     def _build_messages(
         self,
         images: List[str],
@@ -117,6 +126,7 @@ class VisionAnalysisService:
         messages.append({"role": "user", "content": user_content})
         return messages
 
+    # 后台线程同步调用 DashScope 流式接口, 经线程安全 queue 把文本片段/异常投递回事件循环
     def _run_sync_stream(self, messages: list, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop):
         def put(item):
             asyncio.run_coroutine_threadsafe(queue.put(item), loop)
@@ -147,6 +157,7 @@ class VisionAnalysisService:
         finally:
             put(_STREAM_DONE)
 
+    # 异步流式入口: 分类意图 → 选 system prompt → 起后台线程 → 从 queue 逐片 yield chunk 事件
     async def analyze_stream(
         self, images: List[str], question: str, all_info: str
     ) -> AsyncGenerator[dict, None]:

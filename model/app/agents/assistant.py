@@ -1,3 +1,5 @@
+# MedicalAssistant 门面层：组装查询生成/证据检索/证据合成/RAG 管道等子服务，
+# 对外暴露异步并行检索与流式响应/流式报告生成接口。
 import logging
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -16,6 +18,7 @@ from app.agents.constants import MAX_EVIDENCE_PER_QUESTION
 logger = logging.getLogger(__name__)
 
 
+# 门面层：依赖注入各子服务并组装 RAG 管道，屏蔽内部编排细节。
 class MedicalAssistant:
     """MedicalAssistant 门面层，组装所有服务"""
 
@@ -28,6 +31,7 @@ class MedicalAssistant:
         report_manager: ReportTemplateManager = None,
         llm=None,
     ):
+        # 兼容旧签名：未显式传 llm_main 时回退到旧参数 llm；llm_fast 缺省复用主模型
         if llm_main is None:
             llm_main = llm
         if llm_fast is None:

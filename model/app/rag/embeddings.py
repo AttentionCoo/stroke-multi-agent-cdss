@@ -52,6 +52,7 @@ class DashScopeEmbeddings(Embeddings):
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         result = []
+        # 每 25 条一批调用 API, 平衡吞吐与单次请求输入长度限制
         for i in range(0, len(texts), 25):
             batch = texts[i:i + 25]
             result.extend(self._cached_batch(batch))

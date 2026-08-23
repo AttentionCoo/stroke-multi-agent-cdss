@@ -1,9 +1,12 @@
 """统一数据模型"""
+# 定义卒中 CDSS 的结构化临床上下文(ClinicalContext)与 LangGraph 共享状态(ClinicalState)，
+# 后者是贯穿整个工作流的状态字典，各节点读写其中的字段。
 from typing import List, Dict, Optional, Annotated
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
 
+# 结构化临床信息抽取结果：由病例结构化节点填写的患者信息容器，字段名即中文语义。
 class ClinicalContext(BaseModel):
     """临床上下文"""
     基本信息: Dict = Field(default_factory=dict)
@@ -18,6 +21,8 @@ class ClinicalContext(BaseModel):
     非卒中线索: List[str] = Field(default_factory=list)
 
 
+# LangGraph 共享状态字典：整个工作流各节点通过此 TypedDict 读写中间结果，
+# 字段覆盖病例信息、检索、专家会诊、合规审计到最终报告的全链路数据。
 class ClinicalState(TypedDict):
     """临床状态（用于 LangGraph）"""
     case_text: str

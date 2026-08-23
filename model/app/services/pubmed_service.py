@@ -1,4 +1,5 @@
 
+# PubMed 文献检索服务: 经 NCBI E-utilities(esearch/efetch)检索近年文献, 按证据等级排序返回。
 import logging
 from typing import Any, Dict, List, Optional
 from xml.etree import ElementTree as ET
@@ -7,6 +8,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# 证据等级排序权重(数值越小优先级越高): 指南 > Meta分析 > 系统综述 > RCT > 临床试验 > 综述 > 个案
 _EVIDENCE_RANK: Dict[str, int] = {
     "Practice Guideline": 0,
     "Guideline": 1,
@@ -18,12 +20,14 @@ _EVIDENCE_RANK: Dict[str, int] = {
     "Case Reports": 7,
 }
 
+# NCBI 使用规范要求 tool/email 标识调用方; api_key 提升限流配额(无 key 每秒 3 次, 有 key 10 次)
 _PUBMED_TOOL = "synapse_md"
 _PUBMED_EMAIL = "sophronm91@gmail.com"
 
 PUBMED_API_KEY = "0d747a8e235b8974d2b05d74312446f72f08"
 
 
+# PubMed 检索服务(异步封装 E-utilities, 检索失败一律返回空列表, 不阻断主流程)
 class PubMedService:
 
     _BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
@@ -40,6 +44,7 @@ class PubMedService:
             params["api_key"] = self.api_key
         return params
 
+    # 检索入口: esearch 取 PMID(3 倍候选, 保证排序后有足够余量) → efetch 取详情 → 按证据等级排序 → 截取 top N
     async def search_papers(
         self,
         query: str,
@@ -59,6 +64,7 @@ class PubMedService:
 
             logger.info(f"PubMed 找到 {len(pmids)} 篇文献，开始获取详细信息")
             
+            # efetch 一次最多取 15 篇(控制请求体), 再按证据等级重排, 使高证据文献优先返回
             papers = await self._efetch(pmids[:15])
 
             papers.sort(key=lambda p: self._evidence_rank(p.get("pub_type", [])))
@@ -76,6 +82,7 @@ class PubMedService:
             logger.error(f"PubMed 检索异常: {type(e).__name__} - {str(e)}")
             return []
 
+    # 按相关度检索 PMID 列表(reldate=近 N 天), 返回 idlist
     async def _esearch(self, query: str, retmax: int, reldays: int) -> List[str]:
         params = {
             **self._common_params(),
@@ -93,6 +100,7 @@ class PubMedService:
             data = resp.json()
             return data.get("esearchresult", {}).get("idlist", [])
 
+    # 批量拉取文献详情(XML), 解析为 dict 列表
     async def _efetch(self, pmids: List[str]) -> List[Dict[str, Any]]:
         if not pmids:
             return []
@@ -108,6 +116,7 @@ class PubMedService:
             resp.raise_for_status()
             return self._parse_xml(resp.text)
 
+    # 解析 PubmedArticleSet XML, 逐篇解析; 整体解析失败返回空列表
     def _parse_xml(self, xml_text: str) -> List[Dict[str, Any]]:
         papers: List[Dict[str, Any]] = []
         try:
@@ -122,6 +131,7 @@ class PubMedService:
                 papers.append(paper)
         return papers
 
+    # 解析单篇文献(标题/摘要/作者/期刊/日期/出版类型); 缺少 PMID 或标题返回 None
     def _parse_article(self, elem) -> Optional[Dict[str, Any]]:
         try:
             pmid = elem.findtext(".//PMID", "").strip()
@@ -192,6 +202,7 @@ class PubMedService:
             logger.error(f"解析单篇文章失败: {e}")
             return None
 
+    # 取该文献所有出版类型中最高证据等级(数值最小), 无匹配返回 8(最低优先级)
     def _evidence_rank(self, pub_types: List[str]) -> int:
         return min(
             (_EVIDENCE_RANK.get(pt, 8) for pt in pub_types),

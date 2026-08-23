@@ -44,6 +44,7 @@ class ComplianceNode(BaseNode):
     """输出合规审计: PHI / 绝对化断言 / 剂量提示 + 审计留痕。"""
 
     async def run(self, state: ClinicalState) -> Dict:
+        """聚合共识/提案/风险审查三段草稿，执行 PHI、绝对化断言与剂量扫描，输出合规审计结果。"""
         draft_parts = [
             str(state.get("consensus", "") or ""),
             str(state.get("proposal", "") or ""),

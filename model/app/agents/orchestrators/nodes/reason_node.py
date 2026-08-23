@@ -179,6 +179,7 @@ class ReasonNode(BaseNode):
         successful_experts = 0
         for role, advice in zip(expert_roles, results):
             expert_advices[role] = advice
+            # 兼容旧版事件摘要字段：按角色名映射到固定键，供历史消费者读取
             if "全科" in role:
                 legacy_role_fields["generalist_advice"] = advice
             elif "神经" in role:

@@ -15,6 +15,7 @@ import time
 
 logger = logging.getLogger(__name__)
 
+# 过期线程保留天数: 仅 HITL 待复核线程会保留, 超过该时长未活动即被清理
 DEFAULT_TTL_DAYS = 7
 
 # sqlite checkpoint 库的三张表
@@ -39,15 +40,19 @@ def prune_stale_threads(path: str, ttl_days: int = DEFAULT_TTL_DAYS) -> int:
     """清理超过 TTL 未活动的线程检查点, 返回清理数量(失败时静默返回 0)。"""
     if not path or not os.path.exists(path):
         return 0
+    # 86400 = 一天秒数; cutoff 为过期时间戳阈值, 早于该值即视为过期
     cutoff = time.time() - ttl_days * 86400
     try:
         conn = sqlite3.connect(path)
         try:
+            # 检查点以 JSON 落盘, 用 json_extract 取出每个线程最后一次活动时间 ts
             rows = conn.execute(
                 "SELECT thread_id, MAX(CAST(json_extract(checkpoint, '$.ts') AS REAL)) AS ts "
                 "FROM checkpoints GROUP BY thread_id"
             ).fetchall()
+            # ts 为 NULL(从未写入)或早于截止时间 → 判定为过期线程
             stale = [r[0] for r in rows if r[1] is None or float(r[1]) < cutoff]
+            # 级联清理三张表(检查点/写入/二进制块), 避免残留孤立数据
             for tid in stale:
                 for table in _TABLES:
                     conn.execute(f"DELETE FROM {table} WHERE thread_id = ?", (tid,))
@@ -83,6 +88,8 @@ async def open_checkpointer():
     try:
         from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
         prune_stale_threads(path)
+        # from_conn_string 返回异步上下文管理器, 必须 await __aenter__ 建立连接:
+        # aiosqlite 连接绑定创建时的事件循环, 因此只能在应用主事件循环内完成
         cm = AsyncSqliteSaver.from_conn_string(path)
         saver = await cm.__aenter__()
         # 全程持有上下文管理器, 防止被 GC 关闭底层 sqlite 连接

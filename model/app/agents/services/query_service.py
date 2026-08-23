@@ -1,3 +1,5 @@
+# 查询生成服务：调用 LLM 将临床问题拆解为面向文献数据库的中文检索查询，
+# 供 RAG 检索阶段使用；未配置 prompt 管理器时回退到类内 FALLBACK_PROMPT。
 import logging
 from typing import List
 
@@ -6,6 +8,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 logger = logging.getLogger(__name__)
 
 
+# 查询生成服务：把临床问题拆解为最多 2 条中文检索关键词组合，供 RAG 检索阶段使用。
 class QueryGenerationService:
 
     FALLBACK_PROMPT = """你是医学检索专家。
@@ -22,6 +25,7 @@ class QueryGenerationService:
         self.prompts = prompt_manager
 
     def generate(self, question: str) -> List[str]:
+        # 把临床问题拆解为最多 2 条中文检索查询，返回字符串列表
 
         prompt = None
 

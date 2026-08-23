@@ -12,6 +12,7 @@ from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
+# 节点显示文案映射：{节点名: {running: 进行中文案, done: 完成文案}}，供前端思考链面板展示。
 _NODE_DISPLAY: Dict[str, Dict[str, str]] = {
     "intent": {"running": "正在判断问题类型...", "done": "问题类型判断"},
     "reject": {"running": "正在处理回复...", "done": "请求处理"},
@@ -33,6 +34,7 @@ _NODE_DISPLAY: Dict[str, Dict[str, str]] = {
     "knowledge_answer": {"running": "正在回答知识问题...", "done": "医学知识回答"},
 }
 
+# 意图类型 → 中文标签：用于 intent 节点的摘要展示。
 _INTENT_LABELS: Dict[str, str] = {
     "consultation": "临床问诊",
     "knowledge": "医学知识问答",
@@ -47,6 +49,15 @@ class StreamEventTranslator:
     每次推理前由调用方重置 _live_buffers。
     """
 
+    # 本类产出的 SSE 事件类型：
+    #   node_start  - 某节点开始执行（running 态，前端显示进行中文案）
+    #   node_token  - 节点实时缓冲增量快照（前端对运行中步骤做增量替换）
+    #   node_done   - 节点完成（done 态，含摘要与全文）
+    #   token       - LLM 逐 token 增量（仅 _STREAMING_NODES）
+    #   node_stats  - 检索质量看板指标（retrieve/evidence_judge）
+    # （ask_doctor/human_review/done/error 等事件由上层 qwen_agent 编排器另行下发）
+
+    # 以 token 流式输出的节点集合：这些节点的 LLM 输出走 message 流，其余节点走 updates/custom 流
     _STREAMING_NODES = {"knowledge_answer", "generate_report"}
 
     def __init__(self):

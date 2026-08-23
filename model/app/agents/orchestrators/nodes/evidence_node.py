@@ -38,6 +38,7 @@ class EvidenceJudgeNode(BaseNode):
         self.max_rounds = max_rounds
 
     async def run(self, state: ClinicalState) -> Dict:
+        """Self-RAG 证据充分性判定：LLM 评分 + 质量阈值 + 轮次上限，决定是否触发下一轮检索。"""
         evidence = str(state.get("evidence", "") or "").strip()
         retrieval_round = int(state.get("retrieval_round", 0) or 0)
         questions = state.get("clinical_questions", [])
@@ -50,6 +51,7 @@ class EvidenceJudgeNode(BaseNode):
                 "need_retrieve": retrieval_round < self.max_rounds,
             }
 
+        # 证据截断到 6000 字符以控制提示词长度；评分同时要求相关性/可信度/时效性/覆盖度
         prompt = f"""你是 Self-RAG 证据审查器。判断检索证据是否足以支持后续临床推理。
 
 【临床问题】
@@ -90,6 +92,7 @@ class EvidenceJudgeNode(BaseNode):
         if not isinstance(data, dict):
             evidence_count = evidence.count("【证据 ")
             # 无法完成语义审查时保持保守，证据条数不能替代来源与覆盖度判断。
+            # 0.20 基线 + 每条 0.10，上限 0.60 恒低于 quality_threshold(0.65)，确保语义审查失败时仍触发重检
             quality = min(0.60, 0.20 + evidence_count * 0.10)
             data = {
                 "quality": quality,
@@ -132,6 +135,7 @@ class QueryRewriteNode(BaseNode):
         self.max_queries = max_queries
 
     async def run(self, state: ClinicalState) -> Dict:
+        """依据证据缺口生成下一轮不重复的检索式，并对候选去重、限长。"""
         previous = [str(item).strip() for item in state.get("retrieved_queries", [])]
         missing = [str(item).strip() for item in state.get("missing_information", [])]
         prompt = f"""你是医学检索查询重写专家。当前证据不足或证据类型不匹配，请为下一轮生成更精确且不重复的查询。

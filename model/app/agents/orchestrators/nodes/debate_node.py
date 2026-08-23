@@ -24,11 +24,13 @@ class DebateNode(BaseNode):
         self.experts = self.expert_manager.get_experts()
 
     async def run(self, state: ClinicalState) -> Dict:
+        """并行驱动每位专家对其他专家意见做交叉质询，汇总成辩论记录。"""
         opinions = state.get("expert_opinions", {})
         if not opinions:
             return {"debate_transcript": "未获得可供质询的专家意见。"}
 
         tasks = [self._challenge(expert, state, opinions) for expert in self.experts]
+        # return_exceptions=True：单个专家失败只降级为占位文本，不拖垮整轮质询
         responses = await asyncio.gather(*tasks, return_exceptions=True)
         transcript_parts = []
         for expert, response in zip(self.experts, responses):
@@ -43,6 +45,7 @@ class DebateNode(BaseNode):
         return {"debate_transcript": "\n\n".join(transcript_parts)}
 
     async def _challenge(self, expert: Dict, state: ClinicalState, opinions: Dict[str, str]) -> str:
+        """构建单个专家的交叉质询提示词，返回其对同侪意见的质询结论。"""
         role = expert.get("role", "临床专家")
         questions_text = format_numbered_questions(state.get("user_questions", [])) or "无明确问题清单"
         peer_text = "\n\n".join(
@@ -92,6 +95,7 @@ class ConsensusNode(BaseNode):
         self.synthesis_config = manager.get_synthesis_config()
 
     async def run(self, state: ClinicalState) -> Dict:
+        """由主持人综合独立意见与质询记录，产出 consensus/proposal/critique 三部分共识。"""
         questions_text = format_numbered_questions(state.get("user_questions", [])) or "无明确问题清单"
         prompt = f"""你是卒中多学科会诊主持人。请基于独立意见和交叉质询形成可审计共识。
 
@@ -153,6 +157,7 @@ class ConsensusNode(BaseNode):
 
     @staticmethod
     def _split(content: str) -> tuple[str, str, str]:
+        """按固定标记切分主持人输出；某段缺失时回退为保守提示语，保证下游字段非空。"""
         consensus_marker = "### CONSENSUS ###"
         proposal_marker = "### PROPOSAL ###"
         critique_marker = "### CRITIQUE ###"

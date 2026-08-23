@@ -1,3 +1,5 @@
+# 上下文摘要服务(供 /model/get_result 在每轮回答后更新 all_info)。
+# score_turn_value 评估单轮问答价值; summarize_context 归纳合并; update_all_info 滑动窗口控制长度。
 import logging
 import json
 import re
@@ -10,12 +12,14 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# 截断文本到 max_len(默认 1200), 超长加省略号; 用于控制送入 LLM 的 prompt 长度
 def safe_truncate(text: str, max_len: int = 1200) -> str:
     text = (text or "").strip()
     if len(text) <= max_len:
         return text
     return text[:max_len] + " ..."
 
+# 解析价值评分输出: 优先 JSON {score, reason}, 失败退回正则提取 0-1 浮点数, 并 clamp 到 [0,1]
 def parse_score_response(raw_text: str, default_score: float = 0.0) -> Tuple[float, str]:
     raw_text = (raw_text or "").strip()
     if not raw_text:
@@ -38,11 +42,13 @@ def parse_score_response(raw_text: str, default_score: float = 0.0) -> Tuple[flo
             pass
     return default_score, raw_text
 
+# 对话摘要服务: 评估单轮价值 + 合并长期摘要; 无 LLM 时退回启发式/直接拼接
 class ConversationSummaryService:
     def __init__(self, llm=None, prompt_manager=None):
         self.llm = llm
         self.prompts = prompt_manager
 
+    # 优先取 YAML 配置的 prompt, 缺失时用内置 fallback 格式化(格式化失败返回原文)
     def _get_prompt(self, key: str, fallback: str, **kwargs) -> str:
         if self.prompts:
             prompt = self.prompts.get(key, **kwargs)
@@ -53,6 +59,7 @@ class ConversationSummaryService:
         except Exception:
             return fallback
 
+    # 评估一轮问答是否值得写入长期摘要, 返回 (0-1 分数, 原因); 空回答直接 0 分
     def score_turn_value(self, question: str, answer: str, previous_all_info: str = "") -> Tuple[float, str]:
         answer = (answer or "").strip()
         if not answer:
@@ -86,6 +93,7 @@ class ConversationSummaryService:
             answer=safe_truncate(answer)
         )
 
+        # 无 LLM 时用关键词命中数启发式打分: ≥3 个关键词 0.7, ≥1 个 0.5, 答案较长(>120字)至少 0.6
         if not self.llm:
             heuristic_score = 0.2
             keywords = ["建议", "风险", "检查", "复查", "病史", "症状", "体征", "处理", "治疗"]
@@ -107,6 +115,7 @@ class ConversationSummaryService:
             logger.warning(f"对话价值评分失败，使用启发式评分: {e}")
             return 0.5 if len(answer) > 80 else 0.2, "fallback heuristic"
 
+    # 把旧摘要与本轮问答归纳合并成新摘要(LLM 归纳, 失败回退简单拼接)
     def summarize_context(self, previous_all_info: str, question: str, answer: str) -> str:
         fallback_prompt = """你是病历摘要整理助手。请把旧摘要与本轮有价值问答合并成新的 all_info。
 
@@ -152,6 +161,7 @@ class ConversationSummaryService:
             parts = [p for p in [previous_all_info.strip(), f"本轮问题：{question.strip()}", f"本轮结论：{answer.strip()}"] if p]
             return "\n".join(parts).strip()
 
+    # 滑动窗口: 累计长度超阈值才触发归纳清洗, 否则直接追加本轮问答; 返回结构化结果供路由记录
     def update_all_info(self, previous_all_info: str, question: str, answer: str, threshold: float = 2000):
         # 兼容旧代码调用 (如果传入的是旧的分数阈值 0.4，则覆盖为长度阈值 2000)
         if threshold < 2.0:

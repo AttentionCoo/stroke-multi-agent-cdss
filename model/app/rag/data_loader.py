@@ -237,11 +237,16 @@ def classify_document(filename: str) -> str:
     return DEFAULT_CATEGORY
 
 def clean_text(text: str) -> str:
+    """清洗 PDF 提取文本: 去除换行与空格, 合并连续标点, 去除首尾空白。"""
     text = text.replace("\n", "").replace(" ", "")
     text = text.replace("，，", "，").replace("。。", "。")
     return text.strip()
 
 def load_pdfs_from_dir(dir_path: str):
+    """遍历目录加载 PDF, 逐页提取文本并生成带 Evidence Metadata 的 Document。
+
+    按文件名分类, 跳过近空白页(<50 字符), 单个文件异常不中断整体加载。
+    """
     documents = []
     if not os.path.exists(dir_path):
         logger.warning(f"⚠️ 文档目录不存在: {dir_path}")
@@ -259,6 +264,7 @@ def load_pdfs_from_dir(dir_path: str):
             for page_index, page in enumerate(reader.pages):
                 text = page.extract_text() or ""
                 cleaned = clean_text(text)
+                # 跳过近空白/扫描无文本页(有效内容 < 50 字符无检索价值)
                 if len(cleaned) < 50:
                     continue
                 documents.append(Document(
@@ -293,6 +299,7 @@ def _embed_texts(texts):
 
 
 def _cosine_sim(a, b):
+    """两向量余弦相似度; 分母加 1e-9 防止零向量除零。"""
     return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-9))
 
 
@@ -517,6 +524,8 @@ def is_reference_chunk(text: str,
     strong_total = n_etal + n_authors + n_year
     if strong_total >= strong_min and n_year >= marker_min:
         return True
+    # 弱特征兜底: 命中次数×12 与文本长度之比超过密度阈值(0.15)才判为参考文献页;
+    # 命中不足 5 次直接放行, 避免正文零星引用被误删
     weak = sum(len(re.findall(p, text, re.IGNORECASE))
                for p in REFERENCE_WEAK_PATTERNS)
     if weak < 5:
@@ -544,6 +553,7 @@ def _recompute_chunk_metadata(chunk: Document) -> None:
 
 
 def split_documents(documents):
+    """分块入口: 教材→语义分块, 指南/共识/规范→固定窗口分块, 再做垃圾过滤与 chunk 级元数据增强。"""
     if not documents:
         return []
 

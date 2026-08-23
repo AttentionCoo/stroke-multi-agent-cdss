@@ -28,6 +28,7 @@ from app.api.routes_ai import router as ai_router
 from app.api.routes_admin import router as admin_router
 
 
+# 使用 HuggingFace 国内镜像, 加速模型/数据集下载(无外网环境必需)
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
 # 配置日志系统

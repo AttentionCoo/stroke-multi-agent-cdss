@@ -13,9 +13,11 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
+# 匹配输出中以《文献名》形式出现的引用, 用于校验引用是否在允许名单内
 _CITATION_PATTERN = re.compile(r"《([^》]+)》")
 
 
+# 单病例评测结果(冻结 dataclass): 三项规则检查结果 + 未通过原因列表
 @dataclass(frozen=True)
 class CaseScore:
     case_id: str
@@ -24,6 +26,7 @@ class CaseScore:
     issues: list[str]
 
 
+# 按病例预期规则打分: 必需词命中 / 禁止词不出现 / 引用文献名 ⊆ 允许名单
 def score_case(case: dict[str, Any], output: str) -> CaseScore:
     expected = case.get("expected") or {}
     text = str(output or "")
@@ -65,6 +68,7 @@ def score_case(case: dict[str, Any], output: str) -> CaseScore:
     )
 
 
+# 汇总多病例评测: 逐例打分(缺预测标记 missing_prediction), 计算覆盖率与通过率(分母均为病例总数)
 def run_benchmark(
     cases: Iterable[dict[str, Any]],
     predictions: dict[str, str],
@@ -104,6 +108,7 @@ def run_benchmark(
     }
 
 
+# 逐行读取 JSONL(空行跳过); 非法 JSON 抛出带行号的 ValueError 便于定位
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
     records = []
     with path.open("r", encoding="utf-8") as file:
@@ -118,6 +123,7 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
     return records
 
 
+# 把预测 JSONL 转为 {病例 id: 模型输出} 映射
 def load_predictions(path: Path) -> dict[str, str]:
     return {
         str(record["id"]): str(record.get("output", ""))
@@ -125,10 +131,12 @@ def load_predictions(path: Path) -> dict[str, str]:
     }
 
 
+# 计算文件 SHA-256, 写入报告以便复现与溯源
 def dataset_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+# 生成人类可读的 Markdown 评测报告(含声明: 不代表临床准确性)
 def render_markdown(report: dict[str, Any]) -> str:
     lines = [
         "# 脑卒中模型离线评测报告",
@@ -154,6 +162,7 @@ def render_markdown(report: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+# CLI 入口: 加载病例/预测 → 评测 → 写 JSON + Markdown 报告 → 可选门禁(不达标非零退出)
 def main() -> None:
     parser = argparse.ArgumentParser(description="运行离线安全与引用规则评测")
     parser.add_argument("--cases", type=Path, required=True, help="JSONL 病例文件")

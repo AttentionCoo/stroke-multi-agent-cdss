@@ -1,3 +1,5 @@
+# 证据检索服务：根据临床查询与决策类型，从向量库多级路由检索医学证据，
+# 并提供失败恢复、不匹配过滤、格式化输出与同步/异步并行检索能力。
 import logging
 from typing import List
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -70,9 +72,11 @@ def route_category_filter(evidence_type: str) -> List[str] | None:
     return None
 
 
+# 证据检索服务：核心流程为 类别路由 → 集合路由 → 向量检索 → 失败恢复 → 不匹配过滤 → 格式化。
 class EvidenceRetrievalService:
 
     def __init__(self, retriever, top_k=3):
+        # retriever：需实现 search(query, top_k, ...) 的向量检索器；top_k：单次返回条数上限
         self.retriever = retriever
         self.top_k = top_k
 

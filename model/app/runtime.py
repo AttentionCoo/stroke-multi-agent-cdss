@@ -15,6 +15,7 @@ from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
+# JWT 签名密钥与算法: 生产环境务必用 SECRET_KEY 覆盖默认值, 默认值仅供本地开发
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
 ALGORITHM = "HS256"
 
@@ -51,5 +52,6 @@ def start_kb_job(action: str) -> str:
             _KbJobs[job_id].update(status="error", finished=time.time(), error=str(e)[:300])
 
     import threading
+    # 后台线程执行热更新(daemon=True: 不阻塞进程退出); 结果回写 _KbJobs 供 /kb/status 轮询
     threading.Thread(target=_run, daemon=True).start()
     return job_id

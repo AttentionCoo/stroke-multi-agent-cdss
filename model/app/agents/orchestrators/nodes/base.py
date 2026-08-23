@@ -1,3 +1,10 @@
+"""节点基类与通用工具函数。
+
+- astream_text: 流式调用 LLM 并把增量文本写入 LangGraph custom 流(思考链实时打印);
+- make_structured_runner / try_get_stream_writer: 结构化输出与流写入器工具, 不可用时静默降级;
+- BaseNode: 所有编排节点的抽象基类, 约定 run(state) -> 状态更新字典。
+"""
+
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List
 from app.agents.core.schema import ClinicalState
@@ -28,6 +35,7 @@ async def astream_text(llm, messages, label: str, expert: str | None = None) -> 
                 if expert:
                     payload["expert"] = expert
                 writer(payload)
+    # 返回累计的完整文本(供调用方作为节点最终输出), 同时已实时写入 custom 流
     return "".join(parts)
 
 
@@ -58,6 +66,7 @@ def try_get_stream_writer():
         return None
 
 
+# 所有图节点的统一入口: 子类实现 run(), 返回部分状态更新字典供 LangGraph 合并
 class BaseNode(ABC):
     """节点基类"""
 

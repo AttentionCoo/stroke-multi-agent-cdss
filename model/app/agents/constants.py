@@ -9,6 +9,7 @@ Agents模块共享常量
 from app.config.config_loader import get_limits_manager
 
 # 获取配置管理器单例
+# 惰性初始化：首次调用时才加载配置管理器，避免模块导入时重复构造
 _limits_manager = None
 
 def get_limits_config():
@@ -27,6 +28,7 @@ MAX_CRITIQUE_CHARS = 3000
 
 def get_max_sub_questions():
     """获取最大子问题数量（从配置读取）"""
+    # 配置值为空时回退到模块默认常量，保证上层调用始终拿到有效上限
     return get_limits_config().get_max_sub_questions() or MAX_SUB_QUESTIONS
 
 def get_max_evidence_chars():

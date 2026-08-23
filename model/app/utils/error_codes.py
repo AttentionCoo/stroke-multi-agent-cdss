@@ -1,11 +1,13 @@
 
 
+# 错误码与异常分类(阶段7 脱敏): 把运行期异常映射为对外错误码, 不向客户端暴露内部细节。
 import asyncio
 import traceback
 from datetime import datetime, timezone
 from enum import Enum
 
 
+# 对外错误码枚举: 值为 (错误码, 默认提示, 是否可重试)
 class ModelErrorCode(Enum):
     E1001 = ("E1001", "推理超时, 已达 120s 上限", True)
     E1002 = ("E1002", "模型拒绝回答", False)
@@ -18,6 +20,7 @@ class ModelErrorCode(Enum):
         self.retryable = retryable
 
 
+# 按异常类型/消息关键词归类: 超时→E1001, OOM→E1003, 安全拒答关键词→E1002, 其余→E1099
 def classify_exception(exc: Exception) -> ModelErrorCode:
     if isinstance(exc, asyncio.TimeoutError):
         return ModelErrorCode.E1001
@@ -50,6 +53,7 @@ def build_error_event(exc: Exception, talk_id=None) -> dict:
     }
 
 
+# 拼接完整异常信息(类型/消息/堆栈), 供服务端日志记录(不对外返回)
 def format_error_log(exc: Exception) -> str:
     return (
         f"异常类型: {type(exc).__name__} | "

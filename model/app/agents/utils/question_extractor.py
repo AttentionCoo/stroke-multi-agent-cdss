@@ -11,9 +11,12 @@
 不误伤: 纯病例描述或"补充信息：..."这类陈述不提取。
 """
 
+# 设计意图: 本模块是"确定性规则优先"的提取路径——规则命中即返回;
+# 规则为空时由调用方(analysis_node)回退到 LLM 提取, 避免 LLM 编造/漏提问题。
 import re
 from typing import List
 
+# 单次最多提取的问题数上限: 防止问题过多导致回答发散/超出上下文
 _MAX_QUESTIONS = 6
 
 _QUESTION_ENDINGS = ("？", "?", "吗", "呢")
@@ -62,7 +65,9 @@ def _extract_numbered(text: str, matches) -> List[str]:
     for i, m in enumerate(matches):
         start = m.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        # 只取到第一个句号前的内容(编号项通常以句号收尾, 避免带入后续内容)
         seg = _clean(text[start:end].split("。")[0])
+        # 过滤过短片段(≥2 字符), 并去重
         if len(seg) >= 2 and seg not in out:
             out.append(seg)
     return out
@@ -116,6 +121,7 @@ def extract_user_questions(text) -> List[str]:
     questions: List[str] = []
     for sent in split_sentences(text):
         q = _clean(sent)
+        # 长度过滤: <2 字符为噪声片段, >120 字符视为非单一问句
         if len(q) < 2 or len(q) > 120:
             continue
         if sent.endswith(_QUESTION_ENDINGS) or q.startswith(_QUESTION_STARTS):

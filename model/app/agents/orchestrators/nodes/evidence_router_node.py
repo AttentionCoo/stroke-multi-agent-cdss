@@ -45,11 +45,13 @@ class EvidenceRouterNode(BaseNode):
         self._structured_runner = make_structured_runner(llm, EvidenceRoutes)
 
     async def run(self, state: ClinicalState) -> Dict:
+        """为每个检索查询判定证据类型、目标知识类别与附加关键词；优先结构化输出，失败回退文本解析。"""
         queries = [str(q).strip() for q in state.get("retrieval_queries", []) if str(q).strip()]
         if not queries:
             return {"router_evidence_types": [], "router_categories": [], "router_keywords": [], "router_routes": []}
 
         decisions = state.get("clinical_decisions", [])
+        # 仅注入前 5 个高优先级决策作为路由上下文，控制提示词长度
         decisions_text = "\n".join(
             f"- [{d.get('priority', '?')}] {d.get('decision_name', '')} ({d.get('decision_type', '')})"
             for d in decisions[:5] if isinstance(d, dict)
@@ -147,6 +149,7 @@ query 必须与输入完全一致。"""
                 kws = item.get("keywords")
                 if not isinstance(kws, list):
                     kws = []
+                # 关键词最多保留 4 个，避免检索式过度膨胀
                 routes.append({
                     "query": q,
                     "evidence_type": ev_type if ev_type in EVIDENCE_TYPE_CATEGORIES else "treatment",

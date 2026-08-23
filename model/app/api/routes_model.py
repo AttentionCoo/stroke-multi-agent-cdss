@@ -1,5 +1,12 @@
 """/model/* 路由(从 main.py 拆出): 临床推理流、HITL 续跑、知识库管理、运行时信息、工具与检索。"""
 
+# SSE 事件协议(每行一个 JSON 事件, ensure_ascii=False):
+#   node_start   节点开始(带 node/label/status)
+#   token        文本增量片段(逐字流式输出)
+#   node_done    节点结束(带 summary/status)
+#   done         整体完成(带 request_id/name/all_info/usage)
+#   human_review HITL 挂起事件(带 thread_id, 等待 /model/resume 续跑)
+#   error        异常事件(错误码已脱敏)
 import asyncio
 import json
 import logging
@@ -285,6 +292,7 @@ async def get_model_result(request: QueryRequest):
             if guard is not None:
                 guard.release(uid)
 
+    # ping=15: 每 15 秒发送心跳注释事件, 防止长连接被反向代理/网关判定超时断开
     return EventSourceResponse(generate(), ping=15)
 
 
@@ -348,6 +356,7 @@ async def resume_model_result(request: ReviewResumeRequest):
             logger.error(f"❌ [请求 {req_id}] HITL 续跑失败: {e}")
             yield json.dumps(build_error_event(e, talk_id=None), ensure_ascii=False)
 
+    # ping=15: 每 15 秒发送心跳注释事件, 防止长连接被反向代理/网关判定超时断开
     return EventSourceResponse(generate(), ping=15)
 
 

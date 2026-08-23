@@ -44,6 +44,7 @@ class ResearchPlanNode(BaseNode):
         self._structured_runner = make_structured_runner(llm, ResearchPlanResult)
 
     async def run(self, state: ClinicalState) -> Dict:
+        """规划临床决策节点与检索任务：结构化输出优先、回退文本解析，产出决策、查询与 HyDE 文档。"""
         questions = state.get("clinical_questions", [])
         prompt = f"""你是高级卒中中心临床决策规划专家。你的任务不是回答"患者是什么病"，而是识别"当前医生需要做什么决定、需要什么证据支持这个决定"。
 
@@ -213,9 +214,11 @@ class ResearchPlanNode(BaseNode):
 
         if decisions:
             decisions.sort(key=lambda d: d["priority"], reverse=True)
+            # 按优先级降序后截断到 max_decisions(默认 6)，聚焦最紧急决策
             return decisions[:6]
 
         # 回退：将临床问题包装为诊断决策（保证下游可消费）
+        # 最多取前 3 个临床问题，避免无规划结果时决策节点过度膨胀
         return [
             {
                 "decision_name": str(question),

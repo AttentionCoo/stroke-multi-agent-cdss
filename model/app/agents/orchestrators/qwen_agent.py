@@ -1,3 +1,13 @@
+"""Qwen Agent 流式编排器(阶段3)。
+
+职责:
+- 组装各业务节点并调用 ClinicalGraphBuilder 编译临床推理图;
+- run_clinical_reasoning 以 astream 三流模式(updates/messages/custom)流式输出;
+- resume_clinical_reasoning 通过 Command(resume=...) 续跑被 HITL 中断的线程;
+- 流事件翻译已拆分至 app.agents.streaming.translator, 此处只负责消费与分发;
+- 推理结束后主动清理非待复核线程的检查点, 防止 sqlite 无限膨胀。
+"""
+
 import logging
 import asyncio
 import json
@@ -28,6 +38,7 @@ logger = logging.getLogger(__name__)
 # _NODE_DISPLAY 由 translator 模块导出, 此处复用其绑定以兼容外部引用
 
 
+# QwenAgent: 编排器 Facade, 负责节点组装、图编译、流式执行、HITL 续跑与线程检查点清理
 class QwenAgent:
     """Qwen Agent 编排器 Facade"""
 
@@ -48,6 +59,9 @@ class QwenAgent:
         self.medical_assistant = medical_assistant
         self.prompts = prompt_manager
         self.reports = report_manager
+        # LLM 角色分工: proposer=生成(会诊/辩论/报告), critic=批判与校验,
+        # turbo=轻量快速(意图/工具/证据路由), consensus 缺省回退 critic
+
         # 流事件翻译器(思考链/用量/缺口事件), 与图执行解耦
         self.translator = StreamEventTranslator()
 
@@ -103,6 +117,7 @@ class QwenAgent:
         human_review=True 时在报告生成前 interrupt 挂起(阶段3 HITL),
         流内会产出 {"type": "human_review", "thread_id": ...} 事件, 由 /model/resume 续跑。
         """
+        # ClinicalState 全量字段初始化: 为图执行提供完整起始状态(含 HITL/合规字段)
         initial_state: ClinicalState = {
             "case_text": case_text,
             "all_info": all_info,
@@ -195,6 +210,7 @@ class QwenAgent:
             "recursion_limit": 60,
             "configurable": {"thread_id": thread_id},
         }
+        # 无效决策(非 dict)默认按"驳回"处理, 避免中断挂起后无法收敛
         resume_value = decision if isinstance(decision, dict) else {"approved": False, "feedback": ""}
         try:
             stream = self.graph.astream(
@@ -271,6 +287,7 @@ class QwenAgent:
         """由各节点输出提炼信息缺口, 生成 ask_doctor 追问事件。"""
         missing = []
         evidence_judge = last_outputs.get("evidence_judge") or {}
+        # 追问来源优先级: 证据判定缺口 > 检索规划缺口 > 校验反馈(截断至 300 字)
         if not evidence_judge.get("need_retrieve", True) and evidence_judge.get("missing_information"):
             missing = [str(x).strip() for x in evidence_judge["missing_information"] if str(x).strip()]
         if not missing:
@@ -283,6 +300,7 @@ class QwenAgent:
                 missing = [feedback[:300]]
         if not missing:
             return []
+        # 最多追问 6 条, 避免一次性抛出过多问题淹没前端
         return [{
             "type": "ask_doctor",
             "questions": missing[:6],
@@ -352,6 +370,7 @@ class QwenAgent:
             return json.loads(content)
         except Exception:
             pass
+        # 直接解析失败 → 尝试剥离 markdown 代码围栏(```json 或 ```)
         for marker in ["```json", "```"]:
             if marker in content:
                 try:
@@ -359,6 +378,7 @@ class QwenAgent:
                     return json.loads(s)
                 except Exception:
                     pass
+        # 仍失败 → 按首尾花括号/方括号截取 JSON 片段后再解析
         for sc, ec in [("{", "}"), ("[", "]")]:
             si, ei = content.find(sc), content.rfind(ec)
             if si != -1 and ei > si:

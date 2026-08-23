@@ -271,6 +271,7 @@ class ClinicalGraphBuilder:
         - str: 路由目标节点名称
         """
         t = state['intent_type']
+        # 返回路由键(非节点名): "consultation"→memory, "knowledge"→knowledge_answer, 其余→reject
         if t in ("consultation", "knowledge"):
             return t
         return "irrelevant"
@@ -380,6 +381,7 @@ class ClinicalGraphBuilder:
             decision = {"approved": False, "feedback": "复核输入无效, 默认驳回重新会诊。"}
         approved = bool(decision.get("approved", False))
         feedback = str(decision.get("feedback", "") or "").strip()
+        # 仅驳回时累计次数; 批准后次数不变(供 HITL_MAX_REJECTS 上限判定使用)
         review_count = int(state.get("review_count", 0) or 0) + (0 if approved else 1)
 
         update = {

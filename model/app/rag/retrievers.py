@@ -1,3 +1,11 @@
+"""统一检索引擎: BM25 + 向量双路召回 + RRF 融合 + gte-rerank 重排 + Medical Evidence Score 加权。
+
+包含:
+- BM25RetrieverCompat: langchain BM25Retriever 的 rank_bm25 平替实现
+- HybridRetriever: 单 collection 的混合检索器(向量 + BM25 + RRF)
+- UnifiedSearchEngine: 5 个主题隔离 collection(Multi-Collection)的统一检索入口
+- 向量库构建/加载、分桶路由、健康检查与热更新
+"""
 import logging
 import os
 import sys
@@ -115,6 +123,11 @@ def _add_docs_in_batches(vectordb, docs_to_insert, batch_size: int = 32):
 
 def build_or_load_vectorstore(chunks, persist_dir: str, enable_qa: bool = False,
                               collection_name: str = "langchain"):
+    """构建或加载单个 collection 的向量库(旧单库接口, 保留兼容)。
+
+    若 collection 为空且提供了 chunks 则写入(可选先生成 QA 对扩充语料),
+    已有数据则直接复用。返回 Chroma 实例。
+    """
     logger.info(f"🔌 [VectorStore] 连接: {persist_dir} collection={collection_name}")
     embeddings = DashScopeEmbeddings(model="text-embedding-v2")
     # langchain-chroma 1.x: 显式传入 chromadb 客户端(旧 persist_directory 参数已移除)
@@ -295,6 +308,11 @@ def bucket_chunks_by_collection(chunks: List[Document]) -> Dict[str, List[Docume
 
 class HybridRetriever:
     def __init__(self, vectordb, documents, k=20):
+        """初始化单 collection 混合检索器: 向量检索器 + BM25 检索器 + 重排器。
+
+        vectordb: Chroma 向量库; documents: 该 collection 分桶的文档(用于建 BM25 索引);
+        k: 每路召回条数(默认为单路 20 条)。
+        """
         self.vector_retriever = vectordb.as_retriever(search_kwargs={"k": k})
         self.reranker = BGEReranker(top_k=CONFIG.get("top_k_final", 3))
 
@@ -305,10 +323,17 @@ class HybridRetriever:
             logger.warning("⚠️ [HybridRetriever] 文档为空，BM25 未初始化")
 
         self._cache: dict = {}
+        # 检索结果缓存有效期(秒): 相同查询 5 分钟内直接复用
         self._cache_ttl = 300
 
     @staticmethod
     def _rrf_merge(ranked_lists: List[List[Document]], k: int = 60) -> List[Document]:
+        """RRF(Reciprocal Rank Fusion)融合多路排序结果。
+
+        对每路结果按排名赋分 1/(k+rank), 跨路累加后按总分降序,
+        使"多路都排名靠前"的文档胜出, 无需归一化各检索器的分数量纲。
+        k=60 是业界常用平滑常数, 防止排名靠后的文档分差过小。
+        """
         doc_scores: dict[str, float] = {}
         doc_map: dict[str, Document] = {}
 
@@ -382,6 +407,7 @@ class HybridRetriever:
 
         logger.info(f"🔍 [HybridRetriever] 检索: {query[:60]}... filter={category_filter}")
 
+        # 每路先召回 top_k_final*4 条候选, 经 RRF 融合与重排后收敛到 top_k_final
         candidates = self._raw_candidates(query, k=top_k_final * 4,
                                           category_filter=category_filter)
 
@@ -399,6 +425,7 @@ class HybridRetriever:
         return result
 
     def clear_cache(self):
+        """清空本检索器结果缓存。"""
         count = len(self._cache)
         self._cache.clear()
         if count > 0:
@@ -407,6 +434,12 @@ class HybridRetriever:
 
 class UnifiedSearchEngine:
     def __init__(self, persist_dir: str, top_k: int, docs_dir=None):
+        """初始化统一检索引擎: 加载文档、分块、构建/加载 5 个主题隔离 collection。
+
+        persist_dir: 向量库持久化目录; top_k: 检索返回条数;
+        docs_dir: PDF 文档目录(默认取环境变量 MEDICAL_DOCS_DIR 或 CONFIG)。
+        为每个 collection 各建一个 HybridRetriever, 并做向量库健康检查。
+        """
         logger.info("🔧 初始化 UnifiedSearchEngine (Multi-Collection)...")
 
         self.persist_dir = persist_dir
@@ -554,6 +587,7 @@ class UnifiedSearchEngine:
                 self._cache[cache_key] = ([], time.time())
                 return []
 
+            # 截断到 top_k_final*4, 控制重排输入规模
             candidates = candidates[:top_k_final * 4]
             result = self.reranker.rerank(query, candidates, top_k=top_k_final,
                                           evidence_type=evidence_type)
@@ -565,6 +599,7 @@ class UnifiedSearchEngine:
             return []
 
     def clear_cache(self):
+        """清空引擎级检索缓存及各 collection 检索器的缓存。"""
         count = len(self._cache)
         self._cache.clear()
         for retriever in self.retrievers.values():

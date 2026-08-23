@@ -1,3 +1,4 @@
+"""证据检索节点：调用检索服务并行召回证据，并与历史证据合并截断后写入 state。"""
 import logging
 import asyncio
 from typing import Dict
@@ -16,6 +17,7 @@ class RetrieveNode(BaseNode):
         self.medical_assistant = medical_assistant
 
     async def run(self, state: ClinicalState) -> Dict:
+        """执行一轮证据检索：查询去重 → 可选附加路由关键词 → 并行召回 → 合并并截断历史证据。"""
         retrieval_round = int(state.get("retrieval_round", 0) or 0) + 1
         previous_queries = [str(item).strip() for item in state.get("retrieved_queries", [])]
         previous_keys = {item.casefold() for item in previous_queries}
@@ -67,6 +69,7 @@ class RetrieveNode(BaseNode):
                 kws = router_keywords[i] if isinstance(router_keywords[i], list) else []
                 kws = [str(k) for k in kws if str(k).strip()]
                 if kws:
+                    # 每条查询最多附加 3 个路由关键词，防止检索式过长而降低召回
                     enriched_queries.append(f"{q} {' '.join(kws[:3])}")
                 else:
                     enriched_queries.append(q)

@@ -124,6 +124,7 @@ class ToolUseNode(BaseNode):
             stream_writer = None
 
         def emit_tool_live(name: str, args: Dict, result: Dict):
+            """将单次工具调用(名称/参数/结果)实时推送到思考链流，供前端展示。"""
             if stream_writer is None:
                 return
             stream_writer({

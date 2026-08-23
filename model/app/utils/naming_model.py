@@ -1,3 +1,4 @@
+# 命名模型: 为一次对话生成简短医学标题(供会话列表/历史记录展示)。
 import os
 import logging
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -8,12 +9,14 @@ logger = logging.getLogger(__name__)
 
 class NamingModel(object):
     def __init__(self, llm=None):
+        # 优先复用注入的 LLM(生产环境传入 llm_turbo 共享连接); 否则独立构建轻量 qwen-turbo
         if llm is not None:
             self.llm = llm
         else:
             api_key = os.environ.get("DASHSCOPE_API_KEY")
             if not api_key:
                 raise ValueError("未找到环境变量 DASHSCOPE_API_KEY，请设置该环境变量")
+            # 温度 0.3 保证标题稳定; max_tokens 300 限制短输出; timeout 25s 防长挂
             self.llm = ChatOpenAI(
                 model="qwen-turbo",
                 base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
@@ -63,6 +66,7 @@ class NamingModel(object):
             logger.error(f"生成标题时发生错误: {str(e)}")
             return self._fallback_title(question, max_title_len)
 
+    # LLM 失败/返回空时回退: 问题原文截断(或"新对话")
     @staticmethod
     def _fallback_title(question, max_title_len: int = 12):
         if not question:

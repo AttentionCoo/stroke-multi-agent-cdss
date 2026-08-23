@@ -99,6 +99,7 @@ def expand_synonyms(text: str, max_variants: int = 4) -> List[str]:
             matched_terms.append((term, synonyms))
 
     # 为每个匹配术语生成"原词替换为同义词"的变体
+    # 最多取前 5 个匹配术语、每术语前 3 个同义词, 防止变体组合爆炸
     for term, synonyms in matched_terms[:5]:
         for syn in synonyms[:3]:
             # 替换文本中的术语(精确词边界)
@@ -107,6 +108,7 @@ def expand_synonyms(text: str, max_variants: int = 4) -> List[str]:
             if key and key not in seen:
                 seen.add(key)
                 variants.append(new_text)
+            # variants 初始已含原查询, 故上限为 max_variants + 1(即最多新增 max_variants 个变体)
             if len(variants) >= max_variants + 1:
                 break
         if len(variants) >= max_variants + 1:
@@ -137,6 +139,7 @@ def inject_evidence_keywords(query: str, evidence_type: str | None) -> str:
     to_add = [kw for kw in keywords if kw.lower() not in query.lower()]
     if not to_add:
         return query
+    # 最多附加前 3 个关键词, 防止检索式过度膨胀
     return f"{query} {' '.join(to_add[:3])}"
 
 
@@ -176,6 +179,7 @@ def build_or_and_query(concepts: Dict[str, List[str]], max_concepts: int = 4) ->
     """
     if not concepts:
         return ""
+    # 最多组合前 max_concepts(默认 4) 个概念, 避免检索式过长
     terms = list(concepts.items())[:max_concepts]
     clauses = []
     used_synonyms: set = set()
@@ -192,6 +196,7 @@ def build_or_and_query(concepts: Dict[str, List[str]], max_concepts: int = 4) ->
         if len(fresh) == 1:
             clauses.append(f'"{fresh[0]}"')
         else:
+            # 每个 OR 组最多保留前 3 个同义词, 控制检索式长度
             quoted = [f'"{s}"' for s in fresh[:3]]
             clauses.append("(" + " OR ".join(quoted) + ")")
     return " AND ".join(clauses)

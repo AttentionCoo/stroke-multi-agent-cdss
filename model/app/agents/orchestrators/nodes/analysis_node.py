@@ -1,3 +1,8 @@
+"""病例分析节点：一次 LLM 调用完成病例结构化、临床子问题生成与关键风险提取。
+
+作为意图识别之后的临床推理入口，本节点将原始病例文本结构化为
+临床问题清单与风险项，供 downstream 的 research_plan / retrieve 等节点消费。
+"""
 import logging
 import json
 from typing import Dict, Any
@@ -17,11 +22,13 @@ class AnalysisNode(BaseNode):
         self.llm = llm
 
     async def run(self, state: ClinicalState) -> Dict:
+        """执行病例分析：读入记忆上下文 → 统一分析 → 提取用户直接提问，输出结构化子问题与风险。"""
         memory_context = state.get("active_memory") or state.get("all_info", "")
         analysis = await self._unified_analysis(state["case_text"], memory_context)
         clinical_questions = analysis.get("clinical_questions", ["该患者当前最紧急的临床问题和处置要点"])
 
         # 诊断相关关键词过滤
+        # 若病例偏向诊断/分型方向，则剔除纯治疗操作类子问题，避免尚无诊断结论时检索溶栓/取栓等处置问题
         _DIAGNOSTIC_KW = {"TOAST", "分型", "病因", "定位", "定性", "鉴别", "卒中类型", "发病机制", "卒中原因"}
         _TREATMENT_KW = {"溶栓", "取栓", "抗凝", "降压", "手术", "时间窗", "剂量", "适应证", "禁忌"}
         if any(kw in state["case_text"] for kw in _DIAGNOSTIC_KW):
@@ -116,6 +123,7 @@ class AnalysisNode(BaseNode):
         }
 
     def _parse_json(self, text: str, default=None):
+        """健壮解析 LLM 返回的 JSON：直接解析 → 去除 markdown 代码块 → 截取首组 {} 或 []，失败返回 default。"""
         content = (text or "").strip()
         try:
             return json.loads(content)

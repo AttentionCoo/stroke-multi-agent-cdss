@@ -1,3 +1,4 @@
+"""报告生成节点：基于共识提案、批判审查与检索证据，按用户原始问题(或报告模板)生成最终答复。"""
 import logging
 import json
 from typing import Dict
@@ -18,6 +19,7 @@ class ReportNode(BaseNode):
         self.report_manager = report_manager
 
     async def run(self, state: ClinicalState) -> Dict:
+        """组装最终报告：优先逐题回答用户原始问题，否则套用报告模板；质控未通过时附加安全警告。"""
         logger.info(f"[report] 开始执行报告生成节点")
         logger.info(f"[report] 报告模式: {state['report_mode']}")
         logger.info(f"[report] 提案长度: {len(state['proposal']) if state['proposal'] else 0}")

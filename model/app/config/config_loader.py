@@ -1,4 +1,6 @@
 
+# 配置加载层: 从 config/ 目录的 YAML 读取 prompt/报告模板/专家/校验/参数限制配置。
+# 各管理器惰性单例化(首次 get_*_manager 时创建), 支持 reload 热更新; YAML 缺失/解析失败回退 {} 或内置默认。
 import os
 import yaml
 import logging
@@ -9,6 +11,7 @@ logger = logging.getLogger(__name__)
 CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+# 读取并解析 config/ 下 YAML; 任何失败(缺失/YAML 错误/空内容)都返回 {}, 由调用方决定回退策略
 def _load_yaml(filename: str) -> Dict[str, Any]:
     filepath = os.path.join(CONFIG_DIR, filename)
     logger.info(f"📂 尝试加载: {filepath}")
@@ -63,6 +66,7 @@ class PromptManager:
         if not self._prompts:
             logger.warning("⚠️ Prompt 配置为空，所有调用将使用内置 fallback")
 
+    # 取模板并按 kwargs 格式化; key 缺失/为空返回 None, 格式化缺变量时回退未格式化模板
     def get(self, key: str, **kwargs) -> Optional[str]:
         template = self._prompts.get(key)
 
@@ -83,6 +87,7 @@ class PromptManager:
             logger.warning(f"⚠️ Prompt 变量缺失: {key} -> {e}")
             return template
 
+    # 判断 key 是否存在且为非空字符串
     def has(self, key: str) -> bool:
         return (
             key in self._prompts
@@ -128,6 +133,7 @@ class ReportTemplateManager:
     def list_modes(self) -> list:
         return list(self._templates.keys())
 
+    # 把实际加载的文献名动态注入 system_role(优先正则定位替换, 失败则末尾兜底追加)
     def update_doc_list(self, doc_names: list) -> None:
         import re
         if not doc_names:
@@ -365,6 +371,7 @@ _validation_manager: Optional[ValidationConfigManager] = None
 _limits_manager: Optional[LimitsConfigManager] = None
 
 
+# Prompt 配置管理器单例(惰性创建)
 def get_prompt_manager() -> PromptManager:
     global _prompt_manager
     if _prompt_manager is None:
@@ -372,6 +379,7 @@ def get_prompt_manager() -> PromptManager:
     return _prompt_manager
 
 
+# 报告模板管理器单例(惰性创建)
 def get_report_manager() -> ReportTemplateManager:
     global _report_manager
     if _report_manager is None:

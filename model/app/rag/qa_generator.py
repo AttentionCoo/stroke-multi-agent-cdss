@@ -1,3 +1,8 @@
+"""QA 对生成器: 将知识库 chunk 合并打批交由大模型生成问答对, 用于扩充向量检索语料。
+
+调用 DashScope 兼容接口(qwen 系列模型), 对连续医学文档片段批量生成 Q&A 对,
+作为扩展语料写入向量库, 提升检索对问题的召回。
+"""
 import os
 import logging
 from typing import List
@@ -8,6 +13,12 @@ from langchain_core.prompts import ChatPromptTemplate
 logger = logging.getLogger(__name__)
 
 class QAGenerator:
+    """调用大模型(qwen-turbo)为医学文档片段批量生成 Q&A 对的生成器。
+
+    将多个 chunk 合并为一段长文本一次交给 LLM, 产出 Q:/A: 结构化问答对,
+    减少请求次数并加速冷启动时的语料扩充。
+    """
+
     def __init__(self, model_name="qwen-turbo"):
         """
         初始化大模型调用。项目里主要用的是阿里云 DashScope (qwen-turbo)。
