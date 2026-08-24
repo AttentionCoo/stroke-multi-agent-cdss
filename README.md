@@ -16,7 +16,7 @@
   <a href="https://spring.io/projects/spring-boot"><img src="https://img.shields.io/badge/Spring_Boot-4.0.7-6DB33F?style=flat-square&logo=springboot&logoColor=white" alt="Spring Boot"></a>
   <a href="https://redis.io/"><img src="https://img.shields.io/badge/Redis-7-FF4438?style=flat-square&logo=redis&logoColor=white" alt="Redis"></a>
   <a href="https://www.langchain.com/langgraph"><img src="https://img.shields.io/badge/LangGraph-1.2-1C3C3C?style=flat-square&logo=langchain&logoColor=white" alt="LangGraph"></a>
-  <a href="https://github.com/AttentionCasria/stroke-multi-agent-system/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License"></a>
+  <a href="https://github.com/AttentionCoo/stroke-multi-agent-cdss/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/badge/Status-Active-brightgreen?style=flat-square" alt="Status">
 </p>
 
@@ -182,7 +182,7 @@ docker compose up -d
 
 ### 🆕 6. 脑卒中医疗工具调用（Skill & Tool Calling）
 
-系统内置 8 个脑卒中领域工具（NIHSS/mRS/GCS 量表、溶栓时间窗、rt-PA 剂量、禁忌症筛查、TOAST 分型、LVO 筛查），通过 LangGraph `tool_use` 节点接入推理链：LLM 以 function calling 自主选择工具，结果注入多专家推理；当弱模型判断信息不足时，规则引擎按病例临床线索自动兜底调度，确保明确的评估/检查需求不被遗漏。工具既可在推理链中调用，也可通过独立 API 直接使用。
+系统内置 18 个脑卒中领域工具（NIHSS/mRS/GCS 量表、溶栓时间窗、rt-PA 剂量、禁忌症筛查、TOAST 分型、LVO 筛查、ASPECTS/CHA₂DS₂-VASc/HAS-BLED 等附加评估、药物相互作用检查、ICD-10 诊断编码等），通过 LangGraph `tool_use` 节点接入推理链：LLM 以 function calling 自主选择工具，结果注入多专家推理；当弱模型判断信息不足时，规则引擎按病例临床线索自动兜底调度，确保明确的评估/检查需求不被遗漏。工具既可在推理链中调用，也可通过独立 API 直接使用。
 
 ### 🆕 7. AI 对话命名与体验优化
 
@@ -200,7 +200,7 @@ docker compose up -d
 |:---:|---|------|
 | 🎨 **前端交互层** | Vue 3 (Composition API) · Vite 8 · Pinia · SCSS · Fetch / ReadableStream | 以用户体验为核心，持续接收后端流式推送并实时打字机渲染。支持医学文档（PDF）在线预览、图片上传（多模态扩展）以及多 Agent 思考步骤折叠展示 |
 | ☕ **后端服务层** | Java 21 · Spring Boot 4.0.7 · Spring WebFlux · Redis 7 · Redisson · MySQL 8.4 · MyBatis-Plus | 采用响应式编程模型支持高并发吞吐。通过 JWT 实现身份认证与安全控制，利用 Redisson 分布式锁控制并发，通过 WebClient 对底层 Python 模型服务进行流式非阻塞调用与转发 |
-| 🐍 **模型推理层** | Python 3.12 · FastAPI · LangGraph 1.2 · LangChain 1.x · Qwen-Plus/Turbo · ChromaDB 1.x · BM25 · RRF · gte-rerank | 统一加载模型、Agentic RAG 检索循环、专家辩论与共识模块，通过异步生成器实时输出 `node_start`、`node_token`、`node_done`、`token`、`done` 标准事件 |
+| 🐍 **模型推理层** | Python 3.12 · FastAPI · LangGraph 1.2 · LangChain 1.x · Qwen-Turbo（多角色，可环境变量覆盖）+ Qwen-VL-Plus（视觉）· ChromaDB 1.x · BM25 · RRF · gte-rerank | 统一加载模型、Agentic RAG 检索循环、专家辩论与共识模块，通过异步生成器实时输出 `node_start`、`node_token`、`node_done`、`token`、`done` 标准事件 |
 
 ### 🔄 全链路流式数据管道（SSE Pipeline）
 
@@ -252,9 +252,11 @@ Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
 
 | 专家角色 | LLM 引擎 | 核心职责 |
 |----------|:--------:|----------|
-| 🏥 **全科医生 (GP)** | qwen-plus | 全盘审视患者整体生命体征，提取主诉、现病史、重要既往史与合并慢性病（高血压、糖尿病、高脂血症）的整体风险分级 |
-| 🧠 **神经专科医生 (NS)** | qwen-plus | 系统的"核心决策大脑"。专注于卒中特异性临床表现、责任血管解剖定位、NIHSS 评分计算、TOAST 分型，以及溶栓/取栓时间窗自适应决策 |
-| 💊 **临床药师 (CP)** | qwen-plus | 侧重全链路用药安全。严密审查抗血小板、抗凝、降压、降脂等药物的绝对/相对禁忌症、药物相互作用（DDI）及配伍高危风险 |
+| 🏥 **全科医生 (GP)** | qwen-turbo | 全盘审视患者整体生命体征，提取主诉、现病史、重要既往史与合并慢性病（高血压、糖尿病、高脂血症）的整体风险分级 |
+| 🧠 **神经专科医生 (NS)** | qwen-turbo | 系统的"核心决策大脑"。专注于卒中特异性临床表现、责任血管解剖定位、NIHSS 评分计算、TOAST 分型，以及溶栓/取栓时间窗自适应决策 |
+| 💊 **临床药师 (CP)** | qwen-turbo | 侧重全链路用药安全。严密审查抗血小板、抗凝、降压、降脂等药物的绝对/相对禁忌症、药物相互作用（DDI）及配伍高危风险 |
+
+> 💡 三位专家共用 `main` 角色（默认 qwen-turbo），可通过环境变量 `MODEL_MAIN` 等整体升级为更强模型（如 `MODEL_MAIN=qwen-max`），无需改代码。
 
 #### 📌 横向维度：Independent-Debate-Consensus 状态机拓扑（Pipeline）
 
@@ -266,13 +268,19 @@ Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
    - **动态共识机制**：中立主持人说明已达成共识、被否决分歧及原因，再输出 `PROPOSAL` 与 `CRITIQUE`。
    - **安全熔断器**：若规则引擎或独立质控发现硬性禁忌证、证据冲突或把信息缺口当成既定事实，系统将拦截当前共识并携带反馈重新发起专家会诊（最多 3 次）。
 
-### 3. LLM 分层调度策略
+### 3. LLM 分层调度策略（ModelRouter / models.yaml）
 
-| 模型 | 负责节点 | 选择理由 |
-|------|----------|----------|
-| **qwen-plus** | 专家独立意见、交叉质询、Report（报告） | 需要深度推理，容错率低 |
-| **qwen-plus** | Analysis、ResearchPlan、EvidenceJudge、QueryRewrite、Consensus、Validate | 负责结构化、证据控制、共识与安全审查 |
-| **qwen-turbo** | Intent（意图识别）、QuickAnalyze（快速分析）、HealthRisk（风险评估）、Summary（摘要）、Naming（命名） | 简单任务，追求低延迟低成本 |
+模型路由由 `model/app/config/model_router.py` + `models.yaml` 统一管理，业务代码不硬编码模型名；角色默认型号、provider、超时（120s）与重试（3 次）集中配置，并支持环境变量覆盖。
+
+| 角色 | 默认模型 | 负责节点 | 环境变量覆盖 |
+|------|----------|----------|--------------|
+| `main` | qwen-turbo | 主推理/提案专家（reason / debate / report） | `MODEL_MAIN` |
+| `fast` | qwen-turbo | 质控/批评者（analysis / research_plan / evidence_router / evidence_judge / validate） | `MODEL_FAST` |
+| `turbo` | qwen-turbo | 轻量任务（intent / tool_use / naming / 摘要 / 知识问答） | `MODEL_TURBO` |
+| `consensus` | qwen-turbo | 会诊主持人（独立实例，不与其他角色共用） | `MODEL_CONSENSUS`（旧版 `CONSENSUS_MODEL` 兼容） |
+| `vision` | qwen-vl-plus | 化验单 / 药品图片等视觉识别 | — |
+
+> 💡 覆盖优先级：`MODEL_*` 环境变量 > 旧版兼容变量（`CONSENSUS_MODEL`）> yaml 默认值 > 内置默认。视觉任务固定使用 `qwen-vl-plus` 多模态模型。
 
 ---
 
@@ -306,7 +314,7 @@ Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
 
 ### 4. 📚 医学知识学习与文献检索模块
 
-- **本地指南增强**：内置 **12 篇**中国脑卒中相关权威指南与共识，提供在线阅读与结构化浏览，同时作为 RAG 底座为推理提供强力的证据支撑。
+- **本地指南增强**：内置 **13 篇**中国脑卒中相关权威指南与共识，提供在线阅读与结构化浏览，同时作为 RAG 底座为推理提供强力的证据支撑。
 - **在线文献拓扑**：提供外部 PubMed 接口连接支持，可根据临床症状一键抓取最新外文高水平文献列表。
 
 ### 5. 🧪 自动化测试与评估模块
@@ -366,7 +374,7 @@ Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
 
 ```text
 stroke-multi-agent-system/
-├── frontend/                              # 🎨 前端工程 (Vue 3 + Vite 7)
+├── frontend/                              # 🎨 前端工程 (Vue 3 + Vite 8)
 │   ├── src/
 │   │   ├── api/                           # API 封装（含 strokeAssessment 评估接口）
 │   │   ├── components/                    # UI 组件
@@ -380,7 +388,7 @@ stroke-multi-agent-system/
 │   ├── package.json
 │   └── vite.config.js
 │
-├── backend/                               # ☕ 后端工程 (Spring Boot 3 + WebFlux)
+├── backend/                               # ☕ 后端工程 (Spring Boot 4.0.7 + WebFlux)
 │   └── stroke-server/
 │       ├── src/main/java/com/it/
 │       │   ├── cache/                     # SSE 断线续传事件缓存 + 在线用户追踪
@@ -407,25 +415,37 @@ stroke-multi-agent-system/
 │
 ├── model/                                 # 🐍 模型推理服务层 (Python FastAPI)
 │   ├── app/
+│   │   ├── main.py                        # FastAPI 入口 (/health 资源未就绪时返回 503)
+│   │   ├── bootstrap.py                   # lifespan 初始化 (init_all_resources 七步)
+│   │   ├── runtime.py                     # 资源容器 + 知识库后台任务 + JWT 校验
+│   │   ├── api/                           # 路由层 (routes_model/ai/admin + 请求响应模型)
 │   │   ├── agents/                        # 智能体核心模块
-│   │   │   ├── core/                      # 状态机模式与 ClinicalState 状态定义
-│   │   │   ├── orchestrators/             # LangGraph 推理图构建
-│   │   │   │   ├── clinical_graph.py      # Agentic RAG 与会诊双循环状态图（含 tool_use 节点）
-│   │   │   │   ├── qwen_agent.py          # Qwen Agent 编排器
-│   │   │   │   └── nodes/                 # 记忆、规划、检索、证据评估、辩论、共识、校验与工具调用节点
-│   │   │   ├── tools/                     # ★ 脑卒中医疗工具集（量表/溶栓/禁忌症/TOAST）
+│   │   │   ├── core/schema.py             # ClinicalState 状态定义
+│   │   │   ├── schemas.py                 # 结构化输出 schema (IntentResult 等)
+│   │   │   ├── orchestrators/             # LangGraph 推理图编排
+│   │   │   │   ├── clinical_graph.py      # 18 节点确定性推理图（含条件边/跳过路径）
+│   │   │   │   ├── qwen_agent.py          # 流式执行器 (astream 三流 + HITL + 线程清理)
+│   │   │   │   ├── checkpoint.py          # AsyncSqliteSaver 断点/人类介入 (7 天 TTL)
+│   │   │   │   └── nodes/                 # 意图/记忆/分析/工具/检索/证据/推理/辩论/共识/校验/合规/报告节点
+│   │   │   ├── tools/                     # ★ 18 个脑卒中医疗工具（量表/溶栓/禁忌症/分型/附加评估/药物安全/编码）
 │   │   │   │   ├── scales.py              # NIHSS / mRS / GCS 量表评估
 │   │   │   │   ├── thrombolysis.py        # 溶栓时间窗 / rt-PA 剂量计算
 │   │   │   │   ├── contraindications.py   # 禁忌症筛查（复用 rules_config）
 │   │   │   │   ├── subtype.py             # TOAST 分型辅助
+│   │   │   │   ├── lvo_screening.py       # LVO 筛查
+│   │   │   │   ├── assessment_extra.py    # ASPECTS/CHA₂DS₂-VASc/HAS-BLED/吞咽/监测/预防/随访
+│   │   │   │   ├── drug_interaction.py    # 药物相互作用检查
+│   │   │   │   ├── icd10_coder.py         # ICD-10 诊断编码
 │   │   │   │   └── registry.py            # 工具注册表与统一执行器
+│   │   │   ├── services/                  # 查询翻译/检索编排/问题生成/证据综合
 │   │   │   ├── pipelines/                 # RAG 检索处理管道
-│   │   │   ├── services/                  # 业务服务 (查询翻译、检索路由、综合)
-│   │   │   ├── bailian/                   # 百炼模型集成 (健康风险分析)
-│   │   │   ├── infra/                     # 基础设施 (Reranker 重排器)
-│   │   │   ├── schemas/                   # 数据模型定义
-│   │   │   └── utils/                     # 工具函数 (JSON 解析, LLM 辅助, 重试机制)
+│   │   │   ├── streaming/translator.py    # astream 事件 → SSE 事件翻译
+│   │   │   ├── assistant.py               # MedicalAssistant 门面
+│   │   │   ├── constants.py               # 限制配置 (MAX_SUB_QUESTIONS 等)
+│   │   │   └── utils/                     # 问题提取/JSON/文本工具
 │   │   ├── config/                        # 动态配置中心 (YAML, 支持热更新)
+│   │   │   ├── model_router.py            # ModelRouter 多角色模型路由
+│   │   │   ├── models.yaml                # 角色→模型映射（支持 MODEL_* 环境变量覆盖）
 │   │   │   ├── expert_config.yaml         # 专家角色与提示词配置
 │   │   │   ├── rules_config.yaml          # 禁忌症规则与校验参数
 │   │   │   ├── limits_config.yaml         # 参数限制与关键词配置
@@ -433,13 +453,13 @@ stroke-multi-agent-system/
 │   │   │   └── report_templates.yaml      # 报告模板 (5 种模式)
 │   │   ├── rag/                           # RAG 模块 (Multi-Collection 构建、混合检索、RRF 融合、医学重排)
 │   │   │   ├── data_loader.py             # PDF 加载、分块、chunk 级元数据与垃圾过滤
-│   │   │   ├── retrievers.py              # UnifiedSearchEngine / Medical Evidence Score / 路由
-│   │   │   ├── qa_generator.py            # QA 对自建引擎
-│   │   │   └── bge_reranker.py            # BGE/gte-rerank 重排器
-│   │   ├── services/                      # 外部服务 (PubMed 文献抓取、Vision 多模态识别)
-│   │   ├── evaluation/                    # 可复现离线规则评测运行器
-│   │   ├── utils/                         # 通用工具 (上下文摘要, 错误码, 命名模型)
-│   │   └── main.py                        # FastAPI 异步服务入口 (lifespan 资源管理)
+│   │   │   ├── embeddings.py              # 向量化封装（DashScope embedding API）
+│   │   │   ├── retrievers.py              # UnifiedSearchEngine / HybridRetriever / Medical Evidence Score
+│   │   │   ├── reranker.py                # gte-rerank 重排器（失败自动回退规则重排）
+│   │   │   └── qa_generator.py            # QA 对自建引擎
+│   │   ├── services/                      # 外部服务 (PubMed 文献抓取、Vision qwen-vl-plus 识别)
+│   │   ├── evaluation/                    # 可复现离线评测运行器 (benchmark.py + gate.py)
+│   │   ├── utils/                         # 安全脱敏/用量统计/上下文摘要/错误码/命名模型
 │   ├── evaluation/                        # ★ RAGAS benchmark 与回归报告
 │   │   ├── stroke_ragas.json              # 30 题临床 benchmark（含期望来源与参考答案）
 │   │   ├── regression_report.md           # 检索回归报告（Recall@K/MRR/NDCG 自动生成）
@@ -449,16 +469,19 @@ stroke-multi-agent-system/
 │   │   ├── enrich_metadata.py             # 存量库 chunk 级标签重算 + 重分桶 + 垃圾删除
 │   │   ├── enrich_llm.py                  # LLM 语义分类器（clinical_intent/domain/confidence）
 │   │   ├── eval_ragas.py                  # RAGAS + 检索指标评估（30 题 benchmark）
+│   │   ├── smoke_langgraph_v1.py          # LangGraph 推理链路 smoke 测试
 │   │   └── archive/                       # 一次性/历史脚本归档
 │   ├── data/
-│   │   └── documents/                     # 脑卒中临床指南 PDF 文档 (12 篇)
-│   ├── tests/                             # 自动化测试套件
+│   │   └── documents/                     # 脑卒中临床指南 PDF 文档 (13 篇)
+│   ├── tests/                             # ★ 自动化测试套件（33 个文件 / 200 个离线用例）
+│   │   ├── test_tools*.py                 # 工具调用（量表/溶栓/禁忌症/TOAST/LVO/安全/API）
 │   │   ├── test_collection_routing.py     # Multi-Collection 归属规则/医学评分/PICO 查询
 │   │   ├── test_rag.py                    # RAG 召回率验证
 │   │   ├── test_decision_planner.py       # 决策规划节点测试
 │   │   ├── test_evidence_router.py        # 证据路由测试
 │   │   ├── test_medical_reranker.py       # 医学重排测试
-│   │   └── test_tool_use_integration.py   # 工具调用集成测试
+│   │   ├── test_tool_use_integration.py   # 工具调用集成测试
+│   │   └── ...                            # 编排/断点/结构化输出/安全/用量/合规/提问提取等（离线 200 用例）
 │   ├── requirements.txt                   # Python 依赖清单
 │   ├── start.bat                          # Windows 一键启动脚本
 │   └── start.sh                           # Linux/Mac 一键启动脚本
@@ -825,18 +848,20 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 
 系统新增脑卒中领域工具集，既可独立调用（API），也已接入多智能体推理链（`tool_use` 节点）。
 
-**工具清单（8 个）：**
+**工具清单（18 个）：**
 
 | 类别 | 工具名 | 说明 |
 |---|---|---|
-| 量表评估 | `nihss_score` | NIHSS 卒中量表评分与分级 |
-| 量表评估 | `mrs_score` | mRS 功能结局分级 |
-| 量表评估 | `gcs_score` | GCS 意识障碍分级 |
-| 溶栓治疗 | `thrombolysis_window_check` | 溶栓时间窗判断（3h/4.5h） |
-| 溶栓治疗 | `rtpa_dose_calc` | rt-PA 剂量计算（0.9mg/kg，上限 90mg） |
+| 量表评估 | `nihss_score` / `mrs_score` / `gcs_score` | NIHSS 卒中量表评分与分级 / mRS 功能结局分级 / GCS 意识障碍分级 |
+| 溶栓治疗 | `thrombolysis_window_check` / `rtpa_dose_calc` | 溶栓时间窗判断（3h/4.5h） / rt-PA 剂量计算（0.9mg/kg，上限 90mg） |
 | 禁忌症检查 | `contraindication_check` | 基于规则引擎的溶栓/抗凝/双抗禁忌症筛查 |
 | 诊断分型 | `toast_classify` | TOAST 缺血性卒中病因分型辅助 |
 | 大血管闭塞筛查 | `lvo_screening` | LVO 筛查（NIHSS+失语/偏瘫/皮层体征→概率分层+CTA建议） |
+| 附加评估 | `aspects_score` / `cha2ds2_vasc_score` / `has_bled_score` | ASPECTS 早期缺血评分 / CHA₂DS₂-VASc 房颤卒中风险 / HAS-BLED 出血风险 |
+| 附加评估 | `swallow_screen` / `rtpa_monitoring_checklist` | 洼田饮水吞咽筛查 / rt-PA 静脉溶栓 24h 监测清单 |
+| 附加评估 | `vte_pressure_ulcer_prevention` / `hemorrhage_transformation_risk` / `followup_plan` | DVT/压疮预防 / 出血转化风险分层 / 出院随访计划 |
+| 药物安全 | `drug_interaction_check` | 药物相互作用（DDI）检查 |
+| 诊断编码 | `icd10_coding` | ICD-10 诊断编码辅助 |
 
 **工具调用 Level 优先级：** Level 1 基础评估（卒中类型/NIHSS/LVO/时间窗）→ Level 2 禁忌症检查 → Level 3 剂量计算。`rtpa_dose_calc` 不得先于禁忌症检查（先 CT 排除出血、血压达标、无禁忌、完成 LVO 评估再算剂量）。
 
@@ -896,6 +921,7 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 
 | 文档 | 说明 |
 |------|------|
+| [docs/model-layer-technical-documentation.md](docs/model-layer-technical-documentation.md) | ★ **模型层技术文档（完整版）** — 20 节：入口与启动、模型路由、LangGraph 推理图、流式 SSE 事件契约、Agentic RAG、18 工具、结构化输出、检查点 HITL、多专家会诊、校验合规、提问直答、安全、用量、评测、配置与目录、端到端示例 |
 | [docs/backend-technical-documentation.md](docs/backend-technical-documentation.md) | ★ **后端技术文档（完整版）** — 涵盖架构设计、数据库设计、SSE 通信、安全体系、限流熔断、部署架构等 15 个章节 |
 | [docs/tool-calling-design.md](docs/tool-calling-design.md) | ★ 脑卒中医疗工具集（Skill & Tool Calling）设计文档 — 工具清单、LangGraph 集成、API 规范、测试 |
 | [docs/retrieval-pipeline-design.md](docs/retrieval-pipeline-design.md) | ★ 循证检索流程设计文档 — 临床决策驱动检索、Evidence Router、Query Translator、混合检索、Mismatch Filter、失败恢复 |
@@ -910,6 +936,12 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 ---
 
 ## 🔄 版本更新日志
+
+### v2.10.1 (2026-08-24) — 模型层文档与注释完善
+
+- ✅ **模型层技术文档**：新增 [docs/model-layer-technical-documentation.md](docs/model-layer-technical-documentation.md)（20 节）—— 入口与启动、模型路由（ModelRouter / models.yaml）、LangGraph 推理图（18 节点与条件边/跳过路径）、流式 SSE 事件契约、Agentic RAG、18 工具、结构化输出、检查点与人类介入（HITL）、多专家会诊、校验合规、提问直答、安全脱敏、用量统计、评测、配置与目录、端到端示例
+- ✅ **全量中文注释**：为 `model/app` 43 个源文件补充 288 行中文注释/文档（模块职责、类/函数 docstring、魔术数字含义、并发与异步意图）；全程仅新增注释、零代码改动（AST 语义门禁逐文件核对，删除行数为 0）
+- ✅ **质量保障**：200 个离线用例（20 文件门禁清单）+ LangGraph smoke 全绿后合入
 
 ### v2.10.0 (2026-08-15) — 功能全面扩展
 
@@ -1060,7 +1092,7 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 3. **代码风格** 请保持与现有代码风格一致
 4. **文档更新** 涉及架构变更请同步更新相关文档
 
-如有问题或建议，请提交 [GitHub Issue](https://github.com/AttentionCasria/stroke-multi-agent-system/issues)。
+如有问题或建议，请提交 [GitHub Issue](https://github.com/AttentionCoo/stroke-multi-agent-cdss/issues)。
 
 ---
 
