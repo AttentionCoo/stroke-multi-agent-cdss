@@ -1,9 +1,10 @@
 <script setup>
-
+import FeedbackHost from '@/components/FeedbackHost.vue'
 </script>
 
 <template>
   <router-view></router-view>
+  <FeedbackHost />
 </template>
 
 <style lang="scss">
