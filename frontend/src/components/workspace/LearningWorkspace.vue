@@ -6,6 +6,7 @@ import PapersSidebar from './PapersSidebar.vue'
 import { getDocumentsAPI, getDocumentUrlAPI } from '@/api/documents'
 import { searchPubMedAPI } from '@/api/learning'
 import request from '@/utils/request'
+import { showConfirm } from '@/utils/feedback'
 import FileSVG from '../svg/FileSVG.vue'
 import UpSVG from '../svg/UpSVG.vue'
 import DownSVG from '../svg/DownSVG.vue'
@@ -133,7 +134,12 @@ async function onKbFileChange(event) {
 }
 
 async function deleteKbDoc(name) {
-  if (!window.confirm(`确定从知识库删除「${name}」？删除后将重建向量库。`)) return
+  const ok = await showConfirm({
+    title: '删除知识库文档',
+    message: `确定从知识库删除「${name}」？删除后将重建向量库。`,
+    danger: true,
+  })
+  if (!ok) return
   kbMsg.value = ''
   try {
     const res = await request.delete(`/kb/documents/${encodeURIComponent(name)}`)
@@ -978,7 +984,7 @@ onBeforeUnmount(() => {
 
 .pill--high {
   background: rgba(220, 38, 38, 0.1);
-  color: #b91c1c;
+  color: var(--color-red);
 }
 
 .pill--mid {
@@ -1192,7 +1198,7 @@ onBeforeUnmount(() => {
   user-select: none;
 }
 
-.kb-toggle { font-size: 12px; color: #9ca3af; font-weight: 400; }
+.kb-toggle { font-size: 12px; color: var(--color-text-weak); font-weight: 400; }
 
 .kb-body { padding: 4px 12px 12px; }
 
@@ -1205,16 +1211,16 @@ onBeforeUnmount(() => {
 
 .kb-stat {
   font-size: 11px;
-  color: #6b7280;
-  background: #f3f4f6;
+  color: var(--color-text-medium);
+  background: var(--color-secondary-bg);
   border-radius: 10px;
   padding: 2px 8px;
 
   strong { color: var(--color-primary-dark, #0d7a68); }
 }
 
-.kb-job { font-size: 12px; color: #b45309; margin-bottom: 6px; }
-.kb-msg { font-size: 12px; color: #059669; margin-bottom: 6px; }
+.kb-job { font-size: 12px; color: var(--color-orange); margin-bottom: 6px; }
+.kb-msg { font-size: 12px; color: var(--color-primary); margin-bottom: 6px; }
 
 .kb-actions {
   display: flex;
@@ -1257,8 +1263,8 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: #374151;
-  background: #f9fafb;
+  color: var(--color-text-strong);
+  background: var(--color-bg-base);
   border-radius: 6px;
   padding: 4px 8px;
 }
@@ -1273,7 +1279,7 @@ onBeforeUnmount(() => {
 .kb-del {
   border: none;
   background: transparent;
-  color: #dc2626;
+  color: var(--color-red);
   font-size: 11px;
   cursor: pointer;
   flex-shrink: 0;
@@ -1281,4 +1287,4 @@ onBeforeUnmount(() => {
   &:hover { text-decoration: underline; }
 }
 
-.kb-empty { font-size: 12px; color: #9ca3af; padding: 6px 0; }</style>
+.kb-empty { font-size: 12px; color: var(--color-text-weak); padding: 6px 0; }</style>

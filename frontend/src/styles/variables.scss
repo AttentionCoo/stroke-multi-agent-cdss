@@ -26,6 +26,17 @@
   --color-blue: #3b82f6;
   --color-red: #dc2626;
   --color-orange: #b45309;
+  --color-indigo: #6366f1;
+
+  // ── 思考面板专家分色 ──
+  --color-expert-gp: #0d9488;
+  --color-expert-neuro: #2563eb;
+  --color-expert-pharm: #7c3aed;
+  --color-expert-moderator: #d97706;
+
+  // ── 补充语义色 ──
+  --color-bg-subtle: #f9fafb;
+  --color-text-muted: #88939a;
 
   // ── 列表交互 ──
   --color-hover-bg: rgba(17, 150, 127, 0.06);
@@ -166,6 +177,20 @@
   --color-patient-select-hover: rgba(17, 150, 127, 0.1);
   --color-patient-select-active: rgba(17, 150, 127, 0.18);
   --color-form-icon: #94a3b8;
+
+  // ── 功能色（深色下提亮保证对比度） ──
+  --color-orange: #f59e0b;
+  --color-indigo: #818cf8;
+
+  // ── 思考面板专家分色（深色下提亮） ──
+  --color-expert-gp: #2dd4bf;
+  --color-expert-neuro: #60a5fa;
+  --color-expert-pharm: #a78bfa;
+  --color-expert-moderator: #fbbf24;
+
+  // ── 补充语义色 ──
+  --color-bg-subtle: #1e293b;
+  --color-text-muted: #94a3b8;
 
   // ── 阴影 ──
   --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.4);

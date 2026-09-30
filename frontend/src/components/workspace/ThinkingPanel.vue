@@ -174,6 +174,17 @@ function statsFor(step) {
   return null
 }
 
+// 每事件一次预处理: 内容解析(formatContent)与检索指标(statsFor)均在渲染前缓存,
+// 模板不再每事件重复调用(原实现每事件调用 3 次 formatContent + 2 次 statsFor)
+const formattedEvents = computed(() => {
+  const events = props.thinkingData?.events || []
+  return events.map((event) => ({
+    event,
+    content: formatContent(event.content),
+    stats: statsFor(event.step),
+  }))
+})
+
 // 单个步骤的纯文本(标题 + 内容), 用于复制
 function buildStepText(event, idx) {
   const title = event.title || event.step || `步骤${idx + 1}`
@@ -253,38 +264,38 @@ async function copyAll() {
       </div>
 
       <div
-        v-for="(event, idx) in thinkingData.events"
+        v-for="(item, idx) in formattedEvents"
         :key="idx"
         class="thinking-step"
-        :class="{ completed: event.status === 'done' }"
+        :class="{ completed: item.event.status === 'done' }"
       >
         <div class="step-title">
           <span class="step-index">{{ idx + 1 }}</span>
-          <span class="step-name">{{ event.title || event.step }}</span>
-          <span v-if="statsFor(event.step)" class="step-stats">
-            <span v-for="(chip, ci) in statsFor(event.step)" :key="ci" class="stat-chip">{{ chip }}</span>
+          <span class="step-name">{{ item.event.title || item.event.step }}</span>
+          <span v-if="item.stats" class="step-stats">
+            <span v-for="(chip, ci) in item.stats" :key="ci" class="stat-chip">{{ chip }}</span>
           </span>
           <button
-            v-if="event.status === 'done' && event.content"
+            v-if="item.event.status === 'done' && item.event.content"
             type="button"
             class="step-copy-btn"
             :class="{ copied: copiedSteps[idx] }"
             :title="copiedSteps[idx] ? '已复制' : '复制本步骤内容'"
-            @click="copyStep(event, idx)"
+            @click="copyStep(item.event, idx)"
           >
             {{ copiedSteps[idx] ? '✓' : '复制' }}
           </button>
-          <span v-if="event.status === 'done'" class="step-status" title="已完成">✓</span>
+          <span v-if="item.event.status === 'done'" class="step-status" title="已完成">✓</span>
           <span v-else class="step-status running" title="处理中"></span>
         </div>
-        <template v-if="formatContent(event.content)">
+        <template v-if="item.content">
           <!-- JSON 格式：key-value 列表 -->
           <div
-            v-if="formatContent(event.content).type === 'json'"
+            v-if="item.content.type === 'json'"
             class="step-content step-content-json"
           >
             <div
-              v-for="(val, key) in formatContent(event.content).data"
+              v-for="(val, key) in item.content.data"
               :key="key"
               class="json-row"
             >
@@ -294,7 +305,7 @@ async function copyAll() {
           </div>
           <!-- 普通文本: 专家发言按角色分色渲染 -->
           <div v-else class="step-content">
-            <template v-for="(seg, si) in expertSegments(formatContent(event.content).data)" :key="si">
+            <template v-for="(seg, si) in expertSegments(item.content.data)" :key="si">
               <span v-if="seg.cls" class="expert-seg" :class="`expert-color-${seg.cls}`">{{ seg.text }}</span>
               <span v-else class="expert-seg">{{ seg.text }}</span>
             </template>
@@ -577,7 +588,7 @@ async function copyAll() {
 
 .stat-chip {
   font-size: 10px;
-  color: #6b7280;
+  color: var(--color-text-medium);
   background: rgba(17, 150, 127, 0.07);
   border-radius: 8px;
   padding: 0 6px;
@@ -638,13 +649,13 @@ async function copyAll() {
 /* 专家发言分色: 全科医生(青绿)/神经专科医生(蓝)/临床药师(紫)/主持人(琥珀) */
 .expert-seg { display: inline; }
 
-.expert-color-gp { color: #0d9488; }
+.expert-color-gp { color: var(--color-expert-gp); }
 
-.expert-color-neuro { color: #2563eb; }
+.expert-color-neuro { color: var(--color-expert-neuro); }
 
-.expert-color-pharm { color: #7c3aed; }
+.expert-color-pharm { color: var(--color-expert-pharm); }
 
-.expert-color-moderator { color: #d97706; }
+.expert-color-moderator { color: var(--color-expert-moderator); }
 
 .step-content-json {
   display: flex;

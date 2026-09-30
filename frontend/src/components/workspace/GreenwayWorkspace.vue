@@ -89,7 +89,7 @@ async function onLabFileChange(event) {
     } else {
       labExtractMsg.value = res.data?.msg || '识别失败，请重试'
     }
-  } catch (e) {
+  } catch {
     labExtractMsg.value = '识别失败，请检查图片后重试'
   } finally {
     labExtracting.value = false
@@ -1181,14 +1181,14 @@ function reviewActionLabel(action) {
 
 .lab-extract-msg {
   font-size: 12px;
-  color: #b45309;
+  color: var(--color-orange);
 
-  &.ok { color: #059669; }
+  &.ok { color: var(--color-primary); }
 }
 
 .lab-extract-hint {
   font-size: 11px;
-  color: #9ca3af;
+  color: var(--color-text-weak);
 }
 /* ── 绿道质控看板 ── */
 .qc-dashboard {
@@ -1213,7 +1213,7 @@ function reviewActionLabel(action) {
 
 .qc-toggle {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--color-text-weak);
   font-weight: 400;
 }
 
@@ -1233,15 +1233,15 @@ function reviewActionLabel(action) {
   padding: 8px 6px;
   border: 1px solid var(--color-border, #e5e7eb);
   border-radius: 8px;
-  background: #f9fafb;
+  background: var(--color-bg-base);
 
   strong { font-size: 18px; color: var(--color-primary-dark, #0d7a68); }
-  span { font-size: 11px; color: #6b7280; margin-top: 2px; text-align: center; }
+  span { font-size: 11px; color: var(--color-text-medium); margin-top: 2px; text-align: center; }
 
-  &.warn strong { color: #b45309; }
+  &.warn strong { color: var(--color-orange); }
 }
 
-.qc-trend-title { font-size: 12px; color: #6b7280; }
+.qc-trend-title { font-size: 12px; color: var(--color-text-medium); }
 
 .qc-trend-bars {
   display: flex;
@@ -1266,7 +1266,7 @@ function reviewActionLabel(action) {
     border-radius: 2px 2px 0 0;
   }
 
-  span { font-size: 9px; color: #9ca3af; margin-top: 2px; }
+  span { font-size: 9px; color: var(--color-text-weak); margin-top: 2px; }
 }
 
-.qc-empty { font-size: 12px; color: #9ca3af; padding: 8px 0; }</style>
+.qc-empty { font-size: 12px; color: var(--color-text-weak); padding: 8px 0; }</style>
