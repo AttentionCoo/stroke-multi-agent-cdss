@@ -26,6 +26,7 @@ import { getLearningMaterialDetailAPI, getLearningMaterialsAPI } from '@/api/lea
 import { analyzePatientAPI, syncTalkToPatientAPI } from '@/api/ai'
 import { createThinkingHistorySlots, mergeThinkingEvent } from '@/utils/thinkingEvents'
 import { buildPatientAwareRequest, resolveLinkedPatientId } from '@/utils/patientMemory'
+import { showConfirm, showError, showSuccess, showWarning } from '@/utils/feedback'
 
 defineOptions({ name: 'TalkIndex' })
 
@@ -151,7 +152,8 @@ const selectedMaterialId = ref(null)
 const materialDetail = ref(null)
 const materialDetailLoading = ref(false)
 
-const syncPatientId = ref(null)
+// 关联患者: 用 '' 表示"未选择"(select 的 value 会被 Vue 渲染为字符串, null 会变成 "null")
+const syncPatientId = ref('')
 const syncLoading = ref(false)
 const syncResult = ref(null)
 
@@ -698,7 +700,7 @@ async function handleSendMessage({ text, images } = {}) {
     thinkingHistoryList.value.pop()
     // 利用结构化错误码：retryable=true 提示用户可以重试
     const retryTip = error.retryable ? '\n请稍后重试。' : ''
-    alert(error?.msg || error?.message || `发送失败，请稍后再试${retryTip}`)
+    showError(error?.msg || error?.message || `发送失败，请稍后再试${retryTip}`)
   } finally {
     if (activeStream === streamPromise) {
       activeStream = null
@@ -718,7 +720,8 @@ async function handleDeleteChat(talkId) {
     return
   }
 
-  if (!window.confirm('确定要删除此对话吗？')) return
+  const ok = await showConfirm({ title: '删除对话', message: '确定要删除此对话吗？删除后不可恢复。', danger: true })
+  if (!ok) return
 
   try {
     // 删除的正是当前在途流所属对话 → 真正中止该流(否则它还会继续生成并尝试写回已删除的对话)
@@ -740,14 +743,15 @@ async function handleDeleteChat(talkId) {
     }
   } catch (error) {
     console.error('删除对话失败', error)
-    alert(error?.msg || '删除失败')
+    showError(error?.msg || '删除失败')
   }
 }
 
 async function handleDeleteAll() {
   const ids = talkTitleList.value.map((talk) => talk.talkId).filter((talkId) => talkId !== NEW_TALK_ID)
   if (!ids.length) return
-  if (!window.confirm('确定删除所有历史对话吗？')) return
+  const ok = await showConfirm({ title: '清空对话', message: '确定删除所有历史对话吗？此操作不可恢复。', danger: true })
+  if (!ok) return
 
   deleteAllLoading.value = true
   try {
@@ -756,7 +760,7 @@ async function handleDeleteAll() {
     handleNewChat()
   } catch (error) {
     console.error('清空对话失败', error)
-    alert(error?.msg || '删除失败，请重试')
+    showError(error?.msg || '删除失败，请重试')
   } finally {
     deleteAllLoading.value = false
   }
@@ -783,7 +787,7 @@ async function fetchPatients() {
     if (!patients.value.length) {
       selectedPatientId.value = null
       patientDetail.value = null
-      syncPatientId.value = null
+      syncPatientId.value = ''
       return
     }
 
@@ -799,7 +803,7 @@ async function fetchPatients() {
     }
   } catch (error) {
     console.error('获取患者列表失败', error)
-    alert(error?.msg || '获取患者列表失败')
+    showError(error?.msg || '获取患者列表失败')
   } finally {
     patientsLoading.value = false
   }
@@ -816,7 +820,7 @@ async function handleSelectPatient(patientId) {
     patientDetail.value = normalizePatient(res.data)
   } catch (error) {
     console.error('获取患者详情失败', error)
-    alert(error?.msg || '获取患者详情失败')
+    showError(error?.msg || '获取患者详情失败')
   } finally {
     patientDetailLoading.value = false
   }
@@ -851,7 +855,7 @@ async function submitPatientForm() {
   }
 
   if (!payload.name) {
-    alert('患者姓名不能为空')
+    showWarning('患者姓名不能为空')
     return
   }
 
@@ -875,14 +879,15 @@ async function submitPatientForm() {
     }
   } catch (error) {
     console.error('保存患者失败', error)
-    alert(error?.msg || '保存患者失败')
+    showError(error?.msg || '保存患者失败')
   } finally {
     patientSubmitting.value = false
   }
 }
 
 async function handleDeletePatient(patientId) {
-  if (!window.confirm('确定删除该患者吗？')) return
+  const ok = await showConfirm({ title: '删除患者', message: '确定删除该患者吗？删除后不可恢复。', danger: true })
+  if (!ok) return
 
   try {
     await deletePatientAPI(patientId)
@@ -893,25 +898,25 @@ async function handleDeletePatient(patientId) {
     }
 
     if (syncPatientId.value === patientId) {
-      syncPatientId.value = null
+      syncPatientId.value = ''
     }
 
     await fetchPatients()
   } catch (error) {
     console.error('删除患者失败', error)
-    alert(error?.msg || '删除患者失败')
+    showError(error?.msg || '删除患者失败')
   }
 }
 
 async function handleAnalyzePatient() {
   if (!selectedPatientId.value) {
-    alert('请先选择患者')
+    showWarning('请先选择患者')
     return
   }
 
   const data = patientAnalysisText.value.trim()
   if (!data) {
-    alert('请输入需要提交给AI的补充健康数据')
+    showWarning('请输入需要提交给AI的补充健康数据')
     return
   }
 
@@ -936,10 +941,10 @@ async function handleAnalyzePatient() {
     patientAnalysisText.value = ''
     await fetchPatients()
     await handleSelectPatient(selectedPatientId.value)
-    alert('AI分析已更新')
+    showSuccess('AI分析已更新')
   } catch (error) {
     console.error('AI分析失败', error)
-    alert(error?.msg || 'AI分析失败')
+    showError(error?.msg || 'AI分析失败')
   } finally {
     patientAnalysisLoading.value = false
   }
@@ -972,7 +977,7 @@ async function fetchMaterials() {
     await handleSelectMaterial(preferredId)
   } catch (error) {
     console.error('获取学习资料失败', error)
-    alert(error?.msg || '获取学习资料失败')
+    showError(error?.msg || '获取学习资料失败')
   } finally {
     materialsLoading.value = false
   }
@@ -989,7 +994,7 @@ async function handleSelectMaterial(materialId) {
     materialDetail.value = res.data || null
   } catch (error) {
     console.error('获取资料详情失败', error)
-    alert(error?.msg || '获取资料详情失败')
+    showError(error?.msg || '获取资料详情失败')
   } finally {
     materialDetailLoading.value = false
   }
@@ -1002,11 +1007,12 @@ function openMaterialLink(value) {
 
 async function handleSyncConversation() {
   if (!canSyncConversation.value) {
-    alert('请先选择患者，并确保当前对话已经生成回答')
+    showWarning('请先选择患者，并确保当前对话已经生成回答')
     return
   }
 
-  if (!window.confirm('确认将当前对话同步到患者AI分析吗？')) return
+  const ok = await showConfirm({ title: '同步对话', message: '确认将当前对话同步到患者AI分析吗？' })
+  if (!ok) return
 
   syncLoading.value = true
 
@@ -1030,11 +1036,11 @@ async function handleSyncConversation() {
       await handleSelectPatient(syncPatientId.value)
     }
 
-    alert('同步完成，患者AI意见已更新')
+    showSuccess('同步完成，患者AI意见已更新')
   } catch (error) {
     syncLoading.value = false
     console.error('同步对话失败', error)
-    alert(error?.msg || '同步失败')
+    showError(error?.msg || '同步失败')
   }
 }
 
