@@ -13,6 +13,7 @@ import { compressImage } from '@/utils/imageCompress'
 import { copyText } from '@/utils/clipboard'
 import { stripThinkingMarkdown } from '@/utils/thinkingEvents'
 import AttachFileSVG from '../svg/AttachFileSVG.vue'
+import { showError, showWarning } from '@/utils/feedback'
 
 defineOptions({ name: 'ChatWorkspace' })
 
@@ -89,7 +90,9 @@ const props = defineProps({
   },
 })
 
-const syncPatientModel = defineModel('syncPatientId', { default: null })
+// 关联患者: 用 '' 表示"未选择"。select 的 option value 在 DOM 中只能是字符串,
+// 绑 null 会被 Vue 渲染为 "null" 字符串导致类型污染, 因此统一用空串约定。
+const syncPatientModel = defineModel('syncPatientId', { default: '' })
 
 const emit = defineEmits([
   'select-talk',
@@ -188,6 +191,11 @@ const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecogni
 const voiceSupported = !!SpeechRecognition
 const voiceListening = ref(false)
 let recognition = null
+// 识别开始时的草稿基准 + 本次语音追加的内容。
+// continuous+interimResults 模式下 onresult 每次都携带全量 results,
+// 因此每次全量重算 final+interim 后整体替换(而非 += 累加), 避免重复文本。
+let voiceBase = ''
+let voiceAppended = ''
 
 function toggleVoice() {
   if (!voiceSupported) return
@@ -200,15 +208,24 @@ function toggleVoice() {
     recognition.lang = 'zh-CN'
     recognition.continuous = true
     recognition.interimResults = true
+    voiceBase = draftMessage.value
+    voiceAppended = ''
     recognition.onresult = (event) => {
-      let transcript = ''
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        transcript += event.results[i][0].transcript
+      let finalText = ''
+      let interimText = ''
+      for (let i = 0; i < event.results.length; i += 1) {
+        const result = event.results[i]
+        if (result.isFinal) finalText += result[0].transcript
+        else interimText += result[0].transcript
       }
-      if (transcript) draftMessage.value += transcript
+      voiceAppended = finalText + interimText
+      draftMessage.value = voiceBase + voiceAppended
     }
     recognition.onend = () => {
       voiceListening.value = false
+      voiceBase = ''
+      voiceAppended = ''
+      recognition = null
     }
     recognition.onerror = () => {
       voiceListening.value = false
@@ -218,6 +235,19 @@ function toggleVoice() {
   } catch {
     voiceListening.value = false
   }
+}
+
+// 识别期间用户手动打字: 结束本次识别, 已确认文本保留在草稿中。
+// 程序化赋值 draftMessage 不会触发 input 事件, 因此不会误停。
+function handleDraftInput() {
+  if (voiceListening.value) {
+    try {
+      recognition?.stop()
+    } catch {
+      // ignore
+    }
+  }
+  autoResize()
 }
 
 function syncLayoutState() {
@@ -374,11 +404,16 @@ function flushRender(immediate = false) {
   }
 }
 
+// 与 renderedHtmlList 按下标对齐的证据卡片缓存
+const evidenceCardsList = ref([])
+
 function doRender() {
   renderedHtmlList.value = props.currentTalkList.map((msg, idx) => {
     if (isUserMessage(msg, idx)) return ''
     return renderMarkdown(msgText(msg))
   })
+  // 证据卡片与 Markdown 一起缓存: 模板中每消息原本调用 2 次 evidenceCardsFor
+  evidenceCardsList.value = props.currentTalkList.map((msg, idx) => evidenceCardsFor(msg, idx))
 }
 
 // 新消息出现（用户发送 or 历史记录加载）：立即渲染 + 强制滚到底部
@@ -484,6 +519,14 @@ function handleSendMessage() {
   const text = draftMessage.value.trim()
   // 有图片时允许空文字发送（纯图片提问）
   if ((!text && imageList.value.length === 0) || props.isStreaming) return
+  // 发送时结束可能仍在进行的语音识别, 已识别文本已包含在草稿中
+  if (voiceListening.value) {
+    try {
+      recognition?.stop()
+    } catch {
+      // ignore
+    }
+  }
   emit('send-message', {
     text: text || '请分析这张图片',
     images: imageList.value.map((item) => item.dataUrl),
@@ -515,13 +558,13 @@ async function appendImagesFromFiles(fileList) {
 
   const imageFiles = files.filter(isSupportedImage)
   if (!imageFiles.length) {
-    alert('仅支持上传 JPG、PNG、WEBP 图片')
+    showWarning('仅支持上传 JPG、PNG、WEBP 图片')
     return
   }
 
   const remaining = 3 - imageList.value.length
   if (remaining <= 0) {
-    alert('最多上传 3 张图片')
+    showWarning('最多上传 3 张图片')
     return
   }
 
@@ -531,12 +574,12 @@ async function appendImagesFromFiles(fileList) {
       const dataUrl = await compressImage(file)
       imageList.value.push({ dataUrl, name: file.name })
     } catch (err) {
-      alert(err.message)
+      showError(err.message)
     }
   }
 
   if (imageFiles.length > toProcess.length) {
-    alert('最多上传 3 张图片')
+    showWarning('最多上传 3 张图片')
   }
 }
 
@@ -660,19 +703,7 @@ function handleExportMDT(msg, index) {
   @media print {
     body { margin: 12mm; }
     header { border-bottom-width: 2px; }
-  }
-
-.voice-btn {
-  &.listening {
-    color: #dc2626;
-    animation: voice-pulse 1s ease-in-out infinite;
-  }
-}
-
-@keyframes voice-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.15); }
-}</style>
+  }</style>
 </head>
 <body>
 <header>
@@ -693,6 +724,7 @@ ${stepHtml || '<p style="font-size:12px;color:#9ca3af">（本消息无思考链�
   <span>本纪要由 AI 辅助生成，仅供临床参考，最终诊断与治疗决策须由执业医师确认。</span>
   <span class="sign">审核医师签名</span>
 </footer>
+<!-- 注意: 字符串内的 script 闭合标签会提前终止 SFC 的 script 块, 必须拆开拼接 -->
 <script>window.onload = function () { setTimeout(function () { window.print() }, 300) }</scr` + `ipt>
 </body>
 </html>`
@@ -763,10 +795,10 @@ function evidenceCardsFor(msg, index) {
 <template>
   <section class="chat-workspace">
     <aside class="history-card">
-      <div class="section-head" style="border:none; padding: 8px 0px 0px 0px;">
+      <div class="section-head history-head-top">
         <button type="button" class="primary-action" @click="emit('new-chat')">开始新对话</button>
       </div>
-      <div class="section-head" style="padding-top: 4px;">
+      <div class="section-head history-head">
         <div>
           <h3>对话历史</h3>
         </div>
@@ -798,7 +830,7 @@ function evidenceCardsFor(msg, index) {
 
     <div class="chat-card">
       <div class="section-head">
-        <div style="display: flex; align-items: center; gap: 12px;">
+        <div class="section-title-row">
           <h3>实时问诊</h3>
           <span class="state-pill" :class="{ live: isStreaming || isThinking, thinking: isThinking }">
             {{ isThinking ? '分析中' : isStreaming ? '生成中' : '待输入' }}
@@ -885,13 +917,13 @@ function evidenceCardsFor(msg, index) {
                   :class="{ 'streaming-active': isStreaming && index === currentTalkList.length - 1 }"
                   v-html="renderedHtmlList[index] || ''"></div>
                 <section
-                  v-if="evidenceCardsFor(msg, index).length"
+                  v-if="evidenceCardsList[index]?.length"
                   class="evidence-map"
                   aria-label="建议与证据"
                 >
                   <h4>建议与证据</h4>
                   <article
-                    v-for="(card, cardIndex) in evidenceCardsFor(msg, index)"
+                    v-for="(card, cardIndex) in evidenceCardsList[index]"
                     :key="`${index}-${cardIndex}`"
                   >
                     <p>{{ card.statement }}</p>
@@ -959,7 +991,7 @@ function evidenceCardsFor(msg, index) {
           <textarea ref="inputRef" v-model="draftMessage" rows="1"
             :placeholder="interrupted
               ? '请输入补充信息（如 INR、血小板、影像结果…）后发送，继续会诊'
-              : imageList.length ? '可补充文字描述（直接发送将询问图片内容）' : '请输入症状、病史或希望AI分析的问题'" @input="autoResize"
+              : imageList.length ? '可补充文字描述（直接发送将询问图片内容）' : '请输入症状、病史或希望AI分析的问题'" @input="handleDraftInput"
             @keydown.enter.exact.prevent="handleSendMessage" />
 
           <div class="input-actions">
@@ -1042,7 +1074,7 @@ function evidenceCardsFor(msg, index) {
           <label class="field-label flex-1">
             关联患者
             <select v-model="syncPatientModel">
-              <option :value="null">请选择患者</option>
+              <option value="">请选择患者</option>
               <option v-for="patient in patients" :key="patient.id" :value="patient.id">{{ patient.name }}</option>
             </select>
           </label>
@@ -1105,6 +1137,24 @@ function evidenceCardsFor(msg, index) {
   border-right: 1px solid var(--color-border);
   background: var(--color-bg-light);
   overflow: hidden;
+}
+
+/* "开始新对话"按钮行: 无底边框、贴顶紧凑排列 */
+.history-head-top {
+  border: none;
+  padding: 8px 0 0;
+}
+
+/* 对话历史标题行: 顶边距收紧 */
+.history-head {
+  padding-top: 4px;
+}
+
+/* 面板标题 + 状态徽章同行布局 */
+.section-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 /* ───────────────── Chat panel ───────────────── */
@@ -1392,7 +1442,7 @@ function evidenceCardsFor(msg, index) {
 
   &.thinking {
     background: rgba(99, 102, 241, 0.12);
-    color: #6366f1;
+    color: var(--color-indigo);
   }
 }
 
@@ -1530,36 +1580,38 @@ function evidenceCardsFor(msg, index) {
 
 .ref-popup {
   position: relative;
-  background: #fff;
+  background: var(--color-dialog-bg);
+  border: 1px solid var(--color-dialog-border);
   border-radius: 10px;
   padding: 20px 24px;
   min-width: 260px;
   max-width: 360px;
-  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-dialog);
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-
 .ref-popup-page {
   font-size: 12px;
   color: var(--color-primary-dark, #0d7a68);
   margin: 0 0 8px;
-}.ref-popup-title {
+}
+
+.ref-popup-title {
   margin: 0;
   font-size: 15px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--color-text-strong);
   padding-right: 24px;
 }
 
 .ref-popup-status {
   font-size: 14px;
-  color: #6b7280;
+  color: var(--color-text-medium);
 
   &.error {
-    color: #dc2626;
+    color: var(--color-red);
   }
 }
 
@@ -1575,12 +1627,12 @@ function evidenceCardsFor(msg, index) {
   border: none;
   background: transparent;
   font-size: 18px;
-  color: #9ca3af;
+  color: var(--color-text-weak);
   cursor: pointer;
   line-height: 1;
 
   &:hover {
-    color: #374151;
+    color: var(--color-text-strong);
   }
 }
 
@@ -1631,7 +1683,7 @@ function evidenceCardsFor(msg, index) {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--color-text-muted, #888);
+  background: var(--color-text-muted);
   color: #fff;
   font-size: 12px;
   line-height: 18px;
@@ -1780,7 +1832,7 @@ function evidenceCardsFor(msg, index) {
 
   &:hover {
     opacity: 1;
-    background: rgba(0, 0, 0, 0.05);
+    background: var(--color-ghost-hover);
   }
 
   &:disabled {
@@ -2206,14 +2258,6 @@ function evidenceCardsFor(msg, index) {
       text-overflow: clip;
       word-break: break-word;
       line-height: 1.5;
-    }
-  }
-
-  .ghost-icon {
-    display: none;
-
-    :hover {
-      display: inline-flex;
     }
   }
 }
