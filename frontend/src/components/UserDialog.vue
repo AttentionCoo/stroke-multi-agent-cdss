@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { logoutAPI, updateInfoAPI } from '@/api/user'
 import AvatarUpload from './AvatarUpload.vue'
+import { showError, showSuccess, showWarning } from '@/utils/feedback'
 
 const props = defineProps({
   visible: { type: Boolean, default: false }
@@ -86,7 +87,7 @@ const handleChangePassword = async () => {
   const newPassword = String(passwordForm.value.newPassword || '').trim()
 
   if (prePassword.length < 6 || newPassword.length < 6) {
-    alert('旧密码和新密码至少为6位')
+    showWarning('旧密码和新密码至少为6位')
     return
   }
 
@@ -96,20 +97,20 @@ const handleChangePassword = async () => {
       newPassword,
       image: userStore.image || ''
     })
-    alert('密码修改成功，请重新登录')
+    showSuccess('密码修改成功，请重新登录')
     isPasswordDialogVisible.value = false
     passwordForm.value.prePassword = ''
     passwordForm.value.newPassword = ''
     await performLogout()
   } catch (error) {
     console.error('修改密码失败', error)
-    alert('旧密码错误或修改失败')
+    showError('旧密码错误或修改失败')
   }
 }
 
 const handleChangeAvatar = async () => {
   if (!image.value) {
-    alert('请先上传头像')
+    showWarning('请先上传头像')
     return
   }
 
@@ -120,11 +121,11 @@ const handleChangeAvatar = async () => {
       image: image.value
     })
     userStore.image = image.value
-    alert('头像修改成功')
+    showSuccess('头像修改成功')
     isAvatarDialogVisible.value = false
   } catch (error) {
     console.error('修改头像失败', error)
-    alert('头像修改失败，请稍后重试')
+    showError('头像修改失败，请稍后重试')
   }
 }
 </script>

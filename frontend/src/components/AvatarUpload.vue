@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import AppAvatar from '@/components/AppAvatar.vue'
 import request from '@/utils/request'
+import { showError, showWarning } from '@/utils/feedback'
 
 // props: showTip 控制是否显示红色提示, initialAvatar 传入初始头像地址
 const props = defineProps({
@@ -44,7 +45,7 @@ const handleFileChange = async (e) => {
   // 校验图片格式
   const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp']
   if (!validTypes.includes(file.type)) {
-    alert('请选择 jpg / png / webp 格式的图片')
+    showWarning('请选择 jpg / png / webp 格式的图片')
     return
   }
 
@@ -61,11 +62,11 @@ const handleFileChange = async (e) => {
       avatarUrl.value = res.data // 阿里云 OSS 返回的图片地址
       emit('uploaded', avatarUrl.value) // 上传完成触发事件
     } else {
-      alert('上传失败')
+      showError('上传失败')
     }
   } catch (err) {
     console.error(err)
-    alert('上传出错')
+    showError('上传出错')
   } finally {
     e.target.value = '' // 重置 input，确保能重复选择同一文件
   }
