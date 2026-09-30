@@ -23,7 +23,9 @@ test('未选择患者时保持原有请求格式', () => {
 test('患者列表加载后保持未关联状态', () => {
   const patients = [{ id: 1 }, { id: 2 }]
 
-  assert.equal(resolveLinkedPatientId(null, patients), null)
+  // "未关联"统一返回 ''(select option 的 value 只能是字符串, null 会被渲染为 "null")
+  assert.equal(resolveLinkedPatientId(null, patients), '')
+  assert.equal(resolveLinkedPatientId('', patients), '')
   assert.equal(resolveLinkedPatientId(2, patients), 2)
-  assert.equal(resolveLinkedPatientId(9, patients), null)
+  assert.equal(resolveLinkedPatientId(9, patients), '')
 })
