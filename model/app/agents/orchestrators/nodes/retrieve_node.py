@@ -21,11 +21,15 @@ class RetrieveNode(BaseNode):
         retrieval_round = int(state.get("retrieval_round", 0) or 0) + 1
         previous_queries = [str(item).strip() for item in state.get("retrieved_queries", [])]
         previous_keys = {item.casefold() for item in previous_queries}
-        queries = [
+        input_queries = [
             str(item).strip()
             for item in state.get("retrieval_queries", state.get("clinical_questions", []))
-            if str(item).strip() and str(item).strip().casefold() not in previous_keys
         ]
+        query_indices = [
+            i for i, query in enumerate(input_queries)
+            if query and query.casefold() not in previous_keys
+        ]
+        queries = [input_queries[i] for i in query_indices]
 
         if not queries:
             return {
@@ -36,9 +40,21 @@ class RetrieveNode(BaseNode):
 
         # Decision → Evidence Router:优先用 Evidence Router Agent 的输出
         # (evidence_type + target_categories + keywords), 回退到决策节点的 evidence_type
-        router_types = state.get("router_evidence_types", [])
-        router_categories = state.get("router_categories", [])
-        router_keywords = state.get("router_keywords", [])
+        def select_query_values(values, *, allow_partial=False):
+            """路由数组与原查询同步筛选，兼容 Router 已移除空查询的数组。"""
+            if not isinstance(values, list):
+                return []
+            nonempty_indices = [i for i, query in enumerate(input_queries) if query]
+            indices = query_indices
+            if len(values) == len(nonempty_indices):
+                indices = [nonempty_indices.index(i) for i in query_indices]
+            elif len(values) != len(input_queries) and not allow_partial:
+                return []
+            return [values[i] if i < len(values) else None for i in indices]
+
+        router_types = select_query_values(state.get("router_evidence_types", []))
+        router_categories = select_query_values(state.get("router_categories", []))
+        router_keywords = select_query_values(state.get("router_keywords", []))
 
         evidence_types: List[str] = []
         category_filters: List[List[str]] = []
@@ -51,17 +67,52 @@ class RetrieveNode(BaseNode):
             tasks = state.get("retrieval_tasks", [])
             decisions = state.get("clinical_decisions", [])
             if isinstance(tasks, list) and tasks:
-                for task in tasks:
-                    if not isinstance(task, dict):
+                tasks_by_query = {
+                    str(task.get("query", "")).strip().casefold(): task
+                    for task in tasks if isinstance(task, dict) and task.get("query")
+                }
+                selected_tasks = select_query_values(tasks, allow_partial=True)
+                for i, query in enumerate(queries):
+                    task = tasks_by_query.get(query.casefold(), selected_tasks[i])
+                    # 具名任务只能关联自身查询，扩展查询不能冒用其他任务的类型。
+                    if not isinstance(task, dict) or (
+                        task.get("query") and str(task["query"]).strip().casefold() != query.casefold()
+                    ):
+                        evidence_types.append("")
                         continue
                     ev_type = task.get("evidence_type") or task.get("type") or ""
                     evidence_types.append(str(ev_type).strip() if ev_type else "")
             elif isinstance(decisions, list) and decisions:
                 evidence_types = [
-                    str(d.get("evidence_type", "")).strip()
-                    for d in decisions if isinstance(d, dict)
-                ][:len(queries)]
+                    str(d.get("evidence_type", "")).strip() if isinstance(d, dict) else ""
+                    for d in select_query_values(decisions, allow_partial=True)
+                ]
 
+        # 新 Router 的具名路由优先按查询关联，旧数组继续按原索引兼容。
+        routes = state.get("router_routes", [])
+        routes_by_query = {
+            str(route.get("query", "")).strip().casefold(): route
+            for route in routes if isinstance(route, dict) and route.get("query")
+        } if isinstance(routes, list) else {}
+        if routes_by_query:
+            evidence_types = [
+                str(routes_by_query.get(query.casefold(), {}).get(
+                    "evidence_type", evidence_types[i] if i < len(evidence_types) else ""))
+                for i, query in enumerate(queries)
+            ]
+            category_filters = [
+                routes_by_query.get(query.casefold(), {}).get(
+                    "target_categories", category_filters[i] if i < len(category_filters) else [])
+                for i, query in enumerate(queries)
+            ]
+            router_keywords = [
+                routes_by_query.get(query.casefold(), {}).get(
+                    "keywords", router_keywords[i] if i < len(router_keywords) else [])
+                for i, query in enumerate(queries)
+            ]
+
+        # 原始问题用于排序和跨轮去重，Router 关键词只扩展召回查询。
+        original_queries = list(queries)
         # 附加 Router 关键词到查询(增强检索)
         if isinstance(router_keywords, list) and len(router_keywords) == len(queries):
             enriched_queries = []
@@ -75,11 +126,14 @@ class RetrieveNode(BaseNode):
                     enriched_queries.append(q)
             queries = enriched_queries
 
+        # 没有富化时保留旧调用参数，兼容旧门面和注入的检索实现。
+        rerank_options = {"rerank_queries": original_queries} if queries != original_queries else {}
         evidence = await self.medical_assistant.afast_parallel_retrieve(
             queries,
             round_number=retrieval_round,
             evidence_types=evidence_types,
             category_filters=category_filters,
+            **rerank_options,
         )
         previous_evidence = str(state.get("evidence", "") or "").strip()
         combined = "\n\n---\n\n".join(
@@ -88,5 +142,5 @@ class RetrieveNode(BaseNode):
         return {
             "evidence": truncate_text(combined, MAX_EVIDENCE_CHARS),
             "retrieval_round": retrieval_round,
-            "retrieved_queries": previous_queries + queries,
+            "retrieved_queries": previous_queries + original_queries,
         }

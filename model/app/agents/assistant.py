@@ -57,6 +57,7 @@ class MedicalAssistant:
         round_number: int = 1,
         evidence_types: List[str] = None,
         category_filters: List[List[str]] = None,
+        rerank_queries: List[str] = None,
     ) -> str:
         """异步快速并行检索（原生异步方案）"""
         if not sub_questions:
@@ -64,12 +65,15 @@ class MedicalAssistant:
 
         logger.info(f"🔍 异步快速并行检索 {len(sub_questions)} 个子问题...")
 
+        # Router 扩展词只参与召回，显式提供时将原始问题独立传入重排。
+        rerank_options = {"rerank_queries": rerank_queries} if rerank_queries is not None else {}
         # 采用原生 asyncio 控制并发并发起检索
         raw_evidence = await self.rag_pipeline.retrieval.aparallel_retrieve(
             sub_questions,
             round_number=round_number,
             evidence_types=evidence_types,
             category_filters=category_filters,
+            **rerank_options,
         )
 
         # fast_parallel_retrieve 的截断逻辑和分段已经在 retrieval service 做了一部分，

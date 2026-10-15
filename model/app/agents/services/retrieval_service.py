@@ -81,7 +81,8 @@ class EvidenceRetrievalService:
         self.top_k = top_k
 
     def retrieve_single(self, query: str, evidence_prefix: str = "R1-Q1",
-                        evidence_type: str = None, category_filter: List[str] = None) -> str:
+                        evidence_type: str = None, category_filter: List[str] = None,
+                        rerank_query: str | None = None) -> str:
 
         if category_filter is None and evidence_type:
             category_filter = route_category_filter(evidence_type)
@@ -94,13 +95,17 @@ class EvidenceRetrievalService:
             category_filter = None
             logger.info(f"🗂️  [Multi-Collection] {evidence_type} → collections={collections}")
 
+        # 排序保留原始问题的意图；未显式提供时保持旧检索器调用参数兼容。
+        rerank_options = {"rerank_query": rerank_query} if rerank_query is not None else {}
         # 过滤检索(含 evidence_type 供 Medical Evidence Score)
         docs = self.retriever.search(query, self.top_k, category_filter=category_filter,
-                                     evidence_type=evidence_type, collections=collections)
+                                     evidence_type=evidence_type, collections=collections,
+                                     **rerank_options)
 
         # P2: Retrieval Failure Recovery — 0 结果时多级恢复
         if not docs:
-            recovery = self._recover_retrieval(query, evidence_type, category_filter, collections)
+            recovery = self._recover_retrieval(
+                query, evidence_type, category_filter, collections, rerank_query=rerank_query)
             if recovery:
                 docs = recovery
 
@@ -181,7 +186,8 @@ class EvidenceRetrievalService:
 
     def _recover_retrieval(self, query: str, evidence_type: str | None,
                            category_filter: List[str] | None,
-                           collections: List[str] | None = None):
+                           collections: List[str] | None = None,
+                           rerank_query: str | None = None):
         """
         Retrieval Failure Recovery:
         1. 去掉类别过滤/扩大 collection 范围, 无过滤检索
@@ -191,18 +197,22 @@ class EvidenceRetrievalService:
         from app.agents.services.query_translator import (
             extract_medical_concepts, build_or_and_query, expand_synonyms,
         )
+        # 扩大范围和改写召回式不应改变排序要回答的原始临床问题。
+        rerank_options = {"rerank_query": rerank_query} if rerank_query is not None else {}
 
         # 级别1:去掉 collection 限制 + 类别过滤(路由过严时)
         if collections:
             logger.info(f"⚠️ [Recovery-1] collections {collections} 无结果, 回退全 collection 检索")
             docs = self.retriever.search(query, self.top_k, category_filter=None,
-                                         evidence_type=evidence_type, collections=None)
+                                         evidence_type=evidence_type, collections=None,
+                                         **rerank_options)
             if docs:
                 return docs
         elif category_filter:
             logger.info(f"⚠️ [Recovery-1] 类别过滤 {category_filter} 无结果, 回退无过滤检索")
             docs = self.retriever.search(query, self.top_k, category_filter=None,
-                                         evidence_type=evidence_type, collections=None)
+                                         evidence_type=evidence_type, collections=None,
+                                         **rerank_options)
             if docs:
                 return docs
 
@@ -216,7 +226,8 @@ class EvidenceRetrievalService:
                 continue
             logger.info(f"⚠️ [Recovery-2] 同义词扩展检索: {variant[:60]}...")
             docs = self.retriever.search(variant, self.top_k, category_filter=None,
-                                         evidence_type=evidence_type, collections=None)
+                                         evidence_type=evidence_type, collections=None,
+                                         **rerank_options)
             if docs:
                 return docs
 
@@ -226,51 +237,62 @@ class EvidenceRetrievalService:
             subset_query = build_or_and_query(subset)
             logger.info(f"⚠️ [Recovery-3] 降低限定检索: {subset_query[:60]}...")
             docs = self.retriever.search(subset_query, self.top_k, category_filter=None,
-                                         evidence_type=evidence_type, collections=None)
+                                         evidence_type=evidence_type, collections=None,
+                                         **rerank_options)
             if docs:
                 return docs
 
         return []
 
     async def aretrieve_single(self, query: str, evidence_prefix: str = "R1-Q1",
-                               evidence_type: str = None, category_filter: List[str] = None) -> str:
+                               evidence_type: str = None, category_filter: List[str] = None,
+                               rerank_query: str | None = None) -> str:
         import asyncio
         loop = asyncio.get_event_loop()
+        args = (query, evidence_prefix, evidence_type, category_filter)
+        if rerank_query is not None:
+            args += (rerank_query,)
         return await loop.run_in_executor(
-            None, self.retrieve_single, query, evidence_prefix, evidence_type, category_filter)
+            None, self.retrieve_single, *args)
 
     async def aparallel_retrieve(self, queries: List[str], round_number: int = 1,
                                  evidence_types: List[str] = None,
-                                 category_filters: List[List[str]] = None) -> str:
+                                 category_filters: List[List[str]] = None,
+                                 rerank_queries: List[str] = None) -> str:
         """并行检索,支持按决策类型路由证据源,并用 Query Translator 多路召回。
 
         每条临床查询先经 Medical Query Translator 转换为多组文献查询变体
         (术语标准化+同义词扩展+证据源关键词),再并行检索,提升召回率。
         category_filters: 每条查询的目标类别过滤(Evidence Router Agent 输出)。
+        rerank_queries: 与召回查询逐项对应的原始问题；缺省时沿用 queries。
         """
         import asyncio
         from app.agents.services.query_translator import translate_query
 
+        if rerank_queries is not None and len(rerank_queries) != len(queries):
+            raise ValueError("rerank_queries 必须与 queries 数量一致")
+        ranking_queries = queries if rerank_queries is None else rerank_queries
         types = evidence_types or [None] * len(queries)
         filters = category_filters or [None] * len(queries)
 
         # 1. 翻译:每条查询 → 多组变体
-        translated: List[tuple] = []  # (原查询, 证据类型, 类别过滤, 变体列表)
+        translated: List[tuple] = []  # (召回查询, 原始问题, 证据类型, 类别过滤, 变体列表)
         for i, q in enumerate(queries):
             ev_type = types[i] if i < len(types) else None
             cat_filter = filters[i] if i < len(filters) else None
             variants = translate_query(q, ev_type)
-            translated.append((q, ev_type, cat_filter, variants))
+            translated.append((q, ranking_queries[i], ev_type, cat_filter, variants))
 
         # 2. 并行检索所有变体
         tasks = []
         task_meta = []  # (原查询, 变体, 类别过滤, 前缀)
-        for i, (q, ev_type, cat_filter, variants) in enumerate(translated):
+        for i, (q, ranking_query, ev_type, cat_filter, variants) in enumerate(translated):
             for j, variant in enumerate(variants):
                 tasks.append(self.aretrieve_single(
                     variant, f"R{round_number}-Q{i + 1}v{j + 1}",
                     evidence_type=ev_type,
                     category_filter=cat_filter,
+                    rerank_query=ranking_query,
                 ))
                 task_meta.append((q, variant))
 
@@ -280,6 +302,9 @@ class EvidenceRetrievalService:
         parts = []
         for i, (q, _variant) in enumerate(task_meta):
             content = results_list[i]
+            if isinstance(content, TypeError):
+                # 参数契约或实现错误必须暴露，不能伪装成兼容成功的空检索。
+                raise content
             if isinstance(content, Exception):
                 logger.error(f"检索失败 {q}: {content}")
                 continue
@@ -307,7 +332,7 @@ class EvidenceRetrievalService:
         ) as executor:
 
             future_map = {
-                executor.submit(self.retrieve_single, q, f"R1-Q{i + 1}"): q
+                executor.submit(self.retrieve_single, q, f"R1-Q{i + 1}", rerank_query=q): q
                 for i, q in enumerate(queries)
             }
 
@@ -316,6 +341,8 @@ class EvidenceRetrievalService:
 
                 try:
                     results[q] = future.result()
+                except TypeError:
+                    raise
                 except Exception as e:
                     logger.error(f"检索失败 {q}: {e}")
                     results[q] = ""

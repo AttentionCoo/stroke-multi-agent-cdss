@@ -65,14 +65,14 @@ SYNONYM_MAP: Dict[str, List[str]] = {
     "textbook": ["textbook", "神经解剖", "neuroanatomy", "教材"],
 }
 
-# 证据类型 → 应注入的路由关键词
+# 证据类型只补来源或问题类型，具体干预必须由原始查询识别。
 EVIDENCE_TYPE_KEYWORDS = {
-    "treatment": ["guideline", "thrombolysis", "thrombectomy", "推荐", "适应证", "禁忌证"],
+    "treatment": ["guideline", "推荐", "适应证", "禁忌证"],
     "diagnosis": ["diagnostic criteria", "diagnosis", "诊断标准", "鉴别"],
-    "etiology": ["toast", "classification", "病因", "分型"],
-    "anatomy": ["mca", "localization", "神经解剖", "syndrome", "定位"],
+    "etiology": ["classification", "病因", "分型"],
+    "anatomy": ["localization", "神经解剖", "syndrome", "定位"],
     "prognosis": ["prognosis", "outcome", "复发", "预后"],
-    "prevention": ["secondary prevention", "二级预防", "antiplatelet", "抗血小板"],
+    "prevention": ["secondary prevention", "二级预防", "guideline", "指南"],
 }
 
 
@@ -125,7 +125,7 @@ def _replace_term(text: str, term: str, replacement: str) -> str:
 
 def inject_evidence_keywords(query: str, evidence_type: str | None) -> str:
     """
-    按证据类型注入路由关键词。
+    补充已识别干预的英文规范词，再按证据类型注入通用来源词。
 
     例如 treatment 查询会附加 "guideline/推荐/适应证" 等词,
     提高向量检索召回指南类文档的概率。
@@ -135,11 +135,13 @@ def inject_evidence_keywords(query: str, evidence_type: str | None) -> str:
     keywords = EVIDENCE_TYPE_KEYWORDS.get(evidence_type.strip().lower())
     if not keywords:
         return query
-    # 只注入查询中未出现的路由关键词(避免膨胀)
-    to_add = [kw for kw in keywords if kw.lower() not in query.lower()]
+    # 来源类型不能暗示新的干预，否则扩展词也会污染医学规则重排。
+    concepts = extract_medical_concepts(query)
+    intervention_terms = [term for term in concepts if term in PICO_INTERVENTION_TERMS]
+    to_add = [kw for kw in intervention_terms + keywords if kw.lower() not in query.lower()]
     if not to_add:
         return query
-    # 最多附加前 3 个关键词, 防止检索式过度膨胀
+    # 干预规范词和来源词共用最多 3 项预算，保留原有扩展规模。
     return f"{query} {' '.join(to_add[:3])}"
 
 
