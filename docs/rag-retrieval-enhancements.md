@@ -39,7 +39,7 @@ RAGAS 初测（5 题）暴露的检索短板：
 | 4 | 垃圾 chunk 过滤 | 参考文献页/版权页/目录页/过短碎片污染召回 | `data_loader.py` `is_reference_chunk` |
 | 5 | 存量库重分桶 | 静态桶与动态标签脱节 | `scripts/enrich_metadata.py` |
 | 6 | Medical Evidence Score 9 项加权 | 排序只看 embedding 相似度 | `retrievers.py` `_apply_medical_score` |
-| 7 | BM25 词袋清洗 | PICO 布尔式使 BM25 退化 | `retrievers.py` `_clean_bm25_query` |
+| 7 | BM25 词袋清洗与 jieba 中文分词 | PICO 布尔式和中文整句 token 使 BM25 退化 | `retrievers.py` `_clean_bm25_query`、`app/rag/bm25_tokenizer.py` |
 | 8 | Query Translator：PICO + 双语 + 中文优先 | 查询构造不贴近临床决策、英文压制中文 | `query_translator.py` `build_pico_query` |
 | 9 | LLM 语义分类器 | 规则无法区分的难例（高压氧 vs 影像） | `scripts/enrich_llm.py` |
 | 10 | 评估固化：30 题 benchmark + 检索指标 | 小样本噪声、无回归基线 | `scripts/eval_ragas.py` + `evaluation/` |
@@ -195,6 +195,28 @@ Final Score = 0.20 语义相似度
 '("mca" OR "middle cerebral artery") localization' → 'mca middle cerebral artery localization'
 ```
 
+在清洗之后，`BM25RetrieverCompat` 对文档和查询统一使用 jieba 医学分词：内置卒中、血管、溶栓、取栓、量表等词典，并保留 `rt-PA`、`NIHSS`、`4.5`、`95%CI` 等英文缩写与数字表达。采用独立词典与搜索模式，长医学术语同时保留可检索的子词；全角字符和大小写统一，无共同词项时不返回任意片段。应用默认使用 `BM25_TOKENIZER=jieba`；设置为 `whitespace` 可在相同语料上复现空白分词对照。
+
+BM25 在进程启动和知识库热更新时，从五个实际 Chroma collection 分页读取文本和元数据建索引，包含已有 QA 片段。因此更新过的分桶、标签和来源与向量检索一致；不需要重新计算 embedding。读取失败时记录告警并回退当前 PDF 切片。两路召回都遵循请求指定的候选数量，独立设置参数，避免并发查询互相覆盖。
+
+基于项目 13 份 PDF 的 1301 个页面、30 题来源对齐基准，BM25-only 离线对照的 Recall@3 从 0.1333 到 0.6167、Recall@10 从 0.1667 到 0.8167、MRR 从 0.1167 到 0.5086。完整报告及语料/实现指纹见 `model/evaluation/bm25_tokenizer_ab_20261014.json` 与同名 Markdown。这是整页、原始问题、纯 BM25 实验，不能当作混合检索或答案质量的提升。实际 collection 混合检索需要另外同配置验证。
+
+2026-10-14 实际五桶 4861 个片段的同配置混合检索对照：
+
+| 指标 | 空白分词 | jieba |
+|---|---:|---:|
+| Recall@3 | 0.8667 | 0.9167 |
+| Recall@5 | 0.8667 | 0.9333 |
+| Recall@10 | 0.9000 | 0.9833 |
+| MRR | 0.8056 | 0.8583 |
+| NDCG@10 | 0.8179 | 0.8814 |
+
+两组均使用当前查询翻译、等权融合、每路召回 80 个候选、跨桶融合后仅重排 12 个，并以原始问题表达排序意图。候选预算与展示条数独立，应用 top3 和评测 top20 的排序前缀一致，最多返回 12 条；需要更多结果时通过 `RAG_RERANK_CANDIDATES` 增加固定预算。`RAG_RETRIEVAL_CANDIDATES` 控制深召回池，须不小于重排预算。向量偏权在扩展题集上不稳定，保留等权。
+
+本轮在线 `gte-rerank` 返回 AccessDenied，实际使用规则回退；未执行答案生成评分，不宣称 faithfulness 或 answer_correctness 提升。逐题结果见 `model/evaluation/retrieval_final_{whitespace,jieba}_20261014.json`，综合实验与扩展题集限制见 `model/evaluation/jieba_optimization_20261014.md`。来源匹配口径已修正教材历史别名，不能与历史快照直接做因果比较。
+
+最终代码另用已有 embedding 缓存、实际 Chroma 查询和显式规则回退，对 99 题执行两种分词的全链路复验；逐题指标及来源/页面排名与综合报告一致，未新增 API 调用。验证文件为 `model/evaluation/retrieval_current_validation_20261014.{json,md}`，保留当前实现指纹；它不验证在线 embedding 或在线重排服务。生产编排同步传递原始重排问题，Router 关键词只用于召回；查询跨轮去重后，路由类型、类别和关键词保持与原查询对应。
+
 ---
 
 ### 8. Query Translator：PICO + 双语 + 中文优先
@@ -214,6 +236,8 @@ Final Score = 0.20 语义相似度
 - **中文查询变体排序**：中文 query → 原始中文 enriched 优先，PICO 后置；
   英文 query → PICO 优先
 - `SYNONYM_MAP` 补口语词（`溶栓`/`卒中`），修复"是否溶栓"抽不到干预概念
+
+2026-10-14 修正：证据类型仅补通用来源/问题词，不再为所有治疗问题强加溶栓、取栓，为所有预防问题强加抗血小板，或为解剖问题强加 MCA。干预英文规范词仅来自原始问题中识别到的医学概念，并共用最多 3 项扩展预算。异步多变体、同步并行和恢复检索通过 `rerank_query` 保留原始问题，召回仍使用扩展式。
 
 **效果**：treatment 7 题中 5 题 recall 从 0 → 1.0；MRR 0.58 → 0.76。
 

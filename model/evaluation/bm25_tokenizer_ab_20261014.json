@@ -1,0 +1,4701 @@
+{
+  "experiment": "pdf_page_bm25_tokenizer_ab",
+  "generated_at": "2026-10-14T09:13:59.631920+00:00",
+  "limitation": "这是 PDF 整页 BM25-only 分词对照实验，使用原始问题，不调用 API。未包含线上文档切块、查询改写、collection 路由、向量召回、RRF、重排或答案生成，不能视为完整 RAGAS 结果，也不能直接与已有混合检索基线比较。来源命中只验证文献覆盖，不证明检索页面的语义相关性或临床正确性。",
+  "api_calls": 0,
+  "settings": {
+    "top_k": 20,
+    "min_page_chars": 50,
+    "preprocessing": "删除 CR/LF，保留空格",
+    "query": "原始问题，不进行翻译或改写",
+    "retrieval": "两个 tokenizer 显式传给同一个 BM25RetrieverCompat，使用其相同排序和过滤规则"
+  },
+  "versions": {
+    "jieba": "0.42.1",
+    "rank-bm25": "0.2.2",
+    "pypdf": "6.16.0"
+  },
+  "implementation_sha256": {
+    "eval_bm25.py": "ea8ddb59b530af63108aa2499c78c80f2ab19e80afcc403a6c781cc3f3fbc7dd",
+    "retrieval_metrics.py": "d346cbf9e3f43f32cb1e83e2f89b6738a4ae8f82a9493b13e51f6950090fc336",
+    "bm25.py": "d38b88766f9caeb914a5bc642b4ee48c6753cd96a2670709ad812091e9dfab5e",
+    "bm25_tokenizer.py": "8c43f5f3e8e9f5f61eac99ca23b5c20a2cd959b04fba1b6a15676c9e4a6d43d5"
+  },
+  "dataset": {
+    "docs_dir": "D:\\CompetitionProject\\stroke-multi-agent-system\\model\\data\\documents",
+    "cases_path": "D:\\CompetitionProject\\stroke-multi-agent-system\\model\\evaluation\\stroke_ragas.json",
+    "pdf_count": 12,
+    "case_count": 30,
+    "retained_page_count": 1301,
+    "benchmark_file_sha256": "6e6ccea1c8bd8301df6267d05b438ffdc1d76089f53fbffcad4d4befa2386190",
+    "cases_sha256": "251b8768bc5e901e999d4138a99d44380f5c5288a29075f51f0fa0ad25e30c4d",
+    "pdf_manifest_sha256": "1141e01649bf870f4d1116bf1e890cdb72f77dfeb959c23d5b13553cf0e9bf18",
+    "corpus_sha256": "05e1fccdc65d62d8b7d9ffa725d971c7391a01e9133fc85613d09322e35fc130",
+    "pdf_files": [
+      {
+        "name": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+        "normalized_source": "neuroanatomy_clinical_cases.pdf",
+        "sha256": "b1b8895c610c25415d1b0d92c1a22dbc261f85b792b967c5a3cd32176b1033d0",
+        "page_count": 1055,
+        "retained_page_count": 1054
+      },
+      {
+        "name": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+        "normalized_source": "中国急性缺血性卒中早期血管内介入诊疗指南2022.pdf",
+        "sha256": "e105c5f3eb8fb9eac2c30d5fa878d614e19977639e96a61ab5c0e835889694fb",
+        "page_count": 12,
+        "retained_page_count": 12
+      },
+      {
+        "name": "中国急性缺血性卒中诊治指南2023.pdf",
+        "normalized_source": "中国急性缺血性卒中诊治指南2023.pdf",
+        "sha256": "c4070588cc902744960d6ac836cd8808ebdd5f99799ee176990475fe4dbd7cc4",
+        "page_count": 23,
+        "retained_page_count": 23
+      },
+      {
+        "name": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+        "normalized_source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+        "sha256": "e3e9328854b8acf23171282008c18f204709c02e251a4b34bca93aa179212f36",
+        "page_count": 9,
+        "retained_page_count": 9
+      },
+      {
+        "name": "中国脑卒中防治指导规范（2021 年版）.pdf",
+        "normalized_source": "中国脑卒中防治指导规范(2021年版).pdf",
+        "sha256": "30abec11a6f339e11cf325ec0610e06dd15c5fab101fe7d68dbce806ba3bdc8d",
+        "page_count": 123,
+        "retained_page_count": 117
+      },
+      {
+        "name": "中国重症卒中管理指南2024.pdf",
+        "normalized_source": "中国重症卒中管理指南2024.pdf",
+        "sha256": "90ef21e295625abdf430eafb783512ff45719844d30ed7cc6f7f60534510b6af",
+        "page_count": 11,
+        "retained_page_count": 11
+      },
+      {
+        "name": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+        "normalized_source": "急性缺血性卒中血管内治疗中国指南2023.pdf",
+        "sha256": "fdf262b4690c549e02d0dfd8ecee356d28cf1bdd82b730f9ae77345a017e556f",
+        "page_count": 21,
+        "retained_page_count": 21
+      },
+      {
+        "name": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+        "normalized_source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+        "sha256": "a4d7e98ef5929c2a0536af9d89e96cf217f73082dcaa1c23c2c89fd15fcad98b",
+        "page_count": 5,
+        "retained_page_count": 5
+      },
+      {
+        "name": "急性缺血性脑卒中早期血管内介入治疗流程与规范专家共识.pdf",
+        "normalized_source": "急性缺血性脑卒中早期血管内介入治疗流程与规范专家共识.pdf",
+        "sha256": "ac584b8eca015cdc91731428614708843f3537ee8231239a28b5e9a58a58f3a9",
+        "page_count": 5,
+        "retained_page_count": 5
+      },
+      {
+        "name": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+        "normalized_source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+        "sha256": "9a6628ffff562b3a5e407c091974cff29d421eebc6484e7c3956a414e7382bfc",
+        "page_count": 4,
+        "retained_page_count": 4
+      },
+      {
+        "name": "脑卒中中西医结合防治指南（2023 版）.pdf",
+        "normalized_source": "脑卒中中西医结合防治指南(2023版).pdf",
+        "sha256": "47fc1687cb933d86c8ccb1247ca1752838ea528ecd69c47ee29d5dce641652ff",
+        "page_count": 11,
+        "retained_page_count": 11
+      },
+      {
+        "name": "脑血管病防治指南（2024年版）.pdf",
+        "normalized_source": "脑血管病防治指南(2024年版).pdf",
+        "sha256": "2e2ad076b9e263f2885e6ca97017419b025086b19c1bf6ba6eb74fb1347be9b8",
+        "page_count": 30,
+        "retained_page_count": 29
+      }
+    ]
+  },
+  "tokenizers": {
+    "whitespace": {
+      "metrics": {
+        "recall_at_3": 0.13333333333333333,
+        "recall_at_5": 0.13333333333333333,
+        "recall_at_10": 0.16666666666666666,
+        "mrr": 0.11666666666666667,
+        "ndcg_at_10": 0.12854023957026742
+      },
+      "unhit_case_ids": [
+        "anat-01",
+        "anat-02",
+        "anat-04",
+        "anat-05",
+        "etio-02",
+        "etio-03",
+        "etio-04",
+        "etio-05",
+        "tx-01",
+        "tx-02",
+        "tx-03",
+        "tx-04",
+        "tx-05",
+        "tx-06",
+        "tx-07",
+        "tx-08",
+        "tx-09",
+        "tx-10",
+        "prev-01",
+        "prev-02",
+        "prev-03",
+        "prev-04",
+        "prev-05",
+        "diag-04",
+        "diag-05"
+      ],
+      "cases": [
+        {
+          "id": "anat-01",
+          "question": "大脑中动脉(MCA)闭塞的典型临床表现有哪些？",
+          "case_sha256": "3ad83c75b4116105c33b67e99b4e5017141ecef6f84c83564f48702a1b446a3c",
+          "expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "neuroanatomy_clinical_cases.pdf": null
+          },
+          "unhit_expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "anat-02",
+          "question": "大脑前动脉(ACA)供血区梗死的主要表现？",
+          "case_sha256": "0cc674085cfecd5620a35b1754740f8dbe1d25423c1139df6da5d38f7b1f47ef",
+          "expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "neuroanatomy_clinical_cases.pdf": null
+          },
+          "unhit_expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "anat-03",
+          "question": "Broca 区位于哪个脑回，损伤后表现是什么？",
+          "case_sha256": "71175eb5cd6f203340c89ba54088d30dd31a2406d727451a3df24ec92e3837f2",
+          "expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0,
+          "first_hit_rank": 1,
+          "expected_source_ranks": {
+            "neuroanatomy_clinical_cases.pdf": 1
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 874
+            },
+            {
+              "rank": 2,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 848
+            },
+            {
+              "rank": 3,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 916
+            }
+          ]
+        },
+        {
+          "id": "anat-04",
+          "question": "大脑后动脉(PCA)综合征的临床特征？",
+          "case_sha256": "16e34ba64762f2e0d836ee7c9444d0fc2a37c6df07dc7730f166e03cffc6d362",
+          "expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "neuroanatomy_clinical_cases.pdf": null
+          },
+          "unhit_expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "anat-05",
+          "question": "内囊后肢损伤的定位体征是什么？",
+          "case_sha256": "22d7c2ac1d355a6756792e093d78411e22fdf7e201bdb1dc8c6879288c51e1b8",
+          "expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "neuroanatomy_clinical_cases.pdf": null
+          },
+          "unhit_expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "etio-01",
+          "question": "急性缺血性卒中的 TOAST 病因分型包括哪几类？",
+          "case_sha256": "fd335da73a911e47ead667d772ded16eabf86be7c6ffa8906144e14cd4c8991b",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0,
+          "first_hit_rank": 1,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 1
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 6
+            }
+          ]
+        },
+        {
+          "id": "etio-02",
+          "question": "什么是 ESUS（不明原因栓塞性卒中）？",
+          "case_sha256": "998d77bd17aa7bba82e07c2daf14760d2114023fa32ccbab02448b370132b04c",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "etio-03",
+          "question": "房颤导致缺血性卒中的主要机制是什么？",
+          "case_sha256": "6a59150dc73d26c7ce8752753cdc9d6fd7fc37a5a18fbd5ddd7560b493f510e3",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "etio-04",
+          "question": "大动脉粥样硬化型卒中的发病机制有哪些？",
+          "case_sha256": "5fe21600692ed6c1fcc0958895927c7e8f7d434d241e2723d9fcb603abae1fcb",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "etio-05",
+          "question": "小动脉闭塞型（腔隙性）卒中的特征？",
+          "case_sha256": "51fd3ff9c2af4313ff95b2cbacc032d634df0d31781134e00222bd143c9c70ab",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "tx-01",
+          "question": "急性缺血性卒中静脉溶栓的时间窗是多少？",
+          "case_sha256": "7ecf491ab0d22583b9788ce8cd2d46735fbca25aed1d31caf0792bc20d801dd7",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "tx-02",
+          "question": "阿替普酶静脉溶栓的主要禁忌证有哪些？",
+          "case_sha256": "48ac132cc9faec2f782a4a96c10b11d9e7ece2d856f29c3da11129b1d0f0c627",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "tx-03",
+          "question": "急性大血管闭塞机械取栓的适应证？",
+          "case_sha256": "e21f016180000e62d11c10eeefe32872cb8fa56abda5810e5bef5ece91fa413b",
+          "expected_sources": [
+            "中国急性缺血性卒中早期血管内介入诊疗指南2022.pdf",
+            "急性缺血性卒中血管内治疗中国指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中早期血管内介入诊疗指南2022.pdf": null,
+            "急性缺血性卒中血管内治疗中国指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中早期血管内介入诊疗指南2022.pdf",
+            "急性缺血性卒中血管内治疗中国指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "tx-04",
+          "question": "急性缺血性卒中溶栓前的血压控制目标？",
+          "case_sha256": "4e6488111df3283ff322c59b7ec387c5bc293c7c685fee423d7f352b4bd09d5a",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "tx-05",
+          "question": "房颤相关缺血性卒中急性期抗凝何时启动？",
+          "case_sha256": "2ab3c740557757baef62317467d0a5e1c3d657048069743078796f0f12ccc84f",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "tx-06",
+          "question": "替奈普酶与阿替普酶静脉溶栓的比较？",
+          "case_sha256": "f6a22cb7dbc4a79f53550c4a78e354f33a60030787cb3ae128ec8dcb6bffc029",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "tx-07",
+          "question": "轻型卒中（NIHSS≤5）急性期双抗治疗的适应证？",
+          "case_sha256": "3a76ea4054dd82b87e4f2fb0689037657a1819bdfcfbc36b4a7b8bd0ffc321bd",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "tx-08",
+          "question": "桥接治疗（溶栓后取栓）的适用情况？",
+          "case_sha256": "c4a1474673fe4cf7e1293d05555b3ddcece53916c156d3cba6fc94982c808ed8",
+          "expected_sources": [
+            "急性缺血性卒中血管内治疗中国指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "急性缺血性卒中血管内治疗中国指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "急性缺血性卒中血管内治疗中国指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "tx-09",
+          "question": "溶栓后症状性出血转化的处理原则？",
+          "case_sha256": "30f79d65eff2822eb82f19ccc5d3f32fe5bd5b1ecf8c0788336b3780c7efe514",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf",
+            "中国重症卒中管理指南2024.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null,
+            "中国重症卒中管理指南2024.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf",
+            "中国重症卒中管理指南2024.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "tx-10",
+          "question": "急性缺血性卒中血管内取栓的影像筛选（ASPECTS/灌注）标准？",
+          "case_sha256": "825a588b05f8585a2d7c7925725efcf69c40d94bdde58870eb2ce7d8371c220c",
+          "expected_sources": [
+            "中国急性缺血性卒中早期血管内介入诊疗指南2022.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中早期血管内介入诊疗指南2022.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中早期血管内介入诊疗指南2022.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "prev-01",
+          "question": "房颤患者卒中后二级预防抗凝药物如何选择？",
+          "case_sha256": "3bc1b58621aeeed9c51c31a1495e9f3e961cb8781963fa7d011a688f94e39553",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "prev-02",
+          "question": "非心源性缺血性卒中二级预防抗血小板策略？",
+          "case_sha256": "efbedbcc6ba0069bff5c55e83d8290f742f9c073c96ea6fae8126c225171f435",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "prev-03",
+          "question": "缺血性卒中后高血压的二级预防管理目标？",
+          "case_sha256": "c40579f035ab46a71ea711041a6075375a2aed0fb22c7e96177bb2eb716891ec",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "prev-04",
+          "question": "缺血性卒中后血脂管理的他汀治疗目标？",
+          "case_sha256": "2813079ba2af34ef403d3689d4b16738c1c173e0e8d5a0d2508ce9de5cd5c343",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "prev-05",
+          "question": "卒中后复发的危险因素管理包括哪些？",
+          "case_sha256": "41721f989c989ca2e3737f8f19e52362250f2d566ea53c08300dc57d966daa16",
+          "expected_sources": [
+            "脑血管病防治指南(2024年版).pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "脑血管病防治指南(2024年版).pdf": null
+          },
+          "unhit_expected_sources": [
+            "脑血管病防治指南(2024年版).pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "diag-01",
+          "question": "NIHSS 评分的评估内容包括哪些？",
+          "case_sha256": "635b490cb75b4e8611a9fe25828a3c9d75ff061661f2b09f8cf0980920b446b0",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.3333333333333333,
+          "ndcg_at_10": 0.5,
+          "first_hit_rank": 3,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 3
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 12
+            },
+            {
+              "rank": 2,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 8
+            },
+            {
+              "rank": 3,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 19
+            },
+            {
+              "rank": 4,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 17
+            },
+            {
+              "rank": 5,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 5
+            },
+            {
+              "rank": 6,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 4
+            },
+            {
+              "rank": 7,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 21
+            },
+            {
+              "rank": 8,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 9
+            },
+            {
+              "rank": 9,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 10,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 13
+            },
+            {
+              "rank": 11,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 2
+            },
+            {
+              "rank": 12,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 9
+            }
+          ]
+        },
+        {
+          "id": "diag-02",
+          "question": "ASPECTS 评分的意义与判断标准？",
+          "case_sha256": "d9867e808767dfcfe8d009822de9055d5173d49c34c739fc05539d91681aa759",
+          "expected_sources": [
+            "中国急性缺血性卒中早期血管内介入诊疗指南2022.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.16666666666666666,
+          "ndcg_at_10": 0.3562071871080222,
+          "first_hit_rank": 6,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中早期血管内介入诊疗指南2022.pdf": 6
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 8
+            },
+            {
+              "rank": 2,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 13
+            },
+            {
+              "rank": 3,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 932
+            },
+            {
+              "rank": 4,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 949
+            },
+            {
+              "rank": 5,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 874
+            },
+            {
+              "rank": 6,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 4
+            },
+            {
+              "rank": 7,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 334
+            },
+            {
+              "rank": 8,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 970
+            },
+            {
+              "rank": 9,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 5
+            },
+            {
+              "rank": 10,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 904
+            },
+            {
+              "rank": 11,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 97
+            },
+            {
+              "rank": 12,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 14
+            },
+            {
+              "rank": 13,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 101
+            },
+            {
+              "rank": 14,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 54
+            },
+            {
+              "rank": 15,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 12
+            },
+            {
+              "rank": 16,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 33
+            },
+            {
+              "rank": 17,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 659
+            },
+            {
+              "rank": 18,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 1003
+            },
+            {
+              "rank": 19,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 905
+            },
+            {
+              "rank": 20,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 966
+            }
+          ]
+        },
+        {
+          "id": "diag-03",
+          "question": "疑似大血管闭塞时 CTA 的价值？",
+          "case_sha256": "a7fdf0b46273fbfb14ffe92fd938e8d49fc841b0436a861b82846b3fd24efea8",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0,
+          "first_hit_rank": 1,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 1
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 2,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 122
+            },
+            {
+              "rank": 3,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 4
+            },
+            {
+              "rank": 4,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 461
+            },
+            {
+              "rank": 5,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 599
+            },
+            {
+              "rank": 6,
+              "source": "Neuroanatomy through Clinical Cases, 3e (Hal Blumenfeld) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+              "page": 432
+            }
+          ]
+        },
+        {
+          "id": "diag-04",
+          "question": "MRI-DWI 在急性缺血性卒中诊断中的作用？",
+          "case_sha256": "6a3694d24f5f1a065e3b4c44df99fdc06a791ce153eac916b677387c99c5c45e",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        },
+        {
+          "id": "diag-05",
+          "question": "急性脑出血与缺血性卒中的急诊影像鉴别？",
+          "case_sha256": "eb34cbc1a112a4f7499b680e7fa927d2b4c658e40f3180b2c0c09e8b73aa04c7",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": null
+          },
+          "unhit_expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": []
+        }
+      ]
+    },
+    "jieba": {
+      "metrics": {
+        "recall_at_3": 0.6166666666666667,
+        "recall_at_5": 0.7166666666666667,
+        "recall_at_10": 0.8166666666666667,
+        "mrr": 0.5086111111111111,
+        "ndcg_at_10": 0.5775380299887559
+      },
+      "unhit_case_ids": [
+        "anat-01",
+        "anat-02",
+        "anat-03",
+        "anat-04",
+        "anat-05"
+      ],
+      "cases": [
+        {
+          "id": "anat-01",
+          "question": "大脑中动脉(MCA)闭塞的典型临床表现有哪些？",
+          "case_sha256": "3ad83c75b4116105c33b67e99b4e5017141ecef6f84c83564f48702a1b446a3c",
+          "expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "neuroanatomy_clinical_cases.pdf": null
+          },
+          "unhit_expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 12
+            },
+            {
+              "rank": 2,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 13
+            },
+            {
+              "rank": 3,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 8
+            },
+            {
+              "rank": 4,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 5,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 2
+            },
+            {
+              "rank": 6,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 7,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 2
+            },
+            {
+              "rank": 8,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 9,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 4
+            },
+            {
+              "rank": 10,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 20
+            },
+            {
+              "rank": 11,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 12
+            },
+            {
+              "rank": 12,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 7
+            },
+            {
+              "rank": 13,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 14
+            },
+            {
+              "rank": 14,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 3
+            },
+            {
+              "rank": 15,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 14
+            },
+            {
+              "rank": 16,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 1
+            },
+            {
+              "rank": 17,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 18
+            },
+            {
+              "rank": 18,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 19,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 8
+            },
+            {
+              "rank": 20,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 17
+            }
+          ]
+        },
+        {
+          "id": "anat-02",
+          "question": "大脑前动脉(ACA)供血区梗死的主要表现？",
+          "case_sha256": "0cc674085cfecd5620a35b1754740f8dbe1d25423c1139df6da5d38f7b1f47ef",
+          "expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "neuroanatomy_clinical_cases.pdf": null
+          },
+          "unhit_expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 2
+            },
+            {
+              "rank": 2,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 12
+            },
+            {
+              "rank": 3,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 4,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 5,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 8
+            },
+            {
+              "rank": 6,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 20
+            },
+            {
+              "rank": 7,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 3
+            },
+            {
+              "rank": 8,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 9,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 8
+            },
+            {
+              "rank": 10,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 1
+            },
+            {
+              "rank": 11,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 12,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 20
+            },
+            {
+              "rank": 13,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 4
+            },
+            {
+              "rank": 14,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 11
+            },
+            {
+              "rank": 15,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 17
+            },
+            {
+              "rank": 16,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 13
+            },
+            {
+              "rank": 17,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 14
+            },
+            {
+              "rank": 18,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 14
+            },
+            {
+              "rank": 19,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 3
+            },
+            {
+              "rank": 20,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 9
+            }
+          ]
+        },
+        {
+          "id": "anat-03",
+          "question": "Broca 区位于哪个脑回，损伤后表现是什么？",
+          "case_sha256": "71175eb5cd6f203340c89ba54088d30dd31a2406d727451a3df24ec92e3837f2",
+          "expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "neuroanatomy_clinical_cases.pdf": null
+          },
+          "unhit_expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 2,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 8
+            },
+            {
+              "rank": 3,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 3
+            },
+            {
+              "rank": 4,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 20
+            },
+            {
+              "rank": 5,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 2
+            },
+            {
+              "rank": 6,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 79
+            },
+            {
+              "rank": 7,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 8,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 4
+            },
+            {
+              "rank": 9,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 4
+            },
+            {
+              "rank": 10,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 18
+            },
+            {
+              "rank": 11,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 19
+            },
+            {
+              "rank": 12,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 13,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 4
+            },
+            {
+              "rank": 14,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 15
+            },
+            {
+              "rank": 15,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 12
+            },
+            {
+              "rank": 16,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 2
+            },
+            {
+              "rank": 17,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 8
+            },
+            {
+              "rank": 18,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 17
+            },
+            {
+              "rank": 19,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 17
+            },
+            {
+              "rank": 20,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 96
+            }
+          ]
+        },
+        {
+          "id": "anat-04",
+          "question": "大脑后动脉(PCA)综合征的临床特征？",
+          "case_sha256": "16e34ba64762f2e0d836ee7c9444d0fc2a37c6df07dc7730f166e03cffc6d362",
+          "expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "neuroanatomy_clinical_cases.pdf": null
+          },
+          "unhit_expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 13
+            },
+            {
+              "rank": 2,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 20
+            },
+            {
+              "rank": 3,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 24
+            },
+            {
+              "rank": 4,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 6
+            },
+            {
+              "rank": 5,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 14
+            },
+            {
+              "rank": 6,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 20
+            },
+            {
+              "rank": 7,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 17
+            },
+            {
+              "rank": 8,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 12
+            },
+            {
+              "rank": 9,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 3
+            },
+            {
+              "rank": 10,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 10
+            },
+            {
+              "rank": 11,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 1
+            },
+            {
+              "rank": 12,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 8
+            },
+            {
+              "rank": 13,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 35
+            },
+            {
+              "rank": 14,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 12
+            },
+            {
+              "rank": 15,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 16,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 17,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 2
+            },
+            {
+              "rank": 18,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 15
+            },
+            {
+              "rank": 19,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 20,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 14
+            }
+          ]
+        },
+        {
+          "id": "anat-05",
+          "question": "内囊后肢损伤的定位体征是什么？",
+          "case_sha256": "22d7c2ac1d355a6756792e093d78411e22fdf7e201bdb1dc8c6879288c51e1b8",
+          "expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": 0.0,
+          "first_hit_rank": null,
+          "expected_source_ranks": {
+            "neuroanatomy_clinical_cases.pdf": null
+          },
+          "unhit_expected_sources": [
+            "neuroanatomy_clinical_cases.pdf"
+          ],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 3
+            },
+            {
+              "rank": 2,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 24
+            },
+            {
+              "rank": 3,
+              "source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+              "page": 2
+            },
+            {
+              "rank": 4,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 96
+            },
+            {
+              "rank": 5,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 20
+            },
+            {
+              "rank": 6,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 8
+            },
+            {
+              "rank": 7,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 4
+            },
+            {
+              "rank": 8,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 9
+            },
+            {
+              "rank": 9,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 79
+            },
+            {
+              "rank": 10,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 22
+            },
+            {
+              "rank": 11,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 4
+            },
+            {
+              "rank": 12,
+              "source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+              "page": 3
+            },
+            {
+              "rank": 13,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 12
+            },
+            {
+              "rank": 14,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 7
+            },
+            {
+              "rank": 15,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 8
+            },
+            {
+              "rank": 16,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 18
+            },
+            {
+              "rank": 17,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 18,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 19
+            },
+            {
+              "rank": 19,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 4
+            },
+            {
+              "rank": 20,
+              "source": "脑卒中中西医结合防治指南（2023 版）.pdf",
+              "page": 9
+            }
+          ]
+        },
+        {
+          "id": "etio-01",
+          "question": "急性缺血性卒中的 TOAST 病因分型包括哪几类？",
+          "case_sha256": "fd335da73a911e47ead667d772ded16eabf86be7c6ffa8906144e14cd4c8991b",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0,
+          "first_hit_rank": 1,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 1
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 2,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 3,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 1
+            },
+            {
+              "rank": 4,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 1
+            },
+            {
+              "rank": 5,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 9
+            },
+            {
+              "rank": 6,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 7,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 8,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 10
+            },
+            {
+              "rank": 9,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 10,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 2
+            },
+            {
+              "rank": 11,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 12,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 119
+            },
+            {
+              "rank": 13,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 4
+            },
+            {
+              "rank": 14,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 75
+            },
+            {
+              "rank": 15,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 16,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 2
+            },
+            {
+              "rank": 17,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 1
+            },
+            {
+              "rank": 18,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 11
+            },
+            {
+              "rank": 19,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 20,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 17
+            }
+          ]
+        },
+        {
+          "id": "etio-02",
+          "question": "什么是 ESUS（不明原因栓塞性卒中）？",
+          "case_sha256": "998d77bd17aa7bba82e07c2daf14760d2114023fa32ccbab02448b370132b04c",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.5,
+          "ndcg_at_10": 0.6309297535714575,
+          "first_hit_rank": 2,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 2
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 23
+            },
+            {
+              "rank": 2,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 3,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 4,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 19
+            },
+            {
+              "rank": 5,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 24
+            },
+            {
+              "rank": 6,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 7
+            },
+            {
+              "rank": 7,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 76
+            },
+            {
+              "rank": 8,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 25
+            },
+            {
+              "rank": 9,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 8
+            },
+            {
+              "rank": 10,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 22
+            },
+            {
+              "rank": 11,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 22
+            },
+            {
+              "rank": 12,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 21
+            },
+            {
+              "rank": 13,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 10
+            },
+            {
+              "rank": 14,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 20
+            },
+            {
+              "rank": 15,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 20
+            },
+            {
+              "rank": 16,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 5
+            },
+            {
+              "rank": 17,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 2
+            },
+            {
+              "rank": 18,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 77
+            },
+            {
+              "rank": 19,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 1
+            },
+            {
+              "rank": 20,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 22
+            }
+          ]
+        },
+        {
+          "id": "etio-03",
+          "question": "房颤导致缺血性卒中的主要机制是什么？",
+          "case_sha256": "6a59150dc73d26c7ce8752753cdc9d6fd7fc37a5a18fbd5ddd7560b493f510e3",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.5,
+          "ndcg_at_10": 0.6309297535714575,
+          "first_hit_rank": 2,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 2
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 9
+            },
+            {
+              "rank": 2,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 3,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 12
+            },
+            {
+              "rank": 4,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 1
+            },
+            {
+              "rank": 5,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 10
+            },
+            {
+              "rank": 6,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 7,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 17
+            },
+            {
+              "rank": 8,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 35
+            },
+            {
+              "rank": 9,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 23
+            },
+            {
+              "rank": 10,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 2
+            },
+            {
+              "rank": 11,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 8
+            },
+            {
+              "rank": 12,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 13
+            },
+            {
+              "rank": 13,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 1
+            },
+            {
+              "rank": 14,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 9
+            },
+            {
+              "rank": 15,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 1
+            },
+            {
+              "rank": 16,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 17,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 2
+            },
+            {
+              "rank": 18,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 4
+            },
+            {
+              "rank": 19,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 20,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 14
+            }
+          ]
+        },
+        {
+          "id": "etio-04",
+          "question": "大动脉粥样硬化型卒中的发病机制有哪些？",
+          "case_sha256": "5fe21600692ed6c1fcc0958895927c7e8f7d434d241e2723d9fcb603abae1fcb",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0,
+          "first_hit_rank": 1,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 1
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 2,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 12
+            },
+            {
+              "rank": 3,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 4,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 5,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 6,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 13
+            },
+            {
+              "rank": 7,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 14
+            },
+            {
+              "rank": 8,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 1
+            },
+            {
+              "rank": 9,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 24
+            },
+            {
+              "rank": 10,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 11,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 27
+            },
+            {
+              "rank": 12,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 12
+            },
+            {
+              "rank": 13,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 19
+            },
+            {
+              "rank": 14,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 80
+            },
+            {
+              "rank": 15,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 8
+            },
+            {
+              "rank": 16,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 17
+            },
+            {
+              "rank": 17,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 82
+            },
+            {
+              "rank": 18,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 3
+            },
+            {
+              "rank": 19,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 21
+            },
+            {
+              "rank": 20,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 17
+            }
+          ]
+        },
+        {
+          "id": "etio-05",
+          "question": "小动脉闭塞型（腔隙性）卒中的特征？",
+          "case_sha256": "51fd3ff9c2af4313ff95b2cbacc032d634df0d31781134e00222bd143c9c70ab",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0,
+          "first_hit_rank": 1,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 1
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 2,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 82
+            },
+            {
+              "rank": 3,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 3
+            },
+            {
+              "rank": 4,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 17
+            },
+            {
+              "rank": 5,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 12
+            },
+            {
+              "rank": 6,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 7,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 14
+            },
+            {
+              "rank": 8,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 1
+            },
+            {
+              "rank": 9,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 24
+            },
+            {
+              "rank": 10,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 76
+            },
+            {
+              "rank": 11,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 14
+            },
+            {
+              "rank": 12,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 9
+            },
+            {
+              "rank": 13,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 14,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 7
+            },
+            {
+              "rank": 15,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 13
+            },
+            {
+              "rank": 16,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 3
+            },
+            {
+              "rank": 17,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 2
+            },
+            {
+              "rank": 18,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 13
+            },
+            {
+              "rank": 19,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 20,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 5
+            }
+          ]
+        },
+        {
+          "id": "tx-01",
+          "question": "急性缺血性卒中静脉溶栓的时间窗是多少？",
+          "case_sha256": "7ecf491ab0d22583b9788ce8cd2d46735fbca25aed1d31caf0792bc20d801dd7",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.25,
+          "ndcg_at_10": 0.43067655807339306,
+          "first_hit_rank": 4,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 4
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 1
+            },
+            {
+              "rank": 2,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 3,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 11
+            },
+            {
+              "rank": 4,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 8
+            },
+            {
+              "rank": 5,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 6,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 11
+            },
+            {
+              "rank": 7,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 4
+            },
+            {
+              "rank": 8,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 9,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 2
+            },
+            {
+              "rank": 10,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 11,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 1
+            },
+            {
+              "rank": 12,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 3
+            },
+            {
+              "rank": 13,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 75
+            },
+            {
+              "rank": 14,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 12
+            },
+            {
+              "rank": 15,
+              "source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+              "page": 5
+            },
+            {
+              "rank": 16,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 3
+            },
+            {
+              "rank": 17,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 18,
+              "source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+              "page": 1
+            },
+            {
+              "rank": 19,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 20,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 6
+            }
+          ]
+        },
+        {
+          "id": "tx-02",
+          "question": "阿替普酶静脉溶栓的主要禁忌证有哪些？",
+          "case_sha256": "48ac132cc9faec2f782a4a96c10b11d9e7ece2d856f29c3da11129b1d0f0c627",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0,
+          "first_hit_rank": 1,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 1
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 11
+            },
+            {
+              "rank": 2,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 12
+            },
+            {
+              "rank": 3,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 8
+            },
+            {
+              "rank": 4,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 9
+            },
+            {
+              "rank": 5,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 13
+            },
+            {
+              "rank": 6,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 2
+            },
+            {
+              "rank": 7,
+              "source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+              "page": 4
+            },
+            {
+              "rank": 8,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 1
+            },
+            {
+              "rank": 9,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 10,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 8
+            },
+            {
+              "rank": 11,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 12,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 13,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 14,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 15,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 16,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 78
+            },
+            {
+              "rank": 17,
+              "source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+              "page": 5
+            },
+            {
+              "rank": 18,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 2
+            },
+            {
+              "rank": 19,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 1
+            },
+            {
+              "rank": 20,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 7
+            }
+          ]
+        },
+        {
+          "id": "tx-03",
+          "question": "急性大血管闭塞机械取栓的适应证？",
+          "case_sha256": "e21f016180000e62d11c10eeefe32872cb8fa56abda5810e5bef5ece91fa413b",
+          "expected_sources": [
+            "中国急性缺血性卒中早期血管内介入诊疗指南2022.pdf",
+            "急性缺血性卒中血管内治疗中国指南2023.pdf"
+          ],
+          "recall_at_3": 0.5,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 0.8503449055347546,
+          "first_hit_rank": 1,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中早期血管内介入诊疗指南2022.pdf": 5,
+            "急性缺血性卒中血管内治疗中国指南2023.pdf": 1
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 2,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 12
+            },
+            {
+              "rank": 3,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 13
+            },
+            {
+              "rank": 4,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 13
+            },
+            {
+              "rank": 5,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 3
+            },
+            {
+              "rank": 6,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 7,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 8,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 9,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 14
+            },
+            {
+              "rank": 10,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 8
+            },
+            {
+              "rank": 11,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 9
+            },
+            {
+              "rank": 12,
+              "source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+              "page": 5
+            },
+            {
+              "rank": 13,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 7
+            },
+            {
+              "rank": 14,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 8
+            },
+            {
+              "rank": 15,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 16,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 6
+            },
+            {
+              "rank": 17,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 18,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 1
+            },
+            {
+              "rank": 19,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 20,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 2
+            }
+          ]
+        },
+        {
+          "id": "tx-04",
+          "question": "急性缺血性卒中溶栓前的血压控制目标？",
+          "case_sha256": "4e6488111df3283ff322c59b7ec387c5bc293c7c685fee423d7f352b4bd09d5a",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0,
+          "first_hit_rank": 1,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 1
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 2,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 75
+            },
+            {
+              "rank": 3,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 8
+            },
+            {
+              "rank": 4,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 9
+            },
+            {
+              "rank": 5,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 1
+            },
+            {
+              "rank": 6,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 7,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 8,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 9,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 1
+            },
+            {
+              "rank": 10,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 10
+            },
+            {
+              "rank": 11,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 76
+            },
+            {
+              "rank": 12,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 73
+            },
+            {
+              "rank": 13,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 3
+            },
+            {
+              "rank": 14,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 80
+            },
+            {
+              "rank": 15,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 78
+            },
+            {
+              "rank": 16,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 3
+            },
+            {
+              "rank": 17,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 12
+            },
+            {
+              "rank": 18,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 2
+            },
+            {
+              "rank": 19,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 20,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 18
+            }
+          ]
+        },
+        {
+          "id": "tx-05",
+          "question": "房颤相关缺血性卒中急性期抗凝何时启动？",
+          "case_sha256": "2ab3c740557757baef62317467d0a5e1c3d657048069743078796f0f12ccc84f",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0,
+          "first_hit_rank": 1,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 1
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 2,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 9
+            },
+            {
+              "rank": 3,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 119
+            },
+            {
+              "rank": 4,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 5,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 1
+            },
+            {
+              "rank": 6,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 19
+            },
+            {
+              "rank": 7,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 8,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 1
+            },
+            {
+              "rank": 9,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 78
+            },
+            {
+              "rank": 10,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 11,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 118
+            },
+            {
+              "rank": 12,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 94
+            },
+            {
+              "rank": 13,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 77
+            },
+            {
+              "rank": 14,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 75
+            },
+            {
+              "rank": 15,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 10
+            },
+            {
+              "rank": 16,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 20
+            },
+            {
+              "rank": 17,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 2
+            },
+            {
+              "rank": 18,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 17
+            },
+            {
+              "rank": 19,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 74
+            },
+            {
+              "rank": 20,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 4
+            }
+          ]
+        },
+        {
+          "id": "tx-06",
+          "question": "替奈普酶与阿替普酶静脉溶栓的比较？",
+          "case_sha256": "f6a22cb7dbc4a79f53550c4a78e354f33a60030787cb3ae128ec8dcb6bffc029",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0,
+          "first_hit_rank": 1,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 1
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 2,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 11
+            },
+            {
+              "rank": 3,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 11
+            },
+            {
+              "rank": 4,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 13
+            },
+            {
+              "rank": 5,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 8
+            },
+            {
+              "rank": 6,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 9
+            },
+            {
+              "rank": 7,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 8,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 9,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 14
+            },
+            {
+              "rank": 10,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 3
+            },
+            {
+              "rank": 11,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 13
+            },
+            {
+              "rank": 12,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 2
+            },
+            {
+              "rank": 13,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 14,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 15,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 16,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 10
+            },
+            {
+              "rank": 17,
+              "source": "脑卒中中西医结合防治指南（2023 版）.pdf",
+              "page": 5
+            },
+            {
+              "rank": 18,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 12
+            },
+            {
+              "rank": 19,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 20,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 5
+            }
+          ]
+        },
+        {
+          "id": "tx-07",
+          "question": "轻型卒中（NIHSS≤5）急性期双抗治疗的适应证？",
+          "case_sha256": "3a76ea4054dd82b87e4f2fb0689037657a1819bdfcfbc36b4a7b8bd0ffc321bd",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0,
+          "first_hit_rank": 1,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 1
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 2,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 12
+            },
+            {
+              "rank": 3,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 9
+            },
+            {
+              "rank": 4,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 11
+            },
+            {
+              "rank": 5,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 8
+            },
+            {
+              "rank": 6,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 13
+            },
+            {
+              "rank": 7,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 74
+            },
+            {
+              "rank": 8,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 2
+            },
+            {
+              "rank": 9,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 10,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 76
+            },
+            {
+              "rank": 11,
+              "source": "脑卒中中西医结合防治指南（2023 版）.pdf",
+              "page": 5
+            },
+            {
+              "rank": 12,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 19
+            },
+            {
+              "rank": 13,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 14,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 15,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 78
+            },
+            {
+              "rank": 16,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 5
+            },
+            {
+              "rank": 17,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 14
+            },
+            {
+              "rank": 18,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 1
+            },
+            {
+              "rank": 19,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 20,
+              "source": "脑卒中中西医结合防治指南（2023 版）.pdf",
+              "page": 6
+            }
+          ]
+        },
+        {
+          "id": "tx-08",
+          "question": "桥接治疗（溶栓后取栓）的适用情况？",
+          "case_sha256": "c4a1474673fe4cf7e1293d05555b3ddcece53916c156d3cba6fc94982c808ed8",
+          "expected_sources": [
+            "急性缺血性卒中血管内治疗中国指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0,
+          "first_hit_rank": 1,
+          "expected_source_ranks": {
+            "急性缺血性卒中血管内治疗中国指南2023.pdf": 1
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 2,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 11
+            },
+            {
+              "rank": 3,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 4
+            },
+            {
+              "rank": 4,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 3
+            },
+            {
+              "rank": 5,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 12
+            },
+            {
+              "rank": 6,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 13
+            },
+            {
+              "rank": 7,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 8,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 9,
+              "source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+              "page": 3
+            },
+            {
+              "rank": 10,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 10
+            },
+            {
+              "rank": 11,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 12,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 3
+            },
+            {
+              "rank": 13,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 13
+            },
+            {
+              "rank": 14,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 75
+            },
+            {
+              "rank": 15,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 1
+            },
+            {
+              "rank": 16,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 17
+            },
+            {
+              "rank": 17,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 14
+            },
+            {
+              "rank": 18,
+              "source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+              "page": 5
+            },
+            {
+              "rank": 19,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 20,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 8
+            }
+          ]
+        },
+        {
+          "id": "tx-09",
+          "question": "溶栓后症状性出血转化的处理原则？",
+          "case_sha256": "30f79d65eff2822eb82f19ccc5d3f32fe5bd5b1ecf8c0788336b3780c7efe514",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf",
+            "中国重症卒中管理指南2024.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.5,
+          "recall_at_10": 0.5,
+          "mrr": 0.2,
+          "ndcg_at_10": 0.23719771276929622,
+          "first_hit_rank": 5,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 5,
+            "中国重症卒中管理指南2024.pdf": 18
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 7
+            },
+            {
+              "rank": 2,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 1
+            },
+            {
+              "rank": 3,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 8
+            },
+            {
+              "rank": 4,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 2
+            },
+            {
+              "rank": 5,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 21
+            },
+            {
+              "rank": 6,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 6
+            },
+            {
+              "rank": 7,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 4
+            },
+            {
+              "rank": 8,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 5
+            },
+            {
+              "rank": 9,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 9
+            },
+            {
+              "rank": 10,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 3
+            },
+            {
+              "rank": 11,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 4
+            },
+            {
+              "rank": 12,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 20
+            },
+            {
+              "rank": 13,
+              "source": "脑卒中中西医结合防治指南（2023 版）.pdf",
+              "page": 6
+            },
+            {
+              "rank": 14,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 19
+            },
+            {
+              "rank": 15,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 16,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 9
+            },
+            {
+              "rank": 17,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 18,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 7
+            },
+            {
+              "rank": 19,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 20,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 20
+            }
+          ]
+        },
+        {
+          "id": "tx-10",
+          "question": "急性缺血性卒中血管内取栓的影像筛选（ASPECTS/灌注）标准？",
+          "case_sha256": "825a588b05f8585a2d7c7925725efcf69c40d94bdde58870eb2ce7d8371c220c",
+          "expected_sources": [
+            "中国急性缺血性卒中早期血管内介入诊疗指南2022.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.5,
+          "ndcg_at_10": 0.6309297535714575,
+          "first_hit_rank": 2,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中早期血管内介入诊疗指南2022.pdf": 2
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 2,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 4
+            },
+            {
+              "rank": 3,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 5
+            },
+            {
+              "rank": 4,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 8
+            },
+            {
+              "rank": 5,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 6,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 9
+            },
+            {
+              "rank": 7,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 11
+            },
+            {
+              "rank": 8,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 1
+            },
+            {
+              "rank": 9,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 8
+            },
+            {
+              "rank": 10,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 2
+            },
+            {
+              "rank": 11,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 12,
+              "source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+              "page": 5
+            },
+            {
+              "rank": 13,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 3
+            },
+            {
+              "rank": 14,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 15,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 16,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 13
+            },
+            {
+              "rank": 17,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 13
+            },
+            {
+              "rank": 18,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 4
+            },
+            {
+              "rank": 19,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 2
+            },
+            {
+              "rank": 20,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 14
+            }
+          ]
+        },
+        {
+          "id": "prev-01",
+          "question": "房颤患者卒中后二级预防抗凝药物如何选择？",
+          "case_sha256": "3bc1b58621aeeed9c51c31a1495e9f3e961cb8781963fa7d011a688f94e39553",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.5,
+          "ndcg_at_10": 0.6309297535714575,
+          "first_hit_rank": 2,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 2
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 23
+            },
+            {
+              "rank": 2,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 3,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 9
+            },
+            {
+              "rank": 4,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 22
+            },
+            {
+              "rank": 5,
+              "source": "脑卒中中西医结合防治指南（2023 版）.pdf",
+              "page": 4
+            },
+            {
+              "rank": 6,
+              "source": "脑卒中中西医结合防治指南（2023 版）.pdf",
+              "page": 5
+            },
+            {
+              "rank": 7,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 24
+            },
+            {
+              "rank": 8,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 70
+            },
+            {
+              "rank": 9,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 19
+            },
+            {
+              "rank": 10,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 22
+            },
+            {
+              "rank": 11,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 21
+            },
+            {
+              "rank": 12,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 7
+            },
+            {
+              "rank": 13,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 97
+            },
+            {
+              "rank": 14,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 80
+            },
+            {
+              "rank": 15,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 10
+            },
+            {
+              "rank": 16,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 20
+            },
+            {
+              "rank": 17,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 7
+            },
+            {
+              "rank": 18,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 21
+            },
+            {
+              "rank": 19,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 8
+            },
+            {
+              "rank": 20,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 116
+            }
+          ]
+        },
+        {
+          "id": "prev-02",
+          "question": "非心源性缺血性卒中二级预防抗血小板策略？",
+          "case_sha256": "efbedbcc6ba0069bff5c55e83d8290f742f9c073c96ea6fae8126c225171f435",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.16666666666666666,
+          "ndcg_at_10": 0.3562071871080222,
+          "first_hit_rank": 6,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 6
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 9
+            },
+            {
+              "rank": 2,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 13
+            },
+            {
+              "rank": 3,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 119
+            },
+            {
+              "rank": 4,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 14
+            },
+            {
+              "rank": 5,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 10
+            },
+            {
+              "rank": 6,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 7,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 8,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 10
+            },
+            {
+              "rank": 9,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 12
+            },
+            {
+              "rank": 10,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 120
+            },
+            {
+              "rank": 11,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 14
+            },
+            {
+              "rank": 12,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 13,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 1
+            },
+            {
+              "rank": 14,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 81
+            },
+            {
+              "rank": 15,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 20
+            },
+            {
+              "rank": 16,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 3
+            },
+            {
+              "rank": 17,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 1
+            },
+            {
+              "rank": 18,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 116
+            },
+            {
+              "rank": 19,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 39
+            },
+            {
+              "rank": 20,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 4
+            }
+          ]
+        },
+        {
+          "id": "prev-03",
+          "question": "缺血性卒中后高血压的二级预防管理目标？",
+          "case_sha256": "c40579f035ab46a71ea711041a6075375a2aed0fb22c7e96177bb2eb716891ec",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.3333333333333333,
+          "ndcg_at_10": 0.5,
+          "first_hit_rank": 3,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 3
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 80
+            },
+            {
+              "rank": 2,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 75
+            },
+            {
+              "rank": 3,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 4,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 74
+            },
+            {
+              "rank": 5,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 81
+            },
+            {
+              "rank": 6,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 8
+            },
+            {
+              "rank": 7,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 11
+            },
+            {
+              "rank": 8,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 82
+            },
+            {
+              "rank": 9,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 73
+            },
+            {
+              "rank": 10,
+              "source": "脑卒中中西医结合防治指南（2023 版）.pdf",
+              "page": 4
+            },
+            {
+              "rank": 11,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 76
+            },
+            {
+              "rank": 12,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 105
+            },
+            {
+              "rank": 13,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 93
+            },
+            {
+              "rank": 14,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 78
+            },
+            {
+              "rank": 15,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 16,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 97
+            },
+            {
+              "rank": 17,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 9
+            },
+            {
+              "rank": 18,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 1
+            },
+            {
+              "rank": 19,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 9
+            },
+            {
+              "rank": 20,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 94
+            }
+          ]
+        },
+        {
+          "id": "prev-04",
+          "question": "缺血性卒中后血脂管理的他汀治疗目标？",
+          "case_sha256": "2813079ba2af34ef403d3689d4b16738c1c173e0e8d5a0d2508ce9de5cd5c343",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.125,
+          "ndcg_at_10": 0.31546487678572877,
+          "first_hit_rank": 8,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 8
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 123
+            },
+            {
+              "rank": 2,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 121
+            },
+            {
+              "rank": 3,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 119
+            },
+            {
+              "rank": 4,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 117
+            },
+            {
+              "rank": 5,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 120
+            },
+            {
+              "rank": 6,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 15
+            },
+            {
+              "rank": 7,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 71
+            },
+            {
+              "rank": 8,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 9,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 116
+            },
+            {
+              "rank": 10,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 16
+            },
+            {
+              "rank": 11,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 122
+            },
+            {
+              "rank": 12,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 13,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 118
+            },
+            {
+              "rank": 14,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 17
+            },
+            {
+              "rank": 15,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 75
+            },
+            {
+              "rank": 16,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 19
+            },
+            {
+              "rank": 17,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 70
+            },
+            {
+              "rank": 18,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 14
+            },
+            {
+              "rank": 19,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 80
+            },
+            {
+              "rank": 20,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 105
+            }
+          ]
+        },
+        {
+          "id": "prev-05",
+          "question": "卒中后复发的危险因素管理包括哪些？",
+          "case_sha256": "41721f989c989ca2e3737f8f19e52362250f2d566ea53c08300dc57d966daa16",
+          "expected_sources": [
+            "脑血管病防治指南(2024年版).pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.3333333333333333,
+          "ndcg_at_10": 0.5,
+          "first_hit_rank": 3,
+          "expected_source_ranks": {
+            "脑血管病防治指南(2024年版).pdf": 3
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 81
+            },
+            {
+              "rank": 2,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 80
+            },
+            {
+              "rank": 3,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 4
+            },
+            {
+              "rank": 4,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 8
+            },
+            {
+              "rank": 5,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 94
+            },
+            {
+              "rank": 6,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 83
+            },
+            {
+              "rank": 7,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 21
+            },
+            {
+              "rank": 8,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 106
+            },
+            {
+              "rank": 9,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 29
+            },
+            {
+              "rank": 10,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 11
+            },
+            {
+              "rank": 11,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 28
+            },
+            {
+              "rank": 12,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 16
+            },
+            {
+              "rank": 13,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 97
+            },
+            {
+              "rank": 14,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 70
+            },
+            {
+              "rank": 15,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 10
+            },
+            {
+              "rank": 16,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 5
+            },
+            {
+              "rank": 17,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 71
+            },
+            {
+              "rank": 18,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 35
+            },
+            {
+              "rank": 19,
+              "source": "脑卒中中西医结合防治指南（2023 版）.pdf",
+              "page": 4
+            },
+            {
+              "rank": 20,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 67
+            }
+          ]
+        },
+        {
+          "id": "diag-01",
+          "question": "NIHSS 评分的评估内容包括哪些？",
+          "case_sha256": "635b490cb75b4e8611a9fe25828a3c9d75ff061661f2b09f8cf0980920b446b0",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.1,
+          "ndcg_at_10": 0.2890648263178879,
+          "first_hit_rank": 10,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 10
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 4
+            },
+            {
+              "rank": 2,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 13
+            },
+            {
+              "rank": 3,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 8
+            },
+            {
+              "rank": 4,
+              "source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+              "page": 2
+            },
+            {
+              "rank": 5,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 4
+            },
+            {
+              "rank": 6,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 9
+            },
+            {
+              "rank": 7,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 6
+            },
+            {
+              "rank": 8,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 12
+            },
+            {
+              "rank": 9,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 4
+            },
+            {
+              "rank": 10,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 9
+            },
+            {
+              "rank": 11,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 12,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 5
+            },
+            {
+              "rank": 13,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 25
+            },
+            {
+              "rank": 14,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 15,
+              "source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+              "page": 4
+            },
+            {
+              "rank": 16,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 2
+            },
+            {
+              "rank": 17,
+              "source": "脑卒中中西医结合防治指南（2023 版）.pdf",
+              "page": 5
+            },
+            {
+              "rank": 18,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 19
+            },
+            {
+              "rank": 19,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 20,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 14
+            }
+          ]
+        },
+        {
+          "id": "diag-02",
+          "question": "ASPECTS 评分的意义与判断标准？",
+          "case_sha256": "d9867e808767dfcfe8d009822de9055d5173d49c34c739fc05539d91681aa759",
+          "expected_sources": [
+            "中国急性缺血性卒中早期血管内介入诊疗指南2022.pdf"
+          ],
+          "recall_at_3": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.25,
+          "ndcg_at_10": 0.43067655807339306,
+          "first_hit_rank": 4,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中早期血管内介入诊疗指南2022.pdf": 4
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 2,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 8
+            },
+            {
+              "rank": 3,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 6
+            },
+            {
+              "rank": 4,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 4
+            },
+            {
+              "rank": 5,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 6,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 5
+            },
+            {
+              "rank": 7,
+              "source": "中国急性脑梗死后出血转化诊治共识2019.pdf",
+              "page": 7
+            },
+            {
+              "rank": 8,
+              "source": "中国重症卒中管理指南2024.pdf",
+              "page": 8
+            },
+            {
+              "rank": 9,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 14
+            },
+            {
+              "rank": 10,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 11,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 11
+            },
+            {
+              "rank": 12,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 2
+            },
+            {
+              "rank": 13,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 13
+            },
+            {
+              "rank": 14,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 15,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 8
+            },
+            {
+              "rank": 16,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 17,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 13
+            },
+            {
+              "rank": 18,
+              "source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+              "page": 2
+            },
+            {
+              "rank": 19,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 78
+            },
+            {
+              "rank": 20,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 10
+            }
+          ]
+        },
+        {
+          "id": "diag-03",
+          "question": "疑似大血管闭塞时 CTA 的价值？",
+          "case_sha256": "a7fdf0b46273fbfb14ffe92fd938e8d49fc841b0436a861b82846b3fd24efea8",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.5,
+          "ndcg_at_10": 0.6309297535714575,
+          "first_hit_rank": 2,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 2
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 9
+            },
+            {
+              "rank": 2,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 3,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 8
+            },
+            {
+              "rank": 4,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 5
+            },
+            {
+              "rank": 5,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 12
+            },
+            {
+              "rank": 6,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 12
+            },
+            {
+              "rank": 7,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 4
+            },
+            {
+              "rank": 8,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 9,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 4
+            },
+            {
+              "rank": 10,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 15
+            },
+            {
+              "rank": 11,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 20
+            },
+            {
+              "rank": 12,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 3
+            },
+            {
+              "rank": 13,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 4
+            },
+            {
+              "rank": 14,
+              "source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+              "page": 5
+            },
+            {
+              "rank": 15,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 7
+            },
+            {
+              "rank": 16,
+              "source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+              "page": 2
+            },
+            {
+              "rank": 17,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 18,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 14
+            },
+            {
+              "rank": 19,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 1
+            },
+            {
+              "rank": 20,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 13
+            }
+          ]
+        },
+        {
+          "id": "diag-04",
+          "question": "MRI-DWI 在急性缺血性卒中诊断中的作用？",
+          "case_sha256": "6a3694d24f5f1a065e3b4c44df99fdc06a791ce153eac916b677387c99c5c45e",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.5,
+          "ndcg_at_10": 0.6309297535714575,
+          "first_hit_rank": 2,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 2
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 1
+            },
+            {
+              "rank": 2,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 3,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 4,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 4
+            },
+            {
+              "rank": 5,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 6,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 2
+            },
+            {
+              "rank": 7,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 1
+            },
+            {
+              "rank": 8,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 17
+            },
+            {
+              "rank": 9,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 2
+            },
+            {
+              "rank": 10,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 8
+            },
+            {
+              "rank": 11,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 12,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 13,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 8
+            },
+            {
+              "rank": 14,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 75
+            },
+            {
+              "rank": 15,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 9
+            },
+            {
+              "rank": 16,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 11
+            },
+            {
+              "rank": 17,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 18,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 14
+            },
+            {
+              "rank": 19,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 19
+            },
+            {
+              "rank": 20,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 3
+            }
+          ]
+        },
+        {
+          "id": "diag-05",
+          "question": "急性脑出血与缺血性卒中的急诊影像鉴别？",
+          "case_sha256": "eb34cbc1a112a4f7499b680e7fa927d2b4c658e40f3180b2c0c09e8b73aa04c7",
+          "expected_sources": [
+            "中国急性缺血性卒中诊治指南2023.pdf"
+          ],
+          "recall_at_3": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.5,
+          "ndcg_at_10": 0.6309297535714575,
+          "first_hit_rank": 2,
+          "expected_source_ranks": {
+            "中国急性缺血性卒中诊治指南2023.pdf": 2
+          },
+          "unhit_expected_sources": [],
+          "missing_expected_sources": [],
+          "ranking": [
+            {
+              "rank": 1,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 18
+            },
+            {
+              "rank": 2,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 3,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 10
+            },
+            {
+              "rank": 4,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 1
+            },
+            {
+              "rank": 5,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 6
+            },
+            {
+              "rank": 6,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 7,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 2
+            },
+            {
+              "rank": 8,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 77
+            },
+            {
+              "rank": 9,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 5
+            },
+            {
+              "rank": 10,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 3
+            },
+            {
+              "rank": 11,
+              "source": "中国急性缺血性卒中早期血管内介入诊疗 指南2022.pdf",
+              "page": 4
+            },
+            {
+              "rank": 12,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 1
+            },
+            {
+              "rank": 13,
+              "source": "脑血管病防治指南（2024年版）.pdf",
+              "page": 2
+            },
+            {
+              "rank": 14,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 10
+            },
+            {
+              "rank": 15,
+              "source": "急性缺血性脑卒中急诊急救中国专家共识(2018版).pdf",
+              "page": 4
+            },
+            {
+              "rank": 16,
+              "source": "急性缺血性卒中血管内治疗中国 指南2023.pdf",
+              "page": 16
+            },
+            {
+              "rank": 17,
+              "source": "脑卒中中西医结合防治指南（2023 版）.pdf",
+              "page": 4
+            },
+            {
+              "rank": 18,
+              "source": "中国急性缺血性卒中诊治指南2023.pdf",
+              "page": 7
+            },
+            {
+              "rank": 19,
+              "source": "中国脑卒中防治指导规范（2021 年版）.pdf",
+              "page": 85
+            },
+            {
+              "rank": 20,
+              "source": "急性缺血性脑卒中血管内治疗中国专家共识.pdf",
+              "page": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "delta_jieba_minus_whitespace": {
+    "recall_at_3": 0.4833333333333334,
+    "recall_at_5": 0.5833333333333334,
+    "recall_at_10": 0.65,
+    "mrr": 0.39194444444444443,
+    "ndcg_at_10": 0.44899779041848853
+  }
+}

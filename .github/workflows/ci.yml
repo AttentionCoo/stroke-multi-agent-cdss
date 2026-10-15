@@ -89,6 +89,8 @@ jobs:
       # (test_rag / test_analyze_* / test_api_client 等需要密钥与在线服务, 仅在本地回归)
       - run: |
           python -m pytest tests/test_tools.py tests/test_collection_routing.py \
+            tests/test_bm25_tokenizer.py tests/test_bm25_evaluation.py tests/test_hybrid_retrieval.py \
+            tests/test_eval_ragas.py tests/test_query_translation.py tests/test_retrieval_intent.py \
             tests/test_evidence_router.py tests/test_decision_planner.py \
             tests/test_medical_reranker.py tests/test_tool_use_integration.py \
             tests/test_evaluation_benchmark.py tests/test_structured_outputs.py \
@@ -99,6 +101,7 @@ jobs:
             tests/test_question_extractor.py -q
       # 阶段6 评测闭环: RAGAS 基线快照硬门禁(检索指标不降级)
       - run: python -m app.evaluation.gate --ragas evaluation/ragas_snapshot.json
+      - run: python -m app.evaluation.gate --ragas evaluation/retrieval_final_jieba_20261014.json
       # 阶段6 评测闭环: 离线安全/引用规则评测门禁(冻结预测回归金丝雀)
       - run: |
           python -m app.evaluation.benchmark \
