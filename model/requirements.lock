@@ -129,6 +129,8 @@ idna==3.18
     #   yarl
 importlib-resources==7.1.0
     # via chromadb
+jieba==0.42.1
+    # via -r requirements.txt
 jiter==0.16.0
     # via openai
 jsonpatch==1.33

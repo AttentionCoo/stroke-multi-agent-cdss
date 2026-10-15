@@ -364,6 +364,20 @@ class TestChunkQualityFilter(unittest.TestCase):
         self.assertIn("mca", cleaned)
         self.assertIn("localization", cleaned)
 
+    def test_bm25_chinese_tokenizer_recalls_chinese_terms(self):
+        """jieba 为 BM25 query 与 chunk 提供一致的中文词项。"""
+        from app.rag.bm25 import BM25RetrieverCompat
+        from app.rag.bm25_tokenizer import jieba_bm25_tokenize
+
+        docs = [
+            Document(page_content="他汀可用于卒中二级预防", metadata={"source": "prevention.pdf"}),
+            Document(page_content="阿替普酶静脉溶栓时间窗为4.5小时", metadata={"source": "treatment.pdf"}),
+        ]
+        retriever = BM25RetrieverCompat(docs, k=2)
+
+        self.assertIn("静脉溶栓", jieba_bm25_tokenize("阿替普酶静脉溶栓时间窗"))
+        self.assertEqual(retriever.invoke("阿替普酶静脉溶栓时间窗")[0], docs[1])
+
 
 if __name__ == "__main__":
     unittest.main()
