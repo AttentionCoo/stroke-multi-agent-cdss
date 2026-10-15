@@ -16,28 +16,22 @@ embeddings 使用项目 DashScope text-embedding-v2。
     python -m scripts.eval_ragas [--max-cases N] [--top-k 20]
 """
 import argparse
+import hashlib
 import json
 import logging
-import math
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
-from datasets import Dataset  # noqa: E402
 from langchain_openai import ChatOpenAI  # noqa: E402
 from langchain_core.messages import HumanMessage, SystemMessage  # noqa: E402
-from ragas import evaluate  # noqa: E402
-from ragas.embeddings import LangchainEmbeddingsWrapper  # noqa: E402
-from ragas.llms import LangchainLLMWrapper  # noqa: E402
-from ragas.metrics import (  # noqa: E402
-    faithfulness,
-    answer_relevancy,
-    context_precision,
-    context_recall,
-    answer_correctness,
+from app.evaluation.retrieval_metrics import (  # noqa: E402
+    source_ids,
+    retrieval_metrics as score_retrieval,
 )
 
 from app.agents.services.retrieval_service import route_collections  # noqa: E402
@@ -45,6 +39,7 @@ from app.agents.services.query_translator import translate_query  # noqa: E402
 from app.rag.retrievers import (  # noqa: E402
     UnifiedSearchEngine,
     DashScopeEmbeddings,
+    CONFIG,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -57,44 +52,52 @@ BENCHMARK_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__
 REPORT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                            "evaluation", "regression_report.md")
 
-# 兜底用例(找不到 benchmark 文件时)
-FALLBACK_CASES = [
-    {"id": "fallback-01", "question": "急性缺血性卒中患者, 发病3小时, NIHSS评分18分, 是否适合静脉溶栓?",
-     "evidence_type": "treatment",
-     "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
-     "ground_truth": "发病3小时内且NIHSS≥5分的急性缺血性卒中患者, 无禁忌证时推荐静脉溶栓。"},
-    {"id": "fallback-02", "question": "左侧大脑中动脉综合征的临床表现和解剖定位?",
-     "evidence_type": "anatomy",
-     "expected_source": ["neuroanatomy_clinical_cases.pdf"],
-     "ground_truth": "MCA梗死常致对侧偏瘫、偏身感觉障碍、偏盲, 优势半球受累可有失语。"},
-    {"id": "fallback-03", "question": "急性缺血性卒中 TOAST 病因分型包括哪些?",
-     "evidence_type": "etiology",
-     "expected_source": ["中国急性缺血性卒中诊治指南2023.pdf"],
-     "ground_truth": "TOAST 分型: 大动脉粥样硬化型、心源性栓塞型、小动脉闭塞型、其他明确病因型、不明原因型。"},
-]
+def load_benchmark(path=BENCHMARK_PATH) -> list:
+    """题集缺失或无效时失败，避免悄悄换用小样本而产生虚假提升。"""
+    from scripts.eval_bm25 import load_cases
+
+    cases = load_cases(Path(path))
+    for case in cases:
+        if not case.get("evidence_type") or not case.get("ground_truth"):
+            raise ValueError(f"用例 {case['id']} 缺少 evidence_type 或 ground_truth")
+    logger.info("加载 benchmark: %s (%s 题)", Path(path).name, len(cases))
+    return cases
 
 
-def load_benchmark() -> list:
-    """加载 30 题 benchmark; 不存在时回退兜底用例。"""
-    path = Path(BENCHMARK_PATH)
-    if path.exists():
-        with open(path, encoding="utf-8") as f:
-            cases = json.load(f)
-        logger.info(f"加载 benchmark: {path.name} ({len(cases)} 题)")
-        return cases
-    logger.warning(f"⚠️  benchmark 不存在({path}), 使用兜底 {len(FALLBACK_CASES)} 题")
-    return FALLBACK_CASES
+def _fingerprint(value) -> str:
+    serialized = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _experiment_provenance(cases, engine) -> dict:
+    corpus = sorted(
+        json.dumps({"collection": key, "text": doc.page_content, "metadata": doc.metadata},
+                   ensure_ascii=False, sort_keys=True)
+        for key, retriever in engine.retrievers.items()
+        if retriever.bm25 is not None
+        for doc in retriever.bm25.docs
+    )
+    root = Path(__file__).resolve().parents[1]
+    return {
+        "cases_sha256": _fingerprint(cases),
+        "corpus_sha256": _fingerprint(corpus),
+        "implementation_sha256": {
+            str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in (Path(__file__), root / "app/rag/bm25.py",
+                         root / "app/rag/bm25_tokenizer.py", root / "app/rag/retrievers.py",
+                         root / "app/rag/reranker.py",
+                         root / "app/agents/services/query_translator.py",
+                         root / "app/evaluation/retrieval_metrics.py")
+        },
+        "embedding_query_model": "text-embedding-v2",
+        "query_variants": "仅第一变体；未评测服务层的多变体聚合和不匹配过滤",
+        "relevance": "期望来源覆盖；不代表页面语义相关性或临床正确性",
+    }
 
 
 def source_hit(doc_source: str, expected: list) -> bool:
     """检索结果来源是否命中期望来源文档(支持 QA 对的多来源逗号拼接)。"""
-    src = str(doc_source or "").strip()
-    if not src:
-        return False  # 来源缺失不视为命中, 避免空串 in exp 恒真
-    for exp in expected:
-        if exp and (exp in src or src in exp):
-            return True
-    return False
+    return bool(source_ids(doc_source) & source_ids(expected))
 
 
 def retrieval_metrics(docs, expected: list, k_values=(3, 5, 10)) -> dict:
@@ -103,36 +106,12 @@ def retrieval_metrics(docs, expected: list, k_values=(3, 5, 10)) -> dict:
     相关性按"来源文档"聚合(同一来源多条只算一次), 避免 top-K 全来自
     同一文档时 recall 虚高。
     """
-    m = {}
-    # 首个命中来源的 rank(条目级, 用于 MRR)
-    first_hit_rank = None
-    # 命中来源集合(去重, 用于 recall/ndcg)
-    hit_sources = set()
-    for i, d in enumerate(docs, start=1):
-        src = d.metadata.get("source", "")
-        if source_hit(src, expected):
-            if first_hit_rank is None:
-                first_hit_rank = i
-            hit_sources.add(str(src))
-    for k in k_values:
-        top_sources = {d.metadata.get("source", "") for d in docs[:k]}
-        n_hit = sum(1 for s in top_sources if source_hit(s, expected))
-        m[f"recall@{k}"] = round(min(1.0, n_hit / max(len(expected), 1)), 4)
-    m["mrr"] = round(1.0 / first_hit_rank, 4) if first_hit_rank else 0.0
-    # NDCG@10: 按来源位置相关性(1=命中来源首次出现位置)
-    dcg = 0.0
-    seen = set()
-    for i, d in enumerate(docs[:10], start=1):
-        src = str(d.metadata.get("source", ""))
-        if src in seen:
-            continue
-        seen.add(src)
-        if source_hit(src, expected):
-            dcg += 1.0 / math.log2(i + 1)
-    idcg = sum(1.0 / math.log2(i + 1)
-               for i in range(1, min(len(expected), 10) + 1))
-    m["ndcg@10"] = round(dcg / idcg, 4) if idcg else 0.0
-    return m
+    score = score_retrieval(docs, expected)
+    return {
+        **{f"recall@{k}": round(score[f"recall_at_{k}"], 4) for k in k_values},
+        "mrr": round(score["mrr"], 4),
+        "ndcg@10": round(score["ndcg_at_10"], 4),
+    }
 
 
 def _generate_answer(llm, question: str, contexts: list) -> str:
@@ -158,28 +137,87 @@ def main():
     parser = argparse.ArgumentParser(description="RAGAS + 检索指标评估")
     parser.add_argument("--max-cases", type=int, default=0, help="最多评估题数(0=全部)")
     parser.add_argument("--top-k", type=int, default=20, help="检索指标用的 top-k")
+    parser.add_argument("--cases", type=Path, default=Path(BENCHMARK_PATH), help="评测题集 JSON")
+    parser.add_argument("--candidate-k", type=int, default=CONFIG["retrieval_candidate_k"],
+                        help="每路召回候选数量，与最终返回条数无关")
+    parser.add_argument("--rerank-k", type=int, default=CONFIG["rerank_candidate_k"],
+                        help="固定重排候选数量，与最终返回条数无关")
+    parser.add_argument(
+        "--docs-dir",
+        default=os.getenv("MEDICAL_DOCS_DIR") or CONFIG["docs_dir"],
+        help="知识库 PDF 目录；评测从已有 collection 加载 BM25，不重新入库",
+    )
+    parser.add_argument(
+        "--persist-dir",
+        default=os.getenv("CHROMA_PERSIST_DIR") or CONFIG["persist_dir"],
+        help="持久化 Chroma 目录",
+    )
+    parser.add_argument(
+        "--bm25-tokenizer",
+        choices=("jieba", "whitespace"),
+        default="jieba",
+        help="BM25 分词器；whitespace 用于与旧版本做同配置 A/B 对照",
+    )
+    parser.add_argument("--retrieval-only", action="store_true",
+                        help="仅测真实检索指标，不生成答案或调用 RAGAS 评分")
+    parser.add_argument("--report-path", type=Path, default=Path(REPORT_PATH),
+                        help="Markdown 报告路径，同时生成同名 JSON")
     args = parser.parse_args()
+    if args.top_k < 10:
+        parser.error("--top-k 至少为 10，才能完整评测 Recall@10")
+    if args.max_cases < 0:
+        parser.error("--max-cases 不能为负数")
+    if not 10 <= args.rerank_k <= args.candidate_k:
+        parser.error("评测需满足 10 <= --rerank-k <= --candidate-k")
+
+    # BM25 建索引与查询使用同一选择，进程重启后不会复用旧内存索引。
+    os.environ["BM25_TOKENIZER"] = args.bm25_tokenizer
 
     api_key = os.getenv("DASHSCOPE_API_KEY")
     if not api_key:
         logger.error("DASHSCOPE_API_KEY 未设置")
         sys.exit(1)
 
-    cases = load_benchmark()
+    cases = load_benchmark(args.cases)
     if args.max_cases:
         cases = cases[:args.max_cases]
 
     logger.info("初始化检索链路...")
-    se = UnifiedSearchEngine(persist_dir="/app/chroma_db_unified", top_k=3,
-                             docs_dir="/app/empty_docs")
+    se = UnifiedSearchEngine(persist_dir=args.persist_dir, top_k=3,
+                             docs_dir=args.docs_dir, read_only=True,
+                             candidate_k=args.candidate_k, rerank_k=args.rerank_k)
     total_chunks = sum(c._collection.count() for c in se.collections.values())
     if total_chunks == 0:
         logger.error("❌ 向量库为空, 评估无意义")
         sys.exit(2)
+    bm25_chunks = sum(
+        len(retriever.bm25.docs)
+        for retriever in se.retrievers.values()
+        if retriever.bm25 is not None
+    )
+    if bm25_chunks == 0:
+        logger.error(
+            "❌ BM25 语料为空：请检查 collection 持久化数据"
+        )
+        sys.exit(3)
+    for key, store in se.collections.items():
+        if store._collection.count() > 0 and se.retrievers[key].bm25 is None:
+            logger.error("%s 的 BM25 读取失败，拒绝部分降级的分词对照", key)
+            sys.exit(3)
+    logger.info(f"BM25 语料就绪: {bm25_chunks} 条 chunk ({args.bm25_tokenizer} tokenizer)")
     logger.info(f"向量库就绪: {total_chunks} 条 chunk")
+    provenance = _experiment_provenance(cases, se)
 
-    gen_llm = ChatOpenAI(model="qwen-plus", api_key=api_key,
-                         base_url=DASHSCOPE_BASE, temperature=0.2)
+    gen_llm = None
+    if not args.retrieval_only:
+        from datasets import Dataset
+        from ragas import evaluate
+        from ragas.embeddings import LangchainEmbeddingsWrapper
+        from ragas.llms import LangchainLLMWrapper
+        from ragas.metrics import (faithfulness, answer_relevancy, context_precision,
+                                   context_recall, answer_correctness)
+        gen_llm = ChatOpenAI(model="qwen-plus", api_key=api_key,
+                            base_url=DASHSCOPE_BASE, temperature=0.2)
 
     rows, retr_rows = [], []
     for i, case in enumerate(cases, 1):
@@ -192,17 +230,22 @@ def main():
         # 检索 top-k(评估 Recall@K/MRR/NDCG)
         docs = se.search(retrieval_query, top_k_final=args.top_k,
                          evidence_type=case["evidence_type"],
-                         collections=collections)
+                         collections=collections, rerank_query=q)
         rm = retrieval_metrics(docs, expected)
-        retr_rows.append({"id": case["id"], "question": q, **rm,
+        retr_rows.append({"id": case["id"], "question": q, "retrieval_query": retrieval_query,
+                          "ranking": [{"source": d.metadata.get("source", ""),
+                                       "page": d.metadata.get("page"),
+                                       "rerank_layer": d.metadata.get("rerank_layer")}
+                                      for d in docs], **rm,
                           "first_hit_rank": next((i for i, d in enumerate(docs, 1)
                                                   if source_hit(d.metadata.get("source", ""),
                                                                expected)), "N/A")})
         # top3 上下文给 ragas + 答案生成
         contexts = [d.page_content[:CONTEXT_MAX_CHARS] for d in docs[:3]]
-        answer = _generate_answer(gen_llm, q, contexts)
-        rows.append({"question": q, "answer": answer, "contexts": contexts,
-                     "ground_truth": case["ground_truth"]})
+        if gen_llm is not None:
+            answer = _generate_answer(gen_llm, q, contexts)
+            rows.append({"question": q, "answer": answer, "contexts": contexts,
+                         "ground_truth": case["ground_truth"]})
         logger.info(f"[{i}/{len(cases)}] {case['id']} 检索 top{args.top_k}, "
                     f"recall@5={rm['recall@5']} mrr={rm['mrr']}")
 
@@ -218,6 +261,10 @@ def main():
            for k in ("recall@3", "recall@5", "recall@10", "mrr", "ndcg@10")}
     print(f"  平均: recall@3={avg['recall@3']} recall@5={avg['recall@5']} "
           f"recall@10={avg['recall@10']} mrr={avg['mrr']} ndcg@10={avg['ndcg@10']}")
+
+    if args.retrieval_only:
+        _write_report(cases, retr_rows, avg, {}, args, se.stats(), provenance)
+        return
 
     # RAGAS 指标
     dataset = Dataset.from_list(rows)
@@ -240,13 +287,22 @@ def main():
             print(f"  {col}: {ragas_avg[col]}")
 
     # 生成回归报告
-    _write_report(cases, retr_rows, avg, ragas_avg)
+    _write_report(cases, retr_rows, avg, ragas_avg, args, se.stats(), provenance)
 
 
-def _write_report(cases, retr_rows, avg, ragas_avg):
-    lines = ["# RAGAS 检索回归报告", "",
-             f"- 用例数: {len(cases)}", f"- 生成时间: {Path(__file__).stat().st_mtime}",
-             f"- 检索 top-k: 20(Recall@K 用 3/5/10)", "", "## 检索指标", "",
+def _write_report(cases, retr_rows, avg, ragas_avg, args=None, stats=None, provenance=None):
+    args = args or argparse.Namespace(top_k=20, bm25_tokenizer="jieba",
+                                      report_path=Path(REPORT_PATH), retrieval_only=False)
+    generated_at = datetime.now(timezone.utc).isoformat()
+    layers = sorted({item.get("rerank_layer") or "unknown"
+                     for row in retr_rows for item in row.get("ranking", [])})
+    title = "RAG 检索回归报告（仅检索）" if args.retrieval_only else "RAGAS 检索回归报告"
+    lines = [f"# {title}", "",
+             f"- 用例数: {len(cases)}", f"- 生成时间: {generated_at}",
+             f"- 检索 top-k: {args.top_k}(Recall@K 用 3/5/10)",
+             f"- BM25 分词器: {args.bm25_tokenizer}",
+             f"- 召回/重排候选预算: {(stats or {}).get('retrieval_config', {})}",
+             f"- 实际重排方式: {', '.join(layers)}", "", "## 检索指标", "",
              "| id | recall@3 | recall@5 | recall@10 | MRR | NDCG@10 | 首命中位 |",
              "|---|---|---|---|---|---|---|"]
     for r in retr_rows:
@@ -257,11 +313,39 @@ def _write_report(cases, retr_rows, avg, ragas_avg):
     lines += ["", "## RAGAS 指标", ""]
     for k, v in ragas_avg.items():
         lines.append(f"- {k}: {v}")
+    if not ragas_avg:
+        lines.append("本次仅评测检索，未生成或评分答案。")
     lines += ["", "## 说明", "",
               "- Recall@K/MRR/NDCG 按期望来源文档(evaluation/stroke_ragas.json 的 expected_source)计算",
-              "- RAGAS 指标由 qwen-plus 评分(小样本噪声较大, 以检索指标为主要回归依据)"]
-    Path(REPORT_PATH).write_text("\n".join(lines), encoding="utf-8")
-    logger.info(f"回归报告已写入 {REPORT_PATH}")
+              "- 来源文件名按统一别名规则匹配，两种分词器使用相同规则；不能直接与旧口径快照作因果比较",
+              "- 本次仅使用查询第一变体，未覆盖服务层多变体聚合和不匹配过滤",
+              "- 来源命中不证明页面语义相关性或临床正确性"]
+    if ragas_avg:
+        lines.append("- RAGAS 指标由 qwen-plus 评分(小样本噪声较大, 以检索指标为主要回归依据)")
+    if provenance:
+        lines += ["", "## 实验溯源", "",
+                  f"- 题集 SHA-256: `{provenance['cases_sha256']}`",
+                  f"- Collection 语料 SHA-256: `{provenance['corpus_sha256']}`"]
+    path = args.report_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines), encoding="utf-8")
+    report = {
+        "generated_at": generated_at,
+        "cases": len(cases),
+        "top_k": args.top_k,
+        "bm25_tokenizer": args.bm25_tokenizer,
+        "retrieval_only": args.retrieval_only,
+        "rerank_layers": layers,
+        "provenance": provenance,
+        "metrics": {"recall_at_3": avg["recall@3"], "recall_at_5": avg["recall@5"],
+                    "recall_at_10": avg["recall@10"], "mrr": avg["mrr"],
+                    "ndcg_at_10": avg["ndcg@10"], **ragas_avg},
+        "knowledge_base": stats,
+        "results": retr_rows,
+    }
+    path.with_suffix(".json").write_text(json.dumps(report, ensure_ascii=False, indent=2),
+                                          encoding="utf-8")
+    logger.info(f"回归报告已写入 {path}")
 
 
 if __name__ == "__main__":
