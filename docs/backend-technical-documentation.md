@@ -399,7 +399,6 @@ model/
 │   │   └── vision_service.py                # ★ 影像识别服务（多模态）
 │   └── utils/
 │       ├── context_summary.py               # 上下文摘要服务
-│       ├── download_models.py               # 模型下载工具
 │       ├── error_codes.py                   # 错误码定义
 │       └── naming_model.py                   # 对话命名模型
 └── data/documents/                          # 11 篇脑卒中指南 PDF
@@ -1211,7 +1210,6 @@ try {
    pip install -r requirements.txt
    cp .env.example .env
    # 编辑 .env，填入 DASHSCOPE_API_KEY, SECRET_KEY
-   python -m app.utils.download_models  # 下载 Sentence Transformer 模型
    uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
    ```
 4. **Java 后端**:
