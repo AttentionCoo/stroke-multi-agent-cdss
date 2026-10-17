@@ -109,10 +109,9 @@ public class RegiServiceImpl extends ServiceImpl<RegiMapper, User> implements co
             return Result.error("系统异常，请稍后再试");
         }
 
-        // 默认头像
-        String defaultImagePath = "/images/default.png";
+        // 默认头像: 留空, 前端 AppAvatar 组件按用户名首字渲染占位头像
         if (StrUtil.isBlank(u.getImage())) {
-            u.setImage(defaultImagePath);
+            u.setImage("");
         }
 
         // 密码加密
