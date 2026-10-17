@@ -12,15 +12,15 @@ function normalizeTalkId(value) {
 export const getChatTitlesAPI = () => request.get('/user/title')
 
 // 2. 查询历史对话内容
-// talkId: String
+// talkId: 字符串
 export const getChatHistoryAPI = (talkId) => request.get(`/user/ques/getQues/${talkId}`)
 
 // 3. 继续对话（发送问题）
-// params = { talkId: String, question: String }
+// 参数 = { talkId: 字符串, question: 字符串 }
 export const sendQuestionAPI = (params) => request.post('/user/ques/getQues', params)
 
 // 4. 新建对话
-// params = { question: String }
+// 参数 = { question: 字符串 }
 export const newChatAPI = (params) => request.post('/user/ques/newGetQues', params)
 
 const MAX_RETRIES = 3
@@ -30,8 +30,10 @@ const MAX_RETRIES = 3
  * @param {Object} params        - 请求体 { talkId?, question }
  * @param {Function} onChunk     - 收到答案片段时回调 (text: string) => void
  * @param {Function} onThinking  - 收到 thinking 事件时回调 ({ step, title, content }) => void
+ * @param {Function} onInit      - 收到 init 事件时回调 (talkId: string) => void
+ *                                新对话思考中即可拿到真实 talkId, 供 UI 及时替换占位符
  */
-function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats) {
+function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit) {
   const userStore = useUserStore()
   const token = userStore.token
   // 中止控制器: 供调用方在切换对话等场景主动取消在途流
@@ -86,7 +88,7 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
 
       for (const line of lines) {
         if (!line) continue
-        // SSE comment（心跳 / close），直接忽略
+        // SSE 注释（心跳 / 关闭），直接忽略
         if (line.startsWith(':')) continue
         if (line.startsWith('event:')) {
           eventName = line.slice(6).trim() || 'message'
@@ -119,6 +121,9 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
 
         // ── init：后端确认本次 talkId，早于 done 事件，用于提前更新 talkId ──
         if (type === 'init') {
+          if (onInit && nextTalkId) {
+            onInit(nextTalkId)
+          }
           return
         }
 
@@ -158,7 +163,7 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
 
         // ── warning：超长行截断等告警，打印日志即可 ──
         if (type === 'warning') {
-          console.warn('[SSE Warning]', data.message)
+          console.warn('[SSE 警告]', data.message)
           return
         }
 
@@ -249,7 +254,7 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
           const text = await res.text()
           if (text) message = text
         } catch {
-          // ignore
+          // 忽略
         }
         const err = new Error(message)
         err.isHttpError = true
@@ -308,7 +313,7 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
               try {
                 await reader.cancel()
               } catch {
-                // ignore cancel errors
+                // 忽略取消失败错误
               }
               return
             }
@@ -318,7 +323,7 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
         try {
           await reader.cancel()
         } catch {
-          // ignore
+          // 忽略
         }
         throw err
       }
@@ -358,7 +363,7 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
             try {
               await new Promise((r) => setTimeout(r, delay))
             } catch {
-              // ignore
+              // 忽略
             }
             if (controller.signal.aborted) {
               safeReject(abortError())
@@ -381,12 +386,12 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
   return promise
 }
 
-export const sendQuestionStreamAPI = (params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats) =>
-  streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats)
+export const sendQuestionStreamAPI = (params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit) =>
+  streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit)
 
-export const newChatStreamAPI = (params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats) =>
-  streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats)
+export const newChatStreamAPI = (params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit) =>
+  streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit)
 
 // 5. 删除对话
-// talkId: String
+// talkId: 字符串
 export const deleteChatAPI = (talkId) => request.delete(`/user/deleteTalk/${talkId}`)

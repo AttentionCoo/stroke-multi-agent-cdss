@@ -82,6 +82,8 @@ let streamSeq = 0
 let activeStream = null
 // 在途流所属对话(未知时为 null): 删除该对话时才真正中止流
 let activeStreamTalkId = null
+// 在途流的思考记录(reactive): 切回所属对话时重新挂回列表, 让思考链继续实时显示
+let activeThinkingEntry = null
 const chatLoading = ref(false)
 const deleteAllLoading = ref(false)
 
@@ -106,6 +108,7 @@ function abortActiveStream() {
   }
   activeStream = null
   activeStreamTalkId = null
+  activeThinkingEntry = null
   streamSeq += 1
   isStreaming.value = false
   isThinking.value = false
@@ -389,12 +392,16 @@ async function fetchTalkHistory(talkId = currentTalkId.value) {
           startTime: Date.now(),
         })
       })
+      // 该对话仍有在途流: 恢复本轮思考记录, 让思考链继续实时显示
+      restoreActiveStreamForTalk(talkId)
       return
     }
 
     // 旧格式(数组): 历史回答没有思考详情，但需要保留空槽位以对齐后续新回答。
     currentTalkList.value = normalizeTalkHistory(payload)
     thinkingHistoryList.value = createThinkingHistorySlots(currentTalkList.value)
+    // 该对话仍有在途流: 恢复本轮思考记录, 让思考链继续实时显示
+    restoreActiveStreamForTalk(talkId)
   } catch (error) {
     console.error('获取历史对话失败', error)
     currentTalkList.value = []
@@ -409,6 +416,20 @@ function handleSelectTalk(talkId) {
   detachActiveStream()
   currentTalkId.value = talkId
   fetchTalkHistory(talkId)
+}
+
+// 切回对话后, 若该对话仍有在途流(如"思考中切走再切回"), 把本轮思考记录挂回列表末尾:
+// 提问来自后端历史, 思考链恢复实时更新, 回答内容等流完成后由自动重载补全。
+function restoreActiveStreamForTalk(talkId) {
+  if (!activeStream || !activeThinkingEntry) return
+  if (!talkId || activeStreamTalkId !== talkId) return
+  // 已恢复过(列表末尾已是本轮的思考占位)则跳过
+  const last = currentTalkList.value[currentTalkList.value.length - 1]
+  if (last && last.role === 'assistant' && !String(last.content || '')) return
+  currentTalkList.value.push({ role: 'assistant', content: '', images: [] })
+  thinkingHistoryList.value.push(activeThinkingEntry)
+  isStreaming.value = true
+  isThinking.value = true
 }
 
 function handleNewChat() {
@@ -503,6 +524,8 @@ async function handleSendMessage({ text, images } = {}) {
   const thinkingEntry = reactive({ events: [], elapsedSeconds: null, startTime: Date.now(), usage: null, askDoctor: null, nodeStats: {} })
   thinkingHistoryList.value.push(null)
   thinkingHistoryList.value.push(thinkingEntry)
+  // 记录到模块级: 切换对话再切回时, 本轮思考记录可重新挂回列表继续实时显示
+  activeThinkingEntry = thinkingEntry
 
   // thinking 事件回调：开始事件新增步骤，完成事件补全该步骤的结果摘要
   const onThinking = (thinking) => {
@@ -586,6 +609,28 @@ async function handleSendMessage({ text, images } = {}) {
     timerId = setTimeout(tick, 0)
   }
 
+  // init 事件回调：新对话在思考阶段即拿到真实 talkId，立即替换占位符。
+  // 修复"思考中切换对话再切回，新对话内容丢失"：占位符('')无法加载历史，
+  // 及时换成真实 talkId 后，切回时 fetchTalkHistory 能正常从后端拉回问题与回答。
+  const onInit = (initTalkId) => {
+    const tid = normalizeTalkId(initTalkId)
+    if (!tid) return
+    // 仅当前代际(未分离)时更新会话标识, 防止旧流 init 污染新对话状态
+    if (mySeq !== streamSeq) return
+    if (currentTalkId.value === NEW_TALK_ID) {
+      currentTalkId.value = tid
+      userRequestedNewChat.value = false
+      // 在途流归属同步到真实 talkId: 切回时 restoreActiveStreamForTalk 才能精确匹配
+      if (activeStreamTalkId === null) activeStreamTalkId = tid
+      const idx = talkTitleList.value.findIndex((talk) => talk.talkId === NEW_TALK_ID)
+      if (idx !== -1) {
+        talkTitleList.value[idx] = { talkId: tid, title: '新对话' }
+      } else if (!talkTitleList.value.some((talk) => talk.talkId === tid)) {
+        talkTitleList.value.unshift({ talkId: tid, title: '新对话' })
+      }
+    }
+  }
+
   // chunk 事件回调：收到第一个 chunk 即结束 thinking 阶段，记录思考用时
   const onChunk = (chunk) => {
     if (isThinking.value && mySeq === streamSeq) {
@@ -605,7 +650,7 @@ async function handleSendMessage({ text, images } = {}) {
     const requestPayload = buildPatientAwareRequest(text, syncPatientId.value, images)
     streamPromise =
       currentTalkId.value === NEW_TALK_ID
-        ? newChatStreamAPI(requestPayload, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats)
+        ? newChatStreamAPI(requestPayload, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit)
         : sendQuestionStreamAPI(
           { ...requestPayload, talkId: currentTalkId.value },
           onChunk,
@@ -613,6 +658,7 @@ async function handleSendMessage({ text, images } = {}) {
           onUsage,
           onAskDoctor,
           onNodeStats,
+          onInit,
         )
     activeStream = streamPromise
     activeStreamTalkId = currentTalkId.value === NEW_TALK_ID ? null : currentTalkId.value
@@ -623,6 +669,15 @@ async function handleSendMessage({ text, images } = {}) {
       // 若用户此刻正查看该对话(切回后), 自动重新加载历史, 让已完成的回答直接出现
       const streamTalkId = normalizeTalkId(finalResult.data?.talkId)
       if (streamTalkId && currentTalkId.value === streamTalkId) {
+        // 流已完成, 先清理在途状态, 防止 fetchTalkHistory 内的 restore 重复挂思考占位
+        activeStream = null
+        activeStreamTalkId = null
+        activeThinkingEntry = null
+        // restoreActiveStreamForTalk 曾把流状态置回 true, 此处必须复位,
+        // 否则界面一直显示"生成中"、无法发送下一条消息
+        isStreaming.value = false
+        isThinking.value = false
+        thinkingHint.value = ''
         await fetchTalkHistory(streamTalkId)
       }
       return
@@ -705,6 +760,7 @@ async function handleSendMessage({ text, images } = {}) {
     if (activeStream === streamPromise) {
       activeStream = null
       activeStreamTalkId = null
+      activeThinkingEntry = null
     }
     if (mySeq === streamSeq) {
       isStreaming.value = false
@@ -1127,7 +1183,7 @@ async function handleGreenwayAnalyze(caseText) {
           </svg>
         </button>
         <div class="user-anchor" @click="isDialogShow = !isDialogShow">
-          <AppAvatar class="avatar" :src="userStore.image" :name="userStore.name" :size="24" alt="avatar" />
+          <AppAvatar class="avatar" :src="userStore.image" :name="userStore.name" :size="24" alt="头像" />
           <p class="user-name">{{ userStore.name || '医生' }}</p>
           <UserDialog :visible="isDialogShow" @close="isDialogShow = false" />
         </div>
