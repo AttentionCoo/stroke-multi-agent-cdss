@@ -12,6 +12,7 @@ class ModelErrorCode(Enum):
     E1001 = ("E1001", "推理超时, 已达 120s 上限", True)
     E1002 = ("E1002", "模型拒绝回答", False)
     E1003 = ("E1003", "模型内存不足 (OOM)", True)
+    E1004 = ("E1004", "模型服务限流, 请稍后重试", True)
     E1099 = ("E1099", "未知错误", False)
 
     def __init__(self, code: str, default_message: str, retryable: bool):
@@ -20,7 +21,7 @@ class ModelErrorCode(Enum):
         self.retryable = retryable
 
 
-# 按异常类型/消息关键词归类: 超时→E1001, OOM→E1003, 安全拒答关键词→E1002, 其余→E1099
+# 按异常类型/消息关键词归类: 超时→E1001, OOM→E1003, 安全拒答关键词→E1002, 限流→E1004, 其余→E1099
 def classify_exception(exc: Exception) -> ModelErrorCode:
     if isinstance(exc, asyncio.TimeoutError):
         return ModelErrorCode.E1001
@@ -29,6 +30,11 @@ def classify_exception(exc: Exception) -> ModelErrorCode:
     exc_msg = str(exc).lower()
     if any(kw in exc_msg for kw in ("safety", "sensitive", "违禁", "安全拒绝", "内容违规")):
         return ModelErrorCode.E1002
+    # 限流: 如阿里云百炼 429 limit_requests / openai SDK RateLimitError, 明确提示稍后重试
+    if type(exc).__name__ == "RateLimitError" or any(
+        kw in exc_msg for kw in ("rate limit", "limit_requests", "too many requests", "请求过于频繁")
+    ):
+        return ModelErrorCode.E1004
     return ModelErrorCode.E1099
 
 

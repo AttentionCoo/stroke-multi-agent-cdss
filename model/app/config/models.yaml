@@ -21,6 +21,12 @@ provider_defaults:
     # 阶段5 性能可靠性: 单请求超时(秒)与 429/5xx 自动重试次数
     request_timeout: 120
     max_retries: 3
+  # DeepSeek 备用接入点: 阿里云限流时可通过 MODEL_PROVIDER=deepseek 整体切换
+  deepseek:
+    base_url: "https://api.deepseek.com/v1"
+    api_key_env: DEEPSEEK-API-KEY
+    request_timeout: 120
+    max_retries: 3
 
 roles:
   main:

@@ -58,7 +58,8 @@ class ModelRouter:
         model = self.resolve_model(role)
 
         providers = self._data.get("provider_defaults", {}) or {}
-        provider = providers.get(str(cfg.get("provider", "dashscope") or "dashscope"), {}) or {}
+        provider_name = self._provider_name(cfg)
+        provider = providers.get(provider_name, {}) or {}
         base_url = str(cfg.get("base_url") or provider.get("base_url") or _DEFAULT_BASE_URL).strip()
         key_env = str(cfg.get("api_key_env") or provider.get("api_key_env") or _DEFAULT_API_KEY_ENV).strip()
         api_key = os.getenv(key_env, "").strip()
@@ -80,6 +81,10 @@ class ModelRouter:
             # 显式开启使 astream 的最后 chunk 携带 usage → 用量看板统计完整
             stream_usage=True,
             callbacks=[self._usage_handler] if self._usage_handler else None,
+            # 禁用 HTTP 压缩: DeepSeek 的 zstd 压缩流在并发流式场景下解压损坏
+            # (多专家并行推理时复现: UnicodeDecodeError/JSONDecodeError 位置~200),
+            # 明文传输略增流量, 换取并发流式稳定
+            default_headers={"Accept-Encoding": "identity"},
         )
         self._clients[role] = llm
         logger.info(
@@ -97,7 +102,7 @@ class ModelRouter:
         providers = self._data.get("provider_defaults", {}) or {}
         for role in _DEFAULT_MODELS:
             cfg = self._role_config(role)
-            provider = providers.get(str(cfg.get("provider", "dashscope") or "dashscope"), {}) or {}
+            provider = providers.get(self._provider_name(cfg), {}) or {}
             result[role] = {
                 "model": self.resolve_model(role),
                 "request_timeout": _first_number(cfg.get("request_timeout"), provider.get("request_timeout"), default=120),
@@ -114,6 +119,13 @@ class ModelRouter:
             cfg = (self._data.get("roles", {}) or {}).get("main")
             return cfg if isinstance(cfg, dict) else {}
         return {}
+
+    def _provider_name(self, cfg: Dict) -> str:
+        """解析角色最终使用的 provider: 全局环境变量 MODEL_PROVIDER 可整体切换(如阿里云限流时切到 deepseek)。"""
+        env_val = os.getenv("MODEL_PROVIDER", "").strip()
+        if env_val:
+            return env_val
+        return str(cfg.get("provider", "dashscope") or "dashscope")
 
 
 def _first_number(*values, default):

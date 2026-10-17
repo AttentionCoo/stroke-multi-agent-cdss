@@ -107,6 +107,8 @@ services:
       MODEL_FAST: ${MODEL_FAST:-}
       MODEL_TURBO: ${MODEL_TURBO:-}
       MODEL_CONSENSUS: ${MODEL_CONSENSUS:-}
+      # 接入点整体切换: 阿里云限流时可设 MODEL_PROVIDER=deepseek(配合 MODEL_* 设为 deepseek-chat)
+      MODEL_PROVIDER: ${MODEL_PROVIDER:-}
       # 阶段7: 安全合规 - 并发闸与 CORS(默认关闭)
       MODEL_MAX_CONCURRENT_PER_USER: ${MODEL_MAX_CONCURRENT_PER_USER:-2}
       MODEL_MAX_CONCURRENT_GLOBAL: ${MODEL_MAX_CONCURRENT_GLOBAL:-8}
