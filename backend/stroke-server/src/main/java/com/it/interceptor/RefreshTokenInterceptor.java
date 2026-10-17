@@ -98,7 +98,7 @@ public class RefreshTokenInterceptor implements HandlerInterceptor {
 
     /**
      * 更新在线用户心跳时间戳。
-     * 使用 Redis ZSet 存储，score = 最后活跃时间戳（epoch ms）。
+     * 使用 Redis ZSet 存储，score = 最后活跃时间戳（毫秒级 Unix 时间戳）。
      * 3 分钟内无请求视为离线。
      */
     private void updateOnlineUser(Long userId) {

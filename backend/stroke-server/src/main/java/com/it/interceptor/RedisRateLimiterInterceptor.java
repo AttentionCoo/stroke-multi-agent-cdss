@@ -168,7 +168,7 @@ public class RedisRateLimiterInterceptor implements HandlerInterceptor {
 
     private void sendRateLimited(HttpServletResponse response, String msg) throws Exception {
         response.setContentType("application/json;charset=UTF-8");
-        response.setStatus(429); // HTTP 429 Too Many Requests
+        response.setStatus(429); // HTTP 429 请求过多（Too Many Requests）
         response.getWriter().write("{\"code\": 429, \"msg\": \"" + msg + "\"}");
     }
 }

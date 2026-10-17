@@ -13,7 +13,7 @@ import java.util.Set;
  *
  * <p>通过 Redis ZSet 维护在线用户及其最后活跃时间：
  * <ul>
- *   <li>用户每次请求时由 {@code RefreshTokenInterceptor} 更新 score（epoch ms）</li>
+ *   <li>用户每次请求时由 {@code RefreshTokenInterceptor} 更新 score（毫秒级 Unix 时间戳）</li>
  *   <li>每 2 分钟自动清理超过 3 分钟无请求的离线用户</li>
  * </ul>
  *

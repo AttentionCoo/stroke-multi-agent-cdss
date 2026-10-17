@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * SSE 断线续传事件缓存。
  *
- * <p>为每个 talkId 维护一个 Reactor replay sink，同时承担两个职责：
+ * <p>为每个 talkId 维护一个 Reactor 回放 sink，同时承担两个职责：
  * <ol>
  *   <li>为当次连接的每条事件分配单调递增序列号（seq），注入 SSE id 字段（格式 talkId:seq）</li>
  *   <li>客户端重连时，通过 seq 过滤出未收到的事件进行回放，
@@ -38,15 +38,15 @@ public class SSEEventCache {
     @Value("${ai.sse.cache-ttl-minutes:5}")
     private long cacheTtlMinutes;
 
-    // talkId → replay sink（流结束后保留 ttl 分钟，供重连回放）
+    // talkId → 回放 sink（流结束后保留 ttl 分钟，供重连回放）
     private final ConcurrentHashMap<String, Sinks.Many<SequencedEvent>> sinks = new ConcurrentHashMap<>();
     // talkId → 单调递增序列号（从 1 开始）
     private final ConcurrentHashMap<String, AtomicLong> seqCounters = new ConcurrentHashMap<>();
-    // talkId → 过期时刻 epoch ms（completeStream 写入，cleanExpired 读取）
+    // talkId → 过期时刻（毫秒级时间戳，completeStream 写入，cleanExpired 读取）
     private final ConcurrentHashMap<String, Long> expiryTimes = new ConcurrentHashMap<>();
 
     /**
-     * 新流开始前调用，创建并注册 replay sink 和 seq 计数器。
+     * 新流开始前调用，创建并注册回放 sink 和 seq 计数器。
      *
      * @param talkId 对话 ID（字符串形式，作为缓存 key）
      */
@@ -56,7 +56,7 @@ public class SSEEventCache {
             try {
                 existing.tryEmitComplete();
             } catch (Exception e) {
-                // ignore exception when emitting complete
+                // 忽略发出 complete 信号时的异常
             }
             long expiryMs = System.currentTimeMillis() + cacheTtlMinutes * 60_000L;
             expiryTimes.put(talkId, expiryMs);
@@ -95,7 +95,7 @@ public class SSEEventCache {
     /**
      * 流结束（正常 done 或 error 恢复后）时调用：
      * <ol>
-     *   <li>complete sink，通知所有订阅者（含正在等待的重连客户端）流已结束</li>
+     *   <li>向 sink 发出 complete，通知所有订阅者（含正在等待的重连客户端）流已结束</li>
      *   <li>记录过期时刻，{@link #cleanExpired()} 到期后释放内存</li>
      * </ol>
      *

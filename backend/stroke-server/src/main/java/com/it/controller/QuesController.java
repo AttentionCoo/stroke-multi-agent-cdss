@@ -129,11 +129,11 @@ public class QuesController {
                     return handleReconnect(idTalkId, lastSeq, finalTalkId, finalTalkIdStr);
                 } catch (NumberFormatException e) {
                     log.warn("Last-Event-ID seq 非法，按新请求处理: lastEventId={}", lastEventId);
-                    // 格式非法，fall through 走正常流程
+                    // 格式非法，继续走正常流程
                 }
             } else {
                 log.warn("Last-Event-ID 格式非法（缺少冒号），按新请求处理: lastEventId={}", lastEventId);
-                // 格式非法，fall through 走正常流程
+                // 格式非法，继续走正常流程
             }
         }
 
@@ -179,13 +179,13 @@ public class QuesController {
                 .concatWith(resumeFlux)
                 .map(data -> sse(resolveEventName(data), data));
 
-        // chatFlux 事件：缓存到 replay sink + 注入 SSE id（talkId:seq）
+        // chatFlux 事件：缓存到回放 sink + 注入 SSE id（talkId:seq）
         // onErrorResume 将 chatFlux 内部异常转为 error/done 事件，保证流正常终止
         Flux<ServerSentEvent<String>> chatSSE = chatFlux
                 .onErrorResume(e -> Flux.just(
                         json("error", mapOf(
                                 "talkId", finalTalkIdStr,
-                                "message", e.getMessage() == null ? "stream error" : e.getMessage()
+                                "message", e.getMessage() == null ? "流式响应错误" : e.getMessage()
                         )),
                         json("done", mapOf(
                                 "talkId", finalTalkIdStr,
@@ -193,7 +193,7 @@ public class QuesController {
                         ))
                 ))
                 .map(data -> {
-                    // addEvent 同时将事件写入 replay sink，返回分配的序列号
+                    // addEvent 同时将事件写入回放 sink，返回分配的序列号
                     long seq = eventCache.addEvent(finalTalkIdStr, data);
                     return sseWithId(finalTalkIdStr + ":" + seq, resolveEventName(data), data);
                 });
@@ -202,12 +202,12 @@ public class QuesController {
         Flux<ServerSentEvent<String>> dataStream = initResumeSSE
                 .concatWith(chatSSE)
                 .doFinally(signal -> {
-                    log.debug("涓氬姟娴佺粓姝紙signal={}锛夛紝鍋滄 SSE 蹇冭烦 comment, talkId={}", signal, finalTalkId);
+                    log.debug("业务流终止（signal={}），停止 SSE 心跳 comment, talkId={}", signal, finalTalkId);
                     doneSink.tryEmitEmpty();
                     eventCache.completeStream(finalTalkIdStr);
                 });
 
-        // 蹇冭烦娴侊细姣?15 绉掑彂送一次 SSE comment（冒号开头，前端 EventSource 会忽略）
+        // 心跳流：每 15 秒发送一次 SSE comment（冒号开头，前端 EventSource 会忽略）
         // 使用 takeUntilOther 监听 doneSink，业务流结束后立即终止心跳
         Flux<ServerSentEvent<String>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
                 .map(i -> {
@@ -352,7 +352,7 @@ public class QuesController {
             }
             return objectMapper.writeValueAsString(root);
         } catch (Exception e) {
-            return "{\"type\":\"error\",\"message\":\"json serialize error\"}";
+            return "{\"type\":\"error\",\"message\":\"JSON 序列化失败\"}";
         }
     }
 
