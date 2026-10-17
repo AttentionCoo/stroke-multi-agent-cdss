@@ -633,7 +633,7 @@ Compose 默认从 AWS 公共仓库拉取 Docker 官方基础镜像，并为模�
 | 缓存或限流异常 | `redis` 是否为 `healthy` |
 | AI 分析质量不佳 | 检查 `model/.env` 密钥是否有效，指南 PDF 是否完整放置于 `model/data/documents/` |
 
-> 💡 **提示**：如需将本项目迁移至百度千帆大模型平台（ERNIE 系列模型），请参阅 [百度千帆.md](百度千帆.md) 中的三阶段渐进式集成方案。
+> 💡 **提示**：如需将本项目迁移至百度千帆大模型平台（ERNIE 系列模型），请参阅 [docs/个人资料/百度千帆.md](docs/个人资料/百度千帆.md) 中的三阶段渐进式集成方案。
 
 #### 🐳 仅启动 MySQL + Redis（可选）
 
@@ -930,8 +930,8 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 | [docs/model-memory-and-context-storage.md](docs/model-memory-and-context-storage.md) | 模型记忆与上下文存储设计 |
 | [docs/全链路流式重构策略.md](docs/全链路流式重构策略.md) | 全链路流式数据管道设计策略 |
 | [backend/stroke-server/BAOTA_DEPLOY.md](backend/stroke-server/BAOTA_DEPLOY.md) | 宝塔面板生产环境部署指南 |
-| [百度千帆.md](百度千帆.md) | 百度千帆大模型平台能力集成方案（模型底座、RAG 组件、安全网关） |
-| [计设大赛本项目简介.md](计设大赛本项目简介.md) | 计算机设计大赛项目完整简介（功能、架构、创新点详解） |
+| [docs/个人资料/百度千帆.md](docs/个人资料/百度千帆.md) | 百度千帆大模型平台能力集成方案（模型底座、RAG 组件、安全网关） |
+| [docs/计设大赛本项目简介.md](docs/计设大赛本项目简介.md) | 计算机设计大赛项目完整简介（功能、架构、创新点详解） |
 
 ---
 

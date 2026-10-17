@@ -1,0 +1,1916 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>卒中多智能体系统 · 面试问答全集（86 题）</title>
+<style>
+  :root{
+    --bg:#f4f6fa; --card:#fff; --ink:#1b2430; --muted:#5b6b7f;
+    --line:#e3e8ef; --brand:#1d6fe0; --brand-soft:#eaf2ff; --accent:#1d6fe0;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:15px; line-height:1.78; -webkit-font-smoothing:antialiased;
+  }
+  code,pre,.mono{font-family:"JetBrains Mono","SF Mono",Consolas,Monaco,"Courier New",monospace;}
+
+  /* HERO */
+  .hero{
+    background:linear-gradient(135deg,#0f172a 0%,#173a6b 55%,#0f766e 100%);
+    color:#fff; padding:52px 28px 44px; position:relative; overflow:hidden;
+  }
+  .hero::after{
+    content:""; position:absolute; right:-120px; top:-120px; width:420px; height:420px;
+    border-radius:50%; background:radial-gradient(circle,rgba(56,189,248,.35),transparent 68%);
+  }
+  .hero-inner{max-width:1180px; margin:0 auto; position:relative; z-index:1;}
+  .badge{
+    display:inline-block; font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    padding:5px 12px; border:1px solid rgba(255,255,255,.35); border-radius:999px;
+    color:#c7e4ff; margin-bottom:16px;
+  }
+  .hero h1{margin:0 0 10px; font-size:30px; line-height:1.35; font-weight:700;}
+  .hero p.sub{margin:0; color:#b9cde8; font-size:14.5px; max-width:760px;}
+  .stats{display:flex; flex-wrap:wrap; gap:12px; margin-top:26px;}
+  .stat{
+    background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.18);
+    border-radius:12px; padding:10px 18px; min-width:118px; backdrop-filter:blur(6px);
+  }
+  .stat b{display:block; font-size:20px; line-height:1.3; color:#fff;}
+  .stat span{font-size:12px; color:#a9c2e0; letter-spacing:.04em;}
+
+  /* LAYOUT */
+  .layout{
+    max-width:1180px; margin:0 auto; padding:32px 28px 90px;
+    display:grid; grid-template-columns:236px 1fr; gap:34px; align-items:start;
+  }
+
+  /* TOC */
+  .toc{
+    position:sticky; top:24px; background:var(--card); border:1px solid var(--line);
+    border-radius:14px; padding:18px 16px; font-size:13.5px;
+    max-height:calc(100vh - 48px); overflow-y:auto;
+  }
+  .toc h4{
+    margin:0 0 12px; font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--muted); font-weight:600;
+  }
+  .toc a{
+    display:block; padding:5px 9px; color:#33465c; text-decoration:none;
+    border-radius:7px; line-height:1.5; transition:.16s;
+  }
+  .toc a:hover{background:var(--brand-soft); color:var(--brand);}
+  .toc a.toc-sec{font-weight:700; color:var(--ink); margin-top:12px; font-size:13px;}
+  .toc a.toc-sec:first-of-type{margin-top:0;}
+
+  /* TOOLBAR */
+  .toolbar{display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;}
+  .btn{
+    border:1px solid var(--line); background:var(--card); color:#33465c;
+    font-size:13px; padding:8px 15px; border-radius:9px; cursor:pointer;
+    transition:.16s; font-family:inherit;
+  }
+  .btn:hover{border-color:var(--brand); color:var(--brand); background:var(--brand-soft);}
+
+  /* SECTIONS */
+  .section{margin-bottom:38px;}
+  .section-title{
+    display:flex; align-items:center; gap:12px; margin:0 0 18px;
+    font-size:19px; font-weight:700;
+  }
+  .section-title .dot{
+    width:9px; height:9px; border-radius:50%; background:var(--accent);
+    box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 16%, transparent); flex:none;
+  }
+  .section-title .idx{
+    font-size:12px; font-weight:600; letter-spacing:.1em; color:var(--accent);
+    border:1px solid color-mix(in srgb,var(--accent) 34%, transparent);
+    background:color-mix(in srgb,var(--accent) 9%, transparent);
+    padding:2px 9px; border-radius:999px;
+  }
+  .sec-arch{--accent:#1d6fe0;}
+  .sec-agent{--accent:#7c3aed;}
+  .sec-rag{--accent:#0f9b8e;}
+  .sec-safe{--accent:#e11d48;}
+  .sec-bonus{--accent:#d97706;}
+  .sec-fine{--accent:#2563eb;}
+  .sec-common{--accent:#0f766e;}
+  .sec-hot{--accent:#dc2626;}
+  .sec-sse{--accent:#0891b2;}
+
+  /* CARD */
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    margin-bottom:16px; overflow:hidden; transition:box-shadow .2s, border-color .2s;
+  }
+  .card:hover{box-shadow:0 6px 24px -12px rgba(23,58,107,.28); border-color:#cfdcec;}
+  .q-head{
+    display:flex; align-items:flex-start; gap:14px; padding:18px 22px;
+    cursor:pointer; user-select:none; background:linear-gradient(180deg,#fbfcfe,#fff);
+  }
+  .q-num{
+    flex:none; font-family:"JetBrains Mono",Consolas,monospace; font-size:12.5px;
+    font-weight:700; color:#fff; background:var(--accent);
+    padding:3px 10px; border-radius:7px; margin-top:2px; letter-spacing:.04em;
+  }
+  .q-head h3{margin:0; flex:1; font-size:15.5px; font-weight:650; line-height:1.62; color:var(--ink);}
+  .chev{flex:none; color:#9fb0c4; font-size:13px; margin-top:4px; transition:transform .22s;}
+  .card.collapsed .chev{transform:rotate(-90deg);}
+  .card.collapsed .answer{display:none;}
+  .answer{padding:2px 22px 22px; border-top:1px solid #f0f3f8; animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0; transform:translateY(-4px);}to{opacity:1; transform:none;}}
+  .answer > p:first-child{margin-top:16px;}
+  .answer p{margin:0 0 12px;}
+  .answer strong{color:#0f2a4a; font-weight:650;}
+  .answer ul,.answer ol{margin:0 0 13px; padding-left:22px;}
+  .answer li{margin-bottom:7px;}
+  .answer li::marker{color:var(--accent);}
+
+  .label{
+    display:inline-block; font-size:12px; font-weight:700; letter-spacing:.06em;
+    color:var(--accent); background:color-mix(in srgb,var(--accent) 10%, transparent);
+    border:1px solid color-mix(in srgb,var(--accent) 22%, transparent);
+    border-radius:6px; padding:1px 8px; margin-right:6px;
+  }
+
+  /* TABLE */
+  .tbl-wrap{overflow-x:auto; margin:14px 0 16px; border-radius:10px; border:1px solid var(--line);}
+  table{width:100%; border-collapse:collapse; font-size:13.5px; background:#fff; min-width:560px;}
+  th{
+    background:#f7f9fc; color:#33465c; font-weight:650; text-align:left;
+    padding:10px 14px; border-bottom:1px solid var(--line); white-space:nowrap;
+  }
+  td{padding:10px 14px; border-bottom:1px solid #f0f3f8; vertical-align:top; color:#2c3a4b; line-height:1.68;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#fafcff;}
+  td code,th code{background:#eef3f9; color:#b3204a; padding:1px 5px; border-radius:4px; font-size:12.5px;}
+
+  /* CODE */
+  pre{
+    background:#0f172a; color:#dbe6f5; padding:15px 18px; border-radius:10px;
+    overflow-x:auto; font-size:12.8px; line-height:1.72; margin:14px 0 16px;
+    border:1px solid #1e293b;
+  }
+  pre code{color:inherit; background:none; padding:0;}
+  :not(pre) > code{
+    background:#eef3f9; color:#b3204a; padding:2px 6px; border-radius:5px;
+    font-size:12.8px; word-break:break-word;
+  }
+
+  /* REFS */
+  .refs{
+    margin-top:16px; padding:11px 15px; background:#f8fafd;
+    border-left:3px solid var(--accent); border-radius:0 9px 9px 0;
+    font-size:13px; color:var(--muted); line-height:1.7;
+  }
+  .refs b{color:#33465c;}
+  .refs code{background:#e9eff7; color:#2a4a72; padding:1px 6px; border-radius:4px; font-size:12.3px;}
+
+  /* CALLOUT */
+  .callout{
+    margin:14px 0; padding:12px 16px; border-radius:10px;
+    background:color-mix(in srgb,var(--accent) 7%, #fff);
+    border:1px solid color-mix(in srgb,var(--accent) 20%, transparent);
+    font-size:13.8px; color:#2b3d52;
+  }
+  .callout b{color:var(--accent);}
+  .formula{
+    text-align:center; font-family:"JetBrains Mono",Consolas,monospace;
+    font-size:15px; background:#0f172a; color:#7dd3fc; padding:14px;
+    border-radius:10px; margin:14px 0; letter-spacing:.03em;
+  }
+
+  /* FLOW */
+  .flow{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    margin:14px 0 16px; padding:14px 16px; background:#f8fafd;
+    border-radius:10px; border:1px solid var(--line); font-size:13px;
+  }
+  .flow-node{
+    padding:7px 13px; background:#fff; border:1px solid #cfdcec;
+    border-radius:8px; color:#1b2430; font-weight:600; white-space:nowrap;
+  }
+  .flow-arrow{color:#9fb0c4; font-weight:700;}
+
+  /* FOOTER */
+  .footer{max-width:1180px; margin:0 auto; padding:0 28px 60px;}
+  .footer-inner{
+    background:linear-gradient(135deg,#0f172a,#173a6b); color:#c7d8ec;
+    border-radius:16px; padding:26px 30px; font-size:14px; line-height:1.8;
+  }
+  .footer-inner b{color:#fff;}
+
+  /* RESPONSIVE */
+  @media (max-width:900px){
+    .layout{grid-template-columns:1fr; gap:22px; padding:24px 18px 70px;}
+    .toc{position:static; max-height:none;}
+    .hero{padding:38px 20px 34px;}
+    .hero h1{font-size:23px;}
+    .footer{padding:0 18px 50px;}
+    .q-head{padding:15px 16px; gap:10px;}
+    .answer{padding:2px 16px 18px;}
+    .q-head h3{font-size:14.5px;}
+  }
+  @media print{
+    .toc,.toolbar,.chev{display:none !important;}
+    .layout{grid-template-columns:1fr; padding:0;}
+    .card{break-inside:avoid; box-shadow:none;}
+    body{background:#fff;}
+    .hero{background:#0f172a !important; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  }
+
+  .toc a.active{
+    background:var(--brand-soft); color:var(--brand); font-weight:600;
+  }
+  .toc::-webkit-scrollbar{width:6px;}
+  .toc::-webkit-scrollbar-thumb{background:#c5d0de; border-radius:6px;}
+  .toc::-webkit-scrollbar-track{background:transparent;}
+  .card, section, h3[id], article[id]{scroll-margin-top:28px;}
+  .btn:active{transform:scale(.98);}
+  .q-head:hover .chev{color:var(--brand);}
+
+</style>
+</head>
+<body>
+
+<!-- ==================== HERO ==================== -->
+<header class="hero">
+  <div class="hero-inner">
+    <div class="badge">Interview Q&amp;A · Full Collection</div>
+    <h1>卒中多智能体临床决策系统<br>面试问答全集（86 题）</h1>
+    <p class="sub">
+      基于 LangGraph 图编排的多学科会诊架构 · 每题均附实际源码依据 ·
+      核心问答 14 题 + 细粒度追问 30 题 + 面试常见问题 16 题 + 面试高频考点 20 题 + SSE 流式输出专题 6 题
+    </p>
+    <div class="stats">
+      <div class="stat"><b>86</b><span>面试题目</span></div>
+      <div class="stat"><b>14</b><span>核心问答</span></div>
+      <div class="stat"><b>30</b><span>细粒度追问</span></div>
+      <div class="stat"><b>16</b><span>常见问题</span></div>
+      <div class="stat"><b>20</b><span>高频考点</span></div>
+      <div class="stat"><b>6</b><span>SSE 专题</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- ==================== LAYOUT ==================== -->
+<div class="layout">
+
+  <!-- ---------- TOC ---------- -->
+  <aside class="toc">
+    <h4>目录导航</h4>
+
+    <a class="toc-sec" href="#sec-arch">一、架构设计（Q1-Q3）</a>
+    <a href="#q1">Q1　三层架构的分层动机</a>
+    <a href="#q2">Q2　为何选 LangGraph</a>
+    <a href="#q3">Q3　TypedDict vs Pydantic</a>
+
+    <a class="toc-sec" href="#sec-agent">二、多智能体与推理（Q4-Q6）</a>
+    <a href="#q4">Q4　专家超时的容错</a>
+    <a href="#q5">Q5　双路径结构化输出</a>
+    <a href="#q6">Q6　反思循环与默认放行</a>
+
+    <a class="toc-sec" href="#sec-rag">三、RAG 检索与知识管理（Q7-Q9）</a>
+    <a href="#q7">Q7　RRF 融合原理</a>
+    <a href="#q8">Q8　5 个主题隔离 Collection</a>
+    <a href="#q9">Q9　BM25 查询清洗</a>
+
+    <a class="toc-sec" href="#sec-safe">四、安全合规与评测（Q10-Q12）</a>
+    <a href="#q10">Q10　合规非阻塞设计</a>
+    <a href="#q11">Q11　faithfulness 软门禁</a>
+    <a href="#q12">Q12　两处脱敏设计</a>
+
+    <a class="toc-sec" href="#sec-bonus">五、加分题（Q13-Q14）</a>
+    <a href="#q13">Q13　扩展为通用 CDSS</a>
+    <a href="#q14">Q14　更经济的校验策略</a>
+
+    <a class="toc-sec" href="#sec-fine">六、细粒度追问（Q15-Q44）</a>
+    <a href="#fine-async">6.1 Python 异步与并发（Q15-Q18）</a>
+    <a href="#fine-graph">6.2 LangGraph 状态与编排（Q19-Q22）</a>
+    <a href="#fine-llm">6.3 LLM 调用与结构化输出（Q23-Q26）</a>
+    <a href="#fine-rag">6.4 RAG 检索细节（Q27-Q30）</a>
+    <a href="#fine-eval">6.5 证据质量与检索循环（Q31-Q33）</a>
+    <a href="#fine-safe">6.6 安全与合规细节（Q34-Q36）</a>
+    <a href="#fine-tool">6.7 工具系统（Q37-Q38）</a>
+    <a href="#fine-config">6.8 配置与评测（Q39-Q41）</a>
+    <a href="#fine-stream">6.9 流式输出与前端交互（Q42-Q44）</a>
+
+    <a class="toc-sec" href="#sec-common">七、面试常见问题（Q45-Q60）</a>
+    <a href="#common-overview">7.1 项目概述类（Q45-Q47）</a>
+    <a href="#common-difficulty">7.2 技术难点类（Q48-Q50）</a>
+    <a href="#common-design">7.3 系统设计类（Q51-Q53）</a>
+    <a href="#common-perf">7.4 性能与可靠性类（Q54-Q56）</a>
+    <a href="#common-reflect">7.5 项目经验与反思类（Q57-Q60）</a>
+
+    <a class="toc-sec" href="#sec-hot">八、面试高频考点（Q61-Q80）</a>
+    <a href="#hot-langgraph">8.1 LangChain vs LangGraph（Q61-Q63）</a>
+    <a href="#hot-rag">8.2 RAG 检索（Q64-Q68）</a>
+    <a href="#hot-agent">8.3 Multi-Agent 多智能体（Q69-Q72）</a>
+    <a href="#hot-asyncio">8.4 Python asyncio（Q73-Q75）</a>
+    <a href="#hot-safe">8.5 医疗 AI 安全合规（Q76-Q78）</a>
+    <a href="#hot-exp">8.6 项目经验类（Q79-Q80）</a>
+
+    <a class="toc-sec" href="#sec-sse">九、SSE 流式输出专题（Q81-Q86）</a>
+    <a href="#sse-basics">9.1 SSE 基础概念（Q81-Q82）</a>
+    <a href="#sse-project">9.2 项目全链路实现（Q83-Q84）</a>
+    <a href="#sse-protocol">9.3 事件协议与高频追问（Q85-Q86）</a>
+  </aside>
+
+  <!-- ---------- MAIN ---------- -->
+  <main>
+    <div class="toolbar">
+      <button class="btn" id="btn-expand">全部展开</button>
+      <button class="btn" id="btn-collapse">全部折叠</button>
+      <button class="btn" onclick="window.print()">打印 / 导出 PDF</button>
+    </div>
+
+    <!-- ==================== 一、架构设计 ==================== -->
+    <section class="section sec-arch" id="sec-arch">
+      <h2 class="section-title"><span class="dot"></span>一、架构设计<span class="idx">Q1 – Q3</span></h2>
+
+      <article class="card" id="q1">
+        <div class="q-head">
+          <span class="q-num">Q1</span>
+          <h3>你的系统采用了"前层-中层-后层"三层架构，为什么这样分层？每层的核心职责是什么？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>分层动机是<strong>模拟真实医院的多学科会诊流程</strong>，同时实现<strong>关注点分离</strong>——不同层有不同的容错要求和延迟容忍度：</p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>层次</th><th>节点链</th><th>核心职责</th><th>容错策略</th></tr></thead>
+              <tbody>
+                <tr><td><strong>前层</strong></td><td><code>intent</code>→<code>memory</code>→<code>analysis</code>→<code>research_plan</code>→<code>evidence_router</code>→<code>retrieve</code>→<code>evidence_judge</code></td><td>信息收集与证据检索：识别意图、激活患者记忆、结构化病例、规划检索、路由证据源、执行检索、评估证据质量</td><td>检索失败可降级（规则兜底），不阻塞流程</td></tr>
+                <tr><td><strong>中层</strong></td><td><code>reason</code>→<code>debate</code>→<code>consensus</code></td><td>多专家会诊：各专家独立出具意见、交叉质询、主持人综合共识</td><td>单专家失败降级为占位文本（<code>return_exceptions=True</code>），不拖垮整轮</td></tr>
+                <tr><td><strong>后层</strong></td><td><code>validate</code>→<code>compliance</code>→<code>human_review</code>→<code>report</code></td><td>安全校验与输出：规则引擎+LLM 反思校验、PHI/绝对化断言合规审计、医生人工复核、报告生成</td><td>校验异常默认放行，合规问题不阻断，由 HITL 兜底</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><strong>关键设计权衡：</strong>前层是"信息管道"，允许降级和跳过；中层是"推理核心"，需要并行容错；后层是"安全守门"，宁可放过不可误杀。</p>
+          <div class="refs"><b>代码依据：</b><code>clinical_graph.py:1-50</code> 架构注释，<code>clinical_graph.py:167-230</code> 的 <code>add_edge</code> / <code>add_conditional_edges</code> 编排逻辑。</div>
+        </div>
+      </article>
+
+      <article class="card" id="q2">
+        <div class="q-head">
+          <span class="q-num">Q2</span>
+          <h3>为什么选择 LangGraph 图编排而非简单的链式调用（Chain）？图编排带来了哪些具体优势？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>链式调用（Chain）是线性 A→B→C，无法表达本项目需要的四种非线性模式：</p>
+          <ol>
+            <li><strong>条件路由：</strong>意图识别后三分支——<code>consultation</code>→记忆→分析→…、<code>knowledge</code>→直接回答、<code>irrelevant</code>→拒绝。代码中用 <code>add_conditional_edges("intent", self._route_intent, {...})</code> 实现。</li>
+            <li><strong>反思循环：</strong>校验不通过时，<code>validate</code> 节点路由回 <code>reason</code> 重新会诊（最多 N 次）。代码中 <code>_route_validation</code> 返回 <code>"retry"</code> → <code>"reason"</code>。</li>
+            <li><strong>并行节点：</strong><code>DebateNode</code> 中多个专家的交叉质询用 <code>asyncio.gather</code> 并行执行。</li>
+            <li><strong>中断点（HITL）：</strong><code>_human_review_node</code> 中调用 <code>langgraph.types.interrupt</code> 挂起流程等待医生审批，审批后通过 <code>/model/resume</code> 恢复。</li>
+            <li><strong>状态持久化：</strong><code>build_checkpointer()</code> 创建 SQLite checkpointer，支持断点续传。</li>
+          </ol>
+          <div class="refs"><b>代码依据：</b><code>clinical_graph.py:215-230</code> 条件边编排，<code>clinical_graph.py:345-380</code> HITL 中断点。</div>
+        </div>
+      </article>
+
+      <article class="card" id="q3">
+        <div class="q-head">
+          <span class="q-num">Q3</span>
+          <h3><code>ClinicalState</code> 用 <code>TypedDict</code> 而非 Pydantic <code>BaseModel</code> 定义，为什么？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>这是 <strong>LangGraph 框架的硬性要求</strong>：</p>
+          <ul>
+            <li><strong>状态通道与 Reducer：</strong>LangGraph 用 <code>Annotated[type, reducer_func]</code> 声明字段合并策略。如 <code>Annotated[list, operator.add]</code> 表示多节点返回的 list 自动拼接。<code>TypedDict</code> 天然支持这种注解。</li>
+            <li><strong>部分更新语义：</strong>每个节点的 <code>run()</code> 返回<strong>部分状态更新字典</strong>，LangGraph 自动与当前状态合并。<code>TypedDict</code> 是轻量字典，天然支持"只写变更字段"。</li>
+            <li><strong>Pydantic 的角色：</strong>用于<strong>节点内部的结构化输出</strong>（如 <code>EvidenceRoutes</code>、<code>IntentResult</code>），通过 <code>llm.with_structured_output(schema)</code> 约束 LLM 输出格式。这是与"图级别状态流转"不同层次。</li>
+          </ul>
+          <div class="refs"><b>代码依据：</b><code>schema.py:36-89</code> 的 <code>ClinicalState(TypedDict)</code>，对比 <code>schemas.py</code> 中 <code>EvidenceRoutes(BaseModel)</code>。</div>
+        </div>
+      </article>
+    </section>
+
+    <!-- ==================== 二、多智能体与推理 ==================== -->
+    <section class="section sec-agent" id="sec-agent">
+      <h2 class="section-title"><span class="dot"></span>二、多智能体与推理机制<span class="idx">Q4 – Q6</span></h2>
+
+      <article class="card" id="q4">
+        <div class="q-head">
+          <span class="q-num">Q4</span>
+          <h3>DebateNode 中如果某个专家 LLM 调用超时或报错，系统如何保证不拖垮整轮质询？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>关键在 <code>asyncio.gather(*tasks, return_exceptions=True)</code>：</p>
+<pre><code>tasks = [self._challenge(expert, state, opinions) for expert in self.experts]
+responses = await asyncio.gather(*tasks, return_exceptions=True)</code></pre>
+          <ul>
+            <li><strong><code>return_exceptions=True</code>：</strong>当某个 <code>_challenge</code> 抛异常时，不在 gather 层面传播，而是把异常对象作为该位置的返回值。其他专家继续正常完成。</li>
+            <li><strong>异常降级处理：</strong>遍历 <code>zip(self.experts, responses)</code> 时检查 <code>isinstance(response, Exception)</code>，异常则降级为占位文本 <code>"未能完成本轮交叉质询。"</code>。</li>
+            <li><strong>设计权衡：</strong>医疗场景中 3 个专家有 1 个超时，剩下 2 个的有效质询仍有价值。如果用 <code>return_exceptions=False</code>，一个失败会导致所有质询结果丢失。</li>
+          </ul>
+          <div class="refs"><b>代码依据：</b><code>debate_node.py:33-48</code>。</div>
+        </div>
+      </article>
+
+      <article class="card" id="q5">
+        <div class="q-head">
+          <span class="q-num">Q5</span>
+          <h3>Evidence Router 为什么需要"结构化输出快路径 + 文本解析回退"的双路径？什么情况下结构化输出会失败？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong>快路径：</strong><code>llm.with_structured_output(EvidenceRoutes)</code> 让 LLM 直接输出符合 Pydantic Schema 的 JSON。</p>
+          <p><strong>回退触发场景</strong>（任一即回退）：</p>
+          <ol>
+            <li><strong>Provider 不支持：</strong><code>with_structured_output</code> 方法不存在，或调用时抛异常。</li>
+            <li><strong>校验失败：</strong>LLM 输出的 JSON 不符合 Pydantic 校验，<code>ainvoke</code> 抛 <code>ValidationError</code>。</li>
+            <li><strong>Mock/测试环境：</strong><code>type(llm).__name__ == "Mock"</code> 时直接返回 None。</li>
+            <li><strong>LLM 为 None：</strong>初始化时未传入。</li>
+          </ol>
+          <p><strong>回退路径：</strong>用 <code>astream_text</code> 流式生成原始文本，通过 <code>parse_json_output</code> 手动提取 JSON。若也失败，走 <code>_normalize_routes</code> 的<strong>规则兜底</strong>。</p>
+          <div class="callout"><b>三层降级：</b>结构化输出 → 文本解析 → 规则兜底。</div>
+          <div class="refs"><b>代码依据：</b><code>evidence_router_node.py:76-110</code>，<code>base.py:47-62</code>。</div>
+        </div>
+      </article>
+
+      <article class="card" id="q6">
+        <div class="q-head">
+          <span class="q-num">Q6</span>
+          <h3>ValidateNode 的反思循环：触发条件、终止条件，以及为什么"异常情况下默认放行"？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong>触发条件：</strong>校验不通过且 <code>reflection_count &lt; max_reflection_count</code>，<code>_route_validation</code> 返回 <code>"retry"</code>。</p>
+          <p><strong>终止条件</strong>（三选一）：</p>
+          <ol>
+            <li>校验通过 → 路由到 <code>"pass"</code> → compliance → report</li>
+            <li>反思次数达上限 → 路由到 <code>"fail"</code> → 仍走 compliance → report（附校验反馈）</li>
+            <li>HITL 驳回次数达上限 → 强制生成报告</li>
+          </ol>
+          <p><strong>默认放行：</strong></p>
+<pre><code>except Exception as e:
+    logger.error(f"[validate] Reflection 调用异常: {e}，默认放行")
+    return {"validation_passed": True, "validation_feedback": ""}</code></pre>
+          <p>这是<strong>安全兜底策略</strong>：校验节点自身的故障不应阻塞整个临床流程。后续 ComplianceNode 仍会做合规审计，HITL 仍是最后一道防线。</p>
+          <div class="refs"><b>代码依据：</b><code>validate_node.py:80-130</code>，<code>clinical_graph.py:215-230</code> 的 <code>_route_validation</code>。</div>
+        </div>
+      </article>
+    </section>
+
+    <!-- ==================== 三、RAG ==================== -->
+    <section class="section sec-rag" id="sec-rag">
+      <h2 class="section-title"><span class="dot"></span>三、RAG 检索与知识管理<span class="idx">Q7 – Q9</span></h2>
+
+      <article class="card" id="q7">
+        <div class="q-head">
+          <span class="q-num">Q7</span>
+          <h3>RRF（Reciprocal Rank Fusion）的原理，为什么比简单分数归一化更适合融合异构检索器？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong>RRF 公式：</strong></p>
+          <div class="formula">score(d) = Σ  1 / (k + rank<sub>i</sub>(d))</div>
+          <p>对每路检索结果按排名位置赋分：排名第 1 得 <code>1/(k+1)</code>，第 2 得 <code>1/(k+2)</code>。跨路累加后降序。<code>k=60</code> 是常用平滑常数。</p>
+          <p><strong>为什么优于分数归一化：</strong></p>
+          <ol>
+            <li><strong>消除量纲差异：</strong>向量余弦相似度（-1~1）与 BM25 分数（0~∞）量纲不同。RRF <strong>只依赖排名</strong>，天然消除量纲。</li>
+            <li><strong>对异常分鲁棒：</strong>BM25 极端高分不影响 RRF 融合。</li>
+            <li><strong>"多路共识"语义：</strong>向量排第 3、BM25 排第 2 的文档 RRF = <code>1/63+1/62≈0.032</code>；只在向量排第 1 的 RRF = <code>1/61≈0.016</code>。前者胜出。</li>
+          </ol>
+          <div class="refs"><b>代码依据：</b><code>retrievers.py:327-345</code> 的 <code>_rrf_merge</code>。</div>
+        </div>
+      </article>
+
+      <article class="card" id="q8">
+        <div class="q-head">
+          <span class="q-num">Q8</span>
+          <h3>5 个主题隔离 Collection 的好处与额外复杂度？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><span class="label">好处</span></p>
+          <ol>
+            <li><strong>检索精度提升：</strong>查询"取栓适应证"只在 <code>treatment_collection</code> 检索，避免解剖教材噪声。</li>
+            <li><strong>分桶路由与 Evidence Router 协同：</strong><code>evidence_type=treatment</code> → 只查对应 Collection。</li>
+            <li><strong>独立更新：</strong>新增治疗指南只重建 <code>treatment_collection</code>。</li>
+          </ol>
+          <p><span class="label">额外复杂度</span></p>
+          <ol>
+            <li><strong>路由逻辑：</strong><code>route_collection()</code> 按 metadata 归属。</li>
+            <li><strong>跨 Collection 汇总：</strong><code>UnifiedSearchEngine</code> 维护 5 个 <code>HybridRetriever</code>。</li>
+            <li><strong>健康检查：</strong><code>_check_store_health()</code> 校验条数与分桶数。</li>
+            <li><strong>QA 对生成：</strong>每个 Collection 独立生成。</li>
+          </ol>
+          <div class="refs"><b>代码依据：</b><code>retrievers.py:221-280</code>。</div>
+        </div>
+      </article>
+
+      <article class="card" id="q9">
+        <div class="q-head">
+          <span class="q-num">Q9</span>
+          <h3><code>_clean_bm25_query</code> 为什么要剥离布尔语法？PICO 式检索式对 BM25 和向量检索分别有什么影响？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>PICO 检索式如：<code>("mca" OR "middle cerebral artery") AND thrombectomy</code></p>
+          <ul>
+            <li><strong>对向量检索：</strong>Embedding 理解语义，引号括号不影响编码，反而有助于精确表达意图。</li>
+            <li><strong>对 BM25：</strong>词袋模型，<code>text.lower().split()</code> 空白分词，<code>"mca"</code> 变成 <code>["\"mca\""]</code> 而非 <code>["mca"]</code>，与索引无法匹配。</li>
+          </ul>
+          <p><strong>清洗策略：</strong></p>
+<pre><code>cleaned = re.sub(r'["()]', ' ', query)                    # 去除引号/括号
+cleaned = re.sub(r'\s+(?:AND|OR|NOT)\s+', ' ', cleaned)   # 去除独立布尔连接词</code></pre>
+          <div class="callout"><b>注意：</b>只剥离<strong>前后有空白</strong>的 AND/OR/NOT，避免误删 <code>OR=1.5, 95%CI</code> 中的 <code>OR</code>。</div>
+          <div class="refs"><b>代码依据：</b><code>retrievers.py:67-80</code>。</div>
+        </div>
+      </article>
+    </section>
+
+    <!-- ==================== 四、安全合规与评测 ==================== -->
+    <section class="section sec-safe" id="sec-safe">
+      <h2 class="section-title"><span class="dot"></span>四、安全合规与评测<span class="idx">Q10 – Q12</span></h2>
+
+      <article class="card" id="q10">
+        <div class="q-head">
+          <span class="q-num">Q10</span>
+          <h3>ComplianceNode 为什么"非阻塞"——发现问题不阻断流程？安全如何兜底？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong>非阻塞的设计权衡：</strong></p>
+          <ol>
+            <li><strong>合规检查自身可能误判：</strong>PHI 正则可能把"NIHSS 评分 15 分"中的 15 误报。</li>
+            <li><strong>绝对化断言检测的灰度：</strong><code>100%</code> 在某些语境合理。</li>
+            <li><strong>临床时效性：</strong>卒中是时间敏感性疾病，流程阻塞风险远大于合规问题本身。</li>
+          </ol>
+          <p><strong>安全兜底三层防线：</strong></p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>层级</th><th>机制</th><th>作用</th></tr></thead>
+              <tbody>
+                <tr><td><strong>1</strong></td><td><strong>审计留痕</strong></td><td><code>compliance_audit</code> 记录所有检测问题、时间戳，事后可追溯</td></tr>
+                <tr><td><strong>2</strong></td><td><strong>HITL 人工复核</strong></td><td><code>human_review</code> 节点挂起，医生可看到合规问题并决定是否批准</td></tr>
+                <tr><td><strong>3</strong></td><td><strong>免责声明</strong></td><td><code>DISCLAIMER</code> 附到审计记录，明确"AI 辅助决策参考，不构成诊断或处方"</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="refs"><b>代码依据：</b><code>compliance_node.py:1-30</code> 设计注释，<code>compliance_node.py:50-80</code> 非阻塞逻辑。</div>
+        </div>
+      </article>
+
+      <article class="card" id="q11">
+        <div class="q-head">
+          <span class="q-num">Q11</span>
+          <h3>为什么 faithfulness 只做软门禁？和 LLM-as-Judge 的局限性有什么关系？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong>硬门禁 vs 软门禁：</strong></p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>指标</th><th>类型</th><th>基线值</th><th>阻塞 CI？</th></tr></thead>
+              <tbody>
+                <tr><td>Recall@3</td><td>硬</td><td><code>0.783</code></td><td>✅</td></tr>
+                <tr><td>MRR</td><td>硬</td><td><code>0.757</code></td><td>✅</td></tr>
+                <tr><td>NDCG@10</td><td>硬</td><td><code>0.763</code></td><td>✅</td></tr>
+                <tr><td>Recall@10</td><td>软</td><td><code>0.817</code></td><td>❌ 仅告警</td></tr>
+                <tr><td>Faithfulness</td><td>软</td><td><code>0.71</code></td><td>❌ 仅告警</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><strong>Faithfulness 做软门禁的原因：</strong></p>
+          <ol>
+            <li><strong>LLM-as-Judge 噪声大：</strong>同输入多次评分可能差 0.1~0.2，小样本波动更大。</li>
+            <li><strong>检索指标确定性高：</strong>Recall/MRR/NDCG 是纯数学计算，无随机性。</li>
+            <li><strong>避免 CI 误报：</strong>一次随机波动可能阻塞正常代码合并。</li>
+          </ol>
+          <div class="refs"><b>代码依据：</b><code>gate.py:30-45</code> 的 <code>RAGAS_HARD_GATES</code> 与 <code>RAGAS_WARN_GATES</code>。</div>
+        </div>
+      </article>
+
+      <article class="card" id="q12">
+        <div class="q-head">
+          <span class="q-num">Q12</span>
+          <h3>工具注册表中两处脱敏的设计意图？遗漏会有什么安全风险？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong>第一处：<code>patient_info</code> 参数日志截断</strong></p>
+<pre><code>log_args = {
+    k: (str(v)[:60] + "…" if k == "patient_info" and len(str(v)) &gt; 60 else v)
+    for k, v in arguments.items()
+}
+logger.info(f"[tools] 调用工具 {name}, 参数: {log_args}")</code></pre>
+          <ul>
+            <li><strong>意图：</strong>日志文件多服务/人员可读，完整 PHI 写入日志 = 数据泄露。</li>
+            <li><strong>遗漏风险：</strong>违反 HIPAA Safe Harbor，法律追责罚款可达数百万美元。</li>
+          </ul>
+          <p><strong>第二处：ValidationError 脱敏</strong></p>
+<pre><code>if isinstance(e, ValidationError):
+    brief = "; ".join(
+        f"{'.'.join(str(p) for p in err.get('loc', []))}: {err.get('type', 'invalid')}"
+        for err in e.errors()
+    )
+    error_msg = f"参数校验失败: {brief or str(e)}"</code></pre>
+          <ul>
+            <li><strong>意图：</strong>Pydantic 默认消息包含<strong>用户输入值</strong>。只保留字段路径和约束类型。</li>
+            <li><strong>遗漏风险：</strong>错误消息可能被 API 返回前端、写入日志、进入监控系统。</li>
+          </ul>
+          <div class="refs"><b>代码依据：</b><code>registry.py:70-95</code>，<code>security.py</code> 的 HIPAA 18 类 PHI 正则。</div>
+        </div>
+      </article>
+    </section>
+
+    <!-- ==================== 五、加分题 ==================== -->
+    <section class="section sec-bonus" id="sec-bonus">
+      <h2 class="section-title"><span class="dot"></span>五、加分题<span class="idx">Q13 – Q14</span></h2>
+
+      <article class="card" id="q13">
+        <div class="q-head">
+          <span class="q-num">Q13</span>
+          <h3>从"卒中专科"扩展为"通用临床 CDSS 平台"，如何重构？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><span class="label">可复用部分</span></p>
+          <ul>
+            <li>图编排框架（条件路由、反思循环、HITL 中断点）</li>
+            <li>RAG 检索引擎（<code>HybridRetriever</code>、RRF、重排、Multi-Collection）</li>
+            <li>合规审计（PHI 检测、绝对化断言、免责声明）</li>
+            <li>评测门禁体系（RAGAS 硬/软门禁）</li>
+            <li><code>BaseNode</code> / <code>astream_text</code> / <code>make_structured_runner</code></li>
+          </ul>
+          <p><span class="label">必须重写部分</span></p>
+          <ul>
+            <li><code>ClinicalState</code>：卒中特有字段泛化为 <code>assessment_results: Dict[str, Any]</code></li>
+            <li><code>ClinicalContext</code>：改为通用临床信息模型（如 FHIR）</li>
+            <li>工具注册表：卒中专用工具替换为目标专科工具集</li>
+            <li>知识库：5 个 Collection 分桶规则与路由需重新设计</li>
+            <li>Prompt 模板：专科术语参数化</li>
+          </ul>
+          <div class="callout"><b>重构建议：</b><code>ClinicalState</code> 改为 <code>Dict[str, Any]</code> + JSON Schema 约束，工具/知识库/Prompt 通过 YAML 注入，<code>ClinicalGraphBuilder</code> 成为通用图工厂。</div>
+        </div>
+      </article>
+
+      <article class="card" id="q14">
+        <div class="q-head">
+          <span class="q-num">Q14</span>
+          <h3>如何设计更经济的校验策略？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <ol>
+            <li><strong>风险分级触发：</strong>低风险决策只走规则引擎；<code>DecisionItem.priority &gt;= 7</code> 才触发 LLM 反思。</li>
+            <li><strong>小模型初筛 + 大模型精审：</strong>qwen-turbo 快速判断"是否可能有问题"，可疑时才调 qwen-plus/max。预期节省 5-10 倍 token。</li>
+            <li><strong>缓存校验结论：</strong>相同 <code>(proposal_hash, evidence_hash)</code> 直接复用。</li>
+            <li><strong>增量校验：</strong>只校验变更部分（diff），而非全量重校。</li>
+            <li><strong>提前终止：</strong>命中硬禁忌症直接 REJECT；<code>evidence_quality &lt; 0.3</code> 跳过 LLM 反思。</li>
+          </ol>
+        </div>
+      </article>
+    </section>
+
+    <!-- ==================== 六、细粒度追问 ==================== -->
+    <section class="section sec-fine" id="sec-fine">
+      <h2 class="section-title"><span class="dot"></span>六、细粒度追问（30 题）<span class="idx">Q15 – Q44</span></h2>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="fine-async">
+        <span class="dot" style="background:var(--accent);"></span>6.1 Python 异步与并发机制
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q15 – Q18</span>
+      </h3>
+
+      <article class="card" id="q15">
+        <div class="q-head"><span class="q-num">Q15</span><h3>ReasonNode 的 <code>asyncio.gather</code> 没有 <code>return_exceptions=True</code>，DebateNode 传了，为什么？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <ul>
+            <li><strong>ReasonNode</strong>（<code>reason_node.py:184</code>）：<code>asyncio.gather(*tasks)</code> 无 <code>return_exceptions</code>。但 <code>_ask_expert</code> 内部有 try/except（<code>reason_node.py:237-249</code>），失败时返回 <code>"未能获取{role}的意见"</code>，不会抛异常。</li>
+            <li><strong>DebateNode</strong>（<code>debate_node.py:37</code>）：<code>asyncio.gather(*tasks, return_exceptions=True)</code>。因为 <code>_challenge</code> 内部<strong>没有</strong> try/except，失败会抛异常。不传会导致整轮质询全丢。</li>
+          </ul>
+          <p><strong>本质：</strong>ReasonNode 容错内聚到子方法，DebateNode 容错外移到 gather 层面。两种方式都能工作，DebateNode 更简洁。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q16">
+        <div class="q-head"><span class="q-num">Q16</span><h3><code>asyncio.gather</code> vs <code>asyncio.TaskGroup</code> 的异常传播区别？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>特性</th><th><code>gather</code></th><th><code>TaskGroup</code> (3.11+)</th></tr></thead>
+              <tbody>
+                <tr><td>异常传播</td><td><code>return_exceptions=False</code> 时首个异常立即传播，其余任务继续运行但结果被丢弃</td><td>任何任务异常时取消所有未完成任务，抛 <code>ExceptionGroup</code></td></tr>
+                <tr><td>结果收集</td><td>返回 list</td><td>不返回结果列表，需手动收集</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>用 TaskGroup 重写 DebateNode：一个专家失败会取消其余任务，<strong>不符合需求</strong>。要用 TaskGroup 实现等价语义，需在 <code>_challenge</code> 内部加 try/except。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q17">
+        <div class="q-head"><span class="q-num">Q17</span><h3><code>astream_text</code> 中的协程调度与事件循环？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>所有协程都在<strong>同一个事件循环</strong>上调度。Python 的 asyncio 是单线程单事件循环模型：</p>
+          <ul>
+            <li><code>llm.astream(messages)</code> 返回异步生成器，内部 <code>await</code> 让出控制权</li>
+            <li><code>asyncio.gather</code> 提交多个协程到当前事件循环，IO 等待时切换执行</li>
+            <li>不存在"各自的事件循环"——除非显式 <code>loop.run_in_executor</code></li>
+          </ul>
+          <p><code>asyncio.run()</code> 创建<strong>新事件循环</strong>并运行到完成。在 FastAPI 中所有 <code>async def</code> 端点已在事件循环中运行，不能再调 <code>asyncio.run()</code>。模块顶层调用会创建独立事件循环，这是 aiosqlite 问题的根源。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q18">
+        <div class="q-head"><span class="q-num">Q18</span><h3>为什么 aiosqlite 不能在模块顶层创建连接？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>aiosqlite 原理：</p>
+          <ol>
+            <li>创建后台线程运行同步 sqlite3</li>
+            <li>通过 <code>asyncio.Queue</code> 在主事件循环和后台线程间通信</li>
+            <li>后台线程需知道<strong>哪个事件循环</strong>注册 queue 读取端</li>
+          </ol>
+          <p><code>AsyncSqliteSaver.from_conn_string(path)</code> 内部调 <code>asyncio.get_running_loop()</code> 绑定当前循环。</p>
+          <p><strong>模块顶层调用</strong>时：<code>asyncio.run()</code> 创建临时循环运行后关闭，aiosqlite 绑定到已关闭循环，后续 FastAPI 中 <code>await checkpointer.aput(...)</code> 会抛 <code>RuntimeError: Event loop is closed</code>。</p>
+          <p><strong>正确做法：</strong>在 FastAPI 的 <code>lifespan</code> 中调用 <code>await open_checkpointer()</code>（<code>checkpoint.py:85-99</code>）。</p>
+        </div>
+      </article>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="fine-graph">
+        <span class="dot" style="background:var(--accent);"></span>6.2 LangGraph 状态管理与图编排
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q19 – Q22</span>
+      </h3>
+
+      <article class="card" id="q19">
+        <div class="q-head"><span class="q-num">Q19</span><h3><code>reflection_count</code> 没有 reducer，是替换还是累加？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong><strong>替换</strong>。LangGraph 默认 reducer 是"last-write-wins"：</p>
+          <ul>
+            <li><code>reflection_count: int</code>（无 <code>Annotated</code>）→ 默认替换</li>
+            <li>ValidateNode 返回 <code>{"reflection_count": new_reflection_count}</code> → 直接覆盖</li>
+          </ul>
+          <p>代码中 <code>new_reflection_count = state['reflection_count'] + 1</code>（<code>validate_node.py:218</code>），节点自读取+加1+写回，替换语义正确。</p>
+          <p><strong>误用 <code>Annotated[int, operator.add]</code> 的后果：</strong>ValidateNode 返回 1（加1），LangGraph 累加：0+1=1 ✅；第二次 ValidateNode 返回 2（内部又加1），LangGraph 累加：1+2=3 ❌。反思次数<strong>加速增长</strong>，循环提前终止。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q20">
+        <div class="q-head"><span class="q-num">Q20</span><h3><code>"pass"</code> 和 <code>"fail"</code> 都路由到 <code>compliance</code>，区别在哪？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>路由键不同但目标节点相同，<strong>区别在状态字段</strong>：</p>
+          <ul>
+            <li><code>"pass"</code>：<code>validation_passed=True, validation_feedback=""</code></li>
+            <li><code>"fail"</code>：<code>validation_passed=False, validation_feedback="..."</code> 且 <code>reflection_count &gt;= max</code></li>
+          </ul>
+          <p>ComplianceNode 不直接依赖 <code>validation_passed</code>，但 ReportNode 会检查（<code>report_node.py:30-35</code>），为 False 时附加"安全警告"章节。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q21">
+        <div class="q-head"><span class="q-num">Q21</span><h3><code>interrupt</code> 和 Python <code>break</code>/<code>raise</code> 的本质区别？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>特性</th><th><code>interrupt()</code></th><th><code>break</code> / <code>raise</code></th></tr></thead>
+              <tbody>
+                <tr><td>作用域</td><td>LangGraph 图执行层面</td><td>Python 函数层面</td></tr>
+                <tr><td>状态保存</td><td>自动序列化完整 <code>ClinicalState</code> 到 checkpointer</td><td>不保存</td></tr>
+                <tr><td>恢复机制</td><td><code>/model/resume</code> + 审批决策 → 从中断点继续</td><td>无法恢复</td></tr>
+                <tr><td>返回值</td><td><code>interrupt(payload)</code> 返回值由恢复时传入</td><td>无</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>执行状态保存在 SQLite <code>checkpoints</code> 表，以 <code>thread_id</code> 为键。恢复时从 <code>_human_review_node</code> 继续。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q22">
+        <div class="q-head"><span class="q-num">Q22</span><h3>为什么不用 LangGraph 自带清理 API？SQL 性能隐患？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong>不用自带 API：</strong>LangGraph 的 <code>AsyncSqliteSaver</code> 没有暴露公开的 checkpoint 清理 API，<code>prune_stale_threads</code> 是项目自研。</p>
+          <p><strong>性能隐患：</strong></p>
+<pre><code>SELECT thread_id, MAX(CAST(json_extract(checkpoint, '$.ts') AS REAL)) AS ts
+FROM checkpoints GROUP BY thread_id</code></pre>
+          <ol>
+            <li><strong>全表扫描：</strong><code>json_extract</code> 无函数索引支持，O(N) 扫描</li>
+            <li><strong>无索引：</strong><code>thread_id</code> 列可能无索引</li>
+            <li><strong>数据量增长：</strong>高频使用下 checkpoints 表可达数十万行</li>
+          </ol>
+          <p><strong>优化：</strong>给 <code>thread_id</code> 加索引；用 <code>checkpoint_writes.created_at</code> 替代 <code>json_extract</code>；定期 VACUUM。</p>
+        </div>
+      </article>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="fine-llm">
+        <span class="dot" style="background:var(--accent);"></span>6.3 LLM 调用与结构化输出
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q23 – Q26</span>
+      </h3>
+
+      <article class="card" id="q23">
+        <div class="q-head"><span class="q-num">Q23</span><h3>为什么用 <code>type(llm).__name__ == "Mock"</code> 而非 <code>isinstance</code>？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+<pre><code>if type(llm).__name__ == "Mock":</code></pre>
+          <p><strong>不用 <code>isinstance</code> 的原因：</strong></p>
+          <ol>
+            <li><strong>避免导入耦合：</strong>业务代码引入 <code>unittest.mock</code> 不合适</li>
+            <li><strong>跨 mock 库兼容：</strong>pytest-mock / unittest.mock / MagicMock 类名都是 "Mock" 或 "MagicMock"</li>
+          </ol>
+          <p><strong>脆弱性：</strong>Mock 子类漏判；第三方 mock 类名可能不同；同名类误判。</p>
+          <p><strong>更健壮：</strong></p>
+<pre><code>try:
+    from unittest.mock import Mock as _Mock
+    if isinstance(llm, _Mock):
+        return None
+except ImportError:
+    pass</code></pre>
+        </div>
+      </article>
+
+      <article class="card" id="q24">
+        <div class="q-head"><span class="q-num">Q24</span><h3><code>parse_json_output</code> 第三种策略的边界情况？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+<pre><code>start = content.find("{")
+end = content.rfind("}")
+return json.loads(content[start:end + 1])</code></pre>
+          <p><strong>嵌套花括号导致截取范围过大：</strong></p>
+<pre><code>根据分析：{"routes": [...]}
+补充说明：置信度约为 {0.85}，仅供参考。</code></pre>
+          <p><code>rfind("}")</code> 找到最后一个 <code>}</code>（在 <code>{0.85}</code> 后），截取包含 <code>{0.85}</code>，<code>json.loads</code> 报错。</p>
+          <p><strong>另一个例子：</strong>LLM 用花括号排版 <code>{重要}</code> / <code>{结束}</code>，<code>find/rfind</code> 截取内容完全不是合法 JSON。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q25">
+        <div class="q-head"><span class="q-num">Q25</span><h3>如何改进 <code>_force_consultation</code> 的指代词误判？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>当前规则（<code>intent_node.py:131</code>）：</p>
+<pre><code>any(ref in case_text for ref in ("该患者", "这个患者", "这个病人", "此患者", "该病人", "他", "她"))</code></pre>
+          <p><strong>误判场景：</strong>"他建议手术" → "他"指医生；"她对该药物过敏" → 指患者 ✅。</p>
+          <p><strong>改进方案：</strong></p>
+          <ol>
+            <li><strong>上下文窗口检查：</strong>检查"他/她"前 10 字符是否包含医生动作词（建议/推荐/认为）</li>
+          </ol>
+<pre><code>def _is_patient_reference(text: str, ref: str) -&gt; bool:
+    if ref not in ("他", "她"):
+        return True
+    idx = text.find(ref)
+    prefix = text[max(0, idx-10):idx]
+    doctor_verbs = ("建议", "推荐", "认为", "指出", "报告", "判断")
+    return not any(v in prefix for v in doctor_verbs)</code></pre>
+          <ol start="2">
+            <li><strong>依赖历史上下文：</strong>若 <code>all_info</code> 含患者信息不含医生信息，更可能指患者</li>
+            <li><strong>最简方案：</strong>移除"他""她"，牺牲少量召回换精确率</li>
+          </ol>
+        </div>
+      </article>
+
+      <article class="card" id="q26">
+        <div class="q-head"><span class="q-num">Q26</span><h3>ConsensusNode <code>_split</code> 的 <code>maxsplit=1</code> 和缺失标记回退？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong><code>maxsplit=1</code> 保证：</strong>只按第一个 <code>### PROPOSAL ###</code> 切分。若 LLM 输出两个 PROPOSAL 段落，<code>maxsplit=1</code> 使 <code>split(...)[1]</code> 得到包含后续所有内容的字符串，<code>split("### CRITIQUE ###", 1)[0]</code> 提取两个 PROPOSAL 段落——<strong>不会丢失</strong>。</p>
+          <p><strong>缺失标记回退：</strong></p>
+<pre><code>return (
+    consensus or "会诊意见存在分歧，需人工复核。",
+    proposal or "建议结合临床资料进一步评估。",
+    critique or "当前未生成完整风险审查，需人工复核。",
+)</code></pre>
+          <ul>
+            <li><code>proposal</code> 为空 → 泛化回退 → LLM 反思大概率 PASS → 报告内容空洞但不崩溃</li>
+            <li><code>critique</code> 为空 → 缺医学风险审查，安全兜底依赖 HITL</li>
+          </ul>
+        </div>
+      </article>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="fine-rag">
+        <span class="dot" style="background:var(--accent);"></span>6.4 RAG 检索细节
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q27 – Q30</span>
+      </h3>
+
+      <article class="card" id="q27">
+        <div class="q-head"><span class="q-num">Q27</span><h3>为什么向量检索用原始 query，BM25 用清洗后的？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>清洗会<strong>丢失语义信息</strong>。PICO 式查询 <code>("mca" OR "middle cerebral artery") AND thrombectomy</code>：</p>
+          <ul>
+            <li><strong>向量用原始：</strong>Embedding 理解布尔语义，引号括号不影响编码。</li>
+            <li><strong>向量也用清洗后：</strong>丢失 OR 的"任一匹配"语义，embedding 偏向 AND 联合语义，降低召回。</li>
+            <li><strong>BM25 用清洗后：</strong>词袋模型，清洗后统一 token 匹配。</li>
+          </ul>
+          <p><strong>总结：</strong>两路检索器语言理解能力不同，需不同输入预处理。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q28">
+        <div class="q-head"><span class="q-num">Q28</span><h3>两层缓存的一致性问题？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong><code>HybridRetriever._cache</code></strong>（<code>retrievers.py:395-405</code>）：缓存单 Collection 结果，键 <code>MD5(query + top_k + category_filter + evidence_type)</code>，TTL 300 秒。</p>
+          <p><strong><code>UnifiedSearchEngine._cache</code></strong>：缓存跨 Collection 汇总结果。</p>
+          <p><strong>不一致场景：</strong>Collection 数据更新后缓存仍返回旧结果。但当前向量库只在服务启动时更新，运行期不增量更新，风险低。</p>
+          <p>若未来支持增量更新，需在更新后调 <code>retriever.clear_cache()</code> 和 <code>engine._cache.clear()</code>。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q29">
+        <div class="q-head"><span class="q-num">Q29</span><h3><code>_rrf_merge</code> 用 <code>page_content</code> 做唯一键的覆盖问题？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+<pre><code>doc_scores[key] = doc_scores.get(key, 0.0) + 1.0 / (k + rank)
+doc_map[key] = doc  # 后写入覆盖先写入</code></pre>
+          <ol>
+            <li><strong>分数累加正确：</strong>同一内容两路都出现应获更高融合分</li>
+            <li><strong><code>doc_map</code> 覆盖：</strong>保留排名列表中后出现的文档</li>
+            <li><strong>metadata 丢失：</strong>被覆盖文档的 metadata 丢失</li>
+          </ol>
+          <p>实际影响低（同一指南不同段落 <code>page_content</code> 不同）。<strong>更健壮：</strong>用 <code>(page_content, source, chunk_id)</code> 组合键或文档对象 <code>id</code>。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q30">
+        <div class="q-head"><span class="q-num">Q30</span><h3><code>time.sleep(1)</code> 在异步事件循环中的阻塞问题？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><code>time.sleep(1)</code> 是<strong>同步阻塞</strong>，暂停当前线程 1 秒 = 阻塞事件循环 1 秒，所有其他协程无法调度。高并发下一个 Rerank 限流导致所有请求卡顿。</p>
+          <p><strong>应该改为</strong> <code>await asyncio.sleep(1)</code>，但 <code>rerank</code> 当前是同步方法，需改为 <code>async def</code> 并一路传播 async。</p>
+        </div>
+      </article>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="fine-eval">
+        <span class="dot" style="background:var(--accent);"></span>6.5 证据质量评估与检索循环
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q31 – Q33</span>
+      </h3>
+
+      <article class="card" id="q31">
+        <div class="q-head"><span class="q-num">Q31</span><h3>启发式回退评分上限 0.60 恒低于阈值 0.65，为什么？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong>设计意图：</strong>LLM 评估失败时无法确认证据真的充分。仅知"有 N 条"，不知来源权威性、相关性、覆盖度。</p>
+          <p><code>min(0.60, 0.20 + evidence_count * 0.10)</code>：</p>
+          <ul>
+            <li>0 条 → 0.20；4 条 → 0.60（上限）</li>
+            <li>上限 0.60 &lt; 阈值 0.65 → <strong>必定触发重检</strong></li>
+          </ul>
+          <p><strong>保守策略的代价：</strong>即使 10 条高质量证据也重检。医疗场景中"多检一轮"的成本远低于"基于未验证证据做错误决策"的风险。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q32">
+        <div class="q-head"><span class="q-num">Q32</span><h3><code>max_rounds=2</code> 时实际最多检索几轮？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><code>retrieval_round</code> 从 0 开始，<code>can_retry = retrieval_round &lt; max_rounds</code>：</p>
+          <ul>
+            <li>第 0 轮：初始检索，<code>can_retry = 0 &lt; 2 = True</code></li>
+            <li>第 1 轮：<code>can_retry = 1 &lt; 2 = True</code></li>
+            <li>第 2 轮：<code>can_retry = 2 &lt; 2 = False</code> → 不再重检</li>
+          </ul>
+          <p><strong>实际最多 3 轮</strong>。<code>max_rounds=2</code> 语义是"最多重试 2 次"。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q33">
+        <div class="q-head"><span class="q-num">Q33</span><h3>空查询终止机制防止了什么问题？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+<pre><code>def _route_rewrite(self, state: ClinicalState) -&gt; str:
+    if state.get("need_retrieve") and state.get("retrieval_queries"):
+        return "retrieve"
+    return "reason"</code></pre>
+          <ol>
+            <li><strong>无限循环：</strong>空查询 → 空证据 → 判定不足 → 又生成空查询 → 死循环</li>
+            <li><strong>空检索浪费：</strong>无用 LLM 调用浪费 token 和延迟</li>
+            <li><strong>LLM 退化：</strong>QueryRewrite 可能返回 <code>{"queries": []}</code>，空查询终止让流程优雅降级到 <code>reason</code></li>
+          </ol>
+        </div>
+      </article>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="fine-safe">
+        <span class="dot" style="background:var(--accent);"></span>6.6 安全与合规细节
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q34 – Q36</span>
+      </h3>
+
+      <article class="card" id="q34">
+        <div class="q-head"><span class="q-num">Q34</span><h3>"绝对不能使用华法林"会被命中吗？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>正则 <code>re.compile(r"绝对(?!禁忌|适应)")</code></p>
+          <p>"绝对不能使用华法林"匹配：<code>绝对</code> 匹配，负向前瞻检查后面不是"禁忌/适应"，是"不能" → <strong>命中</strong> ✅</p>
+          <p><strong>应该被报告</strong>——"绝对不能"是绝对化断言，医学中很少有"绝对不能"。正确表述应是"在该患者当前情况下不建议使用华法林，因为..."。</p>
+          <p>灰度场景："绝对禁忌证：活动性内脏出血"中"绝对"修饰"禁忌证"，<code>(?!禁忌)</code> 正是为了排除。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q35">
+        <div class="q-head"><span class="q-num">Q35</span><h3><code>\b</code> vs lookaround 在中文文本中的差异？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>Python <code>\w</code> 包含所有 Unicode 字母/数字（含中文字符），所以 <code>\b</code> 无法识别"中文→数字"边界。</p>
+          <p>身份证 <code>110101199003076534</code> 前是"号"字：</p>
+          <ul>
+            <li><code>\b</code>：<code>号</code> 和 <code>1</code> 都是 <code>\w</code>，无边界 → <strong>漏匹配</strong></li>
+            <li><code>(?&lt;!\d)</code>：<code>号</code> 不是数字 → 前瞻成功 → <strong>正确匹配</strong></li>
+          </ul>
+          <p><strong>总结：</strong>中文文本中 <code>\b</code> 失效，应用 <code>(?&lt;!\d)</code> / <code>(?!\d)</code>。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q36">
+        <div class="q-head"><span class="q-num">Q36</span><h3>脱敏规则顺序"先具体后宽泛"——日期先于身份证会怎样？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>18 位身份证含 8 位出生日期 <code>YYYYMMDD</code>，如 <code>110101199003076534</code> 中的 <code>19900307</code>。</p>
+          <p><strong>如果日期正则排在前面：</strong></p>
+          <ol>
+            <li>标准日期正则（带 <code>-/年月</code> 分隔符）不匹配，不误脱敏</li>
+            <li>但宽松正则（如 <code>\d{8}</code>）会匹配 <code>19900307</code> 脱敏为 <code>110101[日期已脱敏]6534</code> → 身份证漏脱敏</li>
+            <li>更危险：<code>_PHONE</code>（11 位）排在前面时，<code>19900307653</code> 被手机号匹配 → 身份证漏脱敏</li>
+          </ol>
+          <p><strong>当前顺序：</strong>身份证(18) → 身份证(15)=手机号(11) → 银行卡(16-19) → ... → 日期。<strong>长模式优先</strong>。</p>
+        </div>
+      </article>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="fine-tool">
+        <span class="dot" style="background:var(--accent);"></span>6.7 工具系统
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q37 – Q38</span>
+      </h3>
+
+      <article class="card" id="q37">
+        <div class="q-head"><span class="q-num">Q37</span><h3>如何让溶栓时间窗阈值可配置化且支持热更新？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>当前硬编码（<code>thrombolysis.py:28-30</code>）：</p>
+<pre><code>_WINDOW_STANDARD = 270.0
+_WINDOW_STRICT = 180.0</code></pre>
+          <p><strong>改造方案：</strong></p>
+          <ol>
+            <li><strong>YAML 配置化：</strong></li>
+          </ol>
+<pre><code>thrombolysis:
+  window_standard_minutes: 270
+  window_strict_minutes: 180</code></pre>
+          <ol start="2"><li><strong>惰性加载 + 缓存 + TTL：</strong></li></ol>
+<pre><code>_cache = {"ts": 0, "standard": 270.0, "strict": 180.0}
+_CACHE_TTL = 300  # 5分钟
+
+def _get_windows():
+    now = time.time()
+    if now - _cache["ts"] &gt; _CACHE_TTL:
+        config = _load_yaml("rules_config.yaml")
+        t = config.get("thrombolysis", {})
+        _cache["standard"] = float(t.get("window_standard_minutes", 270))
+        _cache["strict"] = float(t.get("window_strict_minutes", 180))
+        _cache["ts"] = now
+    return _cache["standard"], _cache["strict"]</code></pre>
+          <ol start="3">
+            <li><strong>热更新：</strong>修改 YAML 后最多 5 分钟生效，或暴露 <code>/admin/reload_config</code> 立即刷新。</li>
+            <li><strong>安全约束：</strong>阈值需在合理范围（<code>0 &lt; strict &lt;= standard &lt;= 720</code>），用 Pydantic 校验。</li>
+          </ol>
+        </div>
+      </article>
+
+      <article class="card" id="q38">
+        <div class="q-head"><span class="q-num">Q38</span><h3>非 ValidationError 的异常泄露患者信息？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+<pre><code>except Exception as e:
+    error_msg = str(e)  # 可能包含患者信息
+    return {"ok": False, "tool": name, "error": error_msg, ...}</code></pre>
+          <p><strong>泄露路径：</strong></p>
+          <ol>
+            <li><strong>API 响应：</strong>返回值被序列化返回给前端</li>
+            <li><strong>日志：</strong><code>logger.error(f"...: {e}")</code> 中包含患者信息</li>
+            <li><strong>监控系统：</strong>ELK/Datadog 采集 → 运维可见</li>
+          </ol>
+          <p><strong>修复：</strong></p>
+<pre><code>except Exception as e:
+    if isinstance(e, ValidationError):
+        ...
+    else:
+        error_msg = f"{type(e).__name__}: (详情已脱敏)"
+    logger.error(f"[tools] 工具 {name} 调用失败: {type(e).__name__}")</code></pre>
+        </div>
+      </article>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="fine-config">
+        <span class="dot" style="background:var(--accent);"></span>6.8 配置与评测
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q39 – Q41</span>
+      </h3>
+
+      <article class="card" id="q39">
+        <div class="q-head"><span class="q-num">Q39</span><h3>PromptManager.get() 返回 None 时下游会怎样？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><code>_load_yaml</code> 失败 → <code>_prompts = {}</code> → <code>get(key)</code> 返回 <code>None</code>。</p>
+          <p><strong>下游影响：</strong>各节点 prompt 都是硬编码 f-string，不依赖 PromptManager。但 <code>ReportNode</code> 用 <code>report_manager.get_template()</code>，返回 None 时：</p>
+          <ul>
+            <li><code>report_template.format(...)</code> → <code>AttributeError: 'NoneType' object has no attribute 'format'</code></li>
+            <li>ReportNode 抛异常 → LangGraph 节点失败 → 流程中断</li>
+          </ul>
+          <p><strong>当前无 None 检查</strong>，潜在缺陷。应加：</p>
+<pre><code>report_template = self.report_manager.get_template(state['report_mode'])
+if report_template is None:
+    report_template = "## 临床分析报告\n{proposal}"</code></pre>
+        </div>
+      </article>
+
+      <article class="card" id="q40">
+        <div class="q-head"><span class="q-num">Q40</span><h3><code>round(value, 3)</code> 解决了什么浮点精度问题？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>RAGAS 指标是浮点数，可能因浮点误差产生噪声。例如基线 <code>0.783</code>，实际计算值 <code>0.7829999999999999</code>。</p>
+          <ul>
+            <li><strong>不 round：</strong><code>0.7829999999999999 &lt; 0.783</code> → True → 判定降级 ❌</li>
+            <li><strong>round 到 3 位：</strong><code>round(..., 3) = 0.783</code> → <code>0.783 &lt; 0.783</code> → False → 通过 ✅</li>
+          </ul>
+          <p><strong>本质：</strong>基线是 3 位小数展示值，round 到相同精度消除低于该精度的浮点噪声。只有真正降级（0.783 → 0.782）才被检测。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q41">
+        <div class="q-head"><span class="q-num">Q41</span><h3>MemoryNode 三类记忆的截断上限为什么这样分配？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+<pre><code>_SECTIONS = (
+    ("short_term", "短期记忆", 2600),
+    ("episodic", "情景记忆", 2200),
+    ("semantic", "语义记忆", 1600),
+)</code></pre>
+          <p><strong>短期记忆最长（2600）：</strong></p>
+          <ol>
+            <li><strong>信息密度最高：</strong>当前对话最近的患者信息，本轮推理最直接依赖的上下文</li>
+            <li><strong>时效性最强：</strong>急性卒中决策依赖发病时间、NIHSS、CT 结果</li>
+            <li><strong>不可截断部分最多：</strong>发病/到院时间、关键评分截断会导致溶栓时间窗判断出错</li>
+          </ol>
+          <p><strong>情景记忆（2200）：</strong>历史会诊记录和既往决策，截断影响较小。<strong>语义记忆（1600）：</strong>通用医学知识，检索证据可补充，影响最小。</p>
+          <p><strong>总预算 6400 字符</strong>，控制在 LLM 上下文窗口合理范围。</p>
+        </div>
+      </article>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="fine-stream">
+        <span class="dot" style="background:var(--accent);"></span>6.9 流式输出与前端交互
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q42 – Q44</span>
+      </h3>
+
+      <article class="card" id="q42">
+        <div class="q-head"><span class="q-num">Q42</span><h3>如何测试 <code>astream_text</code> 的流式输出？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><code>try_get_stream_writer()</code> 在脱离图运行时返回 None。测试方案：</p>
+          <p><strong>方案 1：Mock stream writer（最轻量）</strong></p>
+<pre><code>from unittest.mock import patch
+
+async def test_astream_text_streaming():
+    collected = []
+    def mock_writer(payload):
+        collected.append(payload)
+    with patch("app.agents.orchestrators.nodes.base.try_get_stream_writer", return_value=mock_writer):
+        result = await astream_text(llm, messages, label="test")
+    assert len(collected) &gt; 0
+    assert "".join(c["chunk"] for c in collected) == result</code></pre>
+          <p><strong>方案 2：在图上下文中测试（最完整）</strong></p>
+<pre><code>async for event in graph.astream_events(initial_state, config, version="v2"):
+    if event["event"] == "on_custom_event":
+        chunks.append(event["data"])</code></pre>
+          <p><strong>方案 3：只测最终结果（最省事）</strong></p>
+<pre><code>result = await astream_text(llm, messages, label="test")
+assert "溶栓" in result</code></pre>
+        </div>
+      </article>
+
+      <article class="card" id="q43">
+        <div class="q-head"><span class="q-num">Q43</span><h3>content block 的 <code>text</code> 为 <code>None</code> 时 <code>or ""</code> 的作用？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+<pre><code>c = "".join(str(getattr(b, "text", "") or "") for b in c)</code></pre>
+          <p><code>or ""</code> 保证 <code>b.text</code> 为 <code>None</code> 时返回 <code>""</code>，不贡献字符。</p>
+          <p><strong>不加 <code>or ""</code>：</strong><code>getattr(b, "text", "")</code> 返回 <code>None</code>（default 只在属性不存在时生效），<code>str(None) = "None"</code> → 输出中混入字面文本 "None"，严重污染医学内容。</p>
+          <p><strong>实际场景：</strong>OpenAI 兼容协议的 content block 有 <code>{"type":"text"}</code> 和 <code>{"type":"tool_use","text":None}</code> 两种。<code>or ""</code> 确保工具调用块静默跳过。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q44">
+        <div class="q-head"><span class="q-num">Q44</span><h3>（补充）项目在技术选点上的降级/兜底设计主线？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>项目在每个技术选点上都做了<strong>显式的降级/兜底设计</strong>。面试重点讲清楚<strong>"为什么这样降级"</strong>和<strong>"代价是什么"</strong>。</p>
+          <ul>
+            <li><strong>异步并发：</strong>ReasonNode 内聚容错 vs DebateNode 外移容错</li>
+            <li><strong>图编排：</strong>条件路由、反思循环、HITL 中断</li>
+            <li><strong>LLM 输出：</strong>结构化输出 → 文本解析 → 规则兜底</li>
+            <li><strong>RAG：</strong>RRF 融合、主题隔离、查询清洗</li>
+            <li><strong>安全：</strong>合规非阻塞 + 审计留痕 + HITL 兜底</li>
+            <li><strong>评测：</strong>硬门禁保确定性指标，软门禁容忍 LLM 评分随机性</li>
+          </ul>
+        </div>
+      </article>
+    </section>
+
+    <!-- ==================== 七、面试常见问题 ==================== -->
+    <section class="section sec-common" id="sec-common">
+      <h2 class="section-title"><span class="dot"></span>七、面试常见问题（16 题）<span class="idx">Q45 – Q60</span></h2>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="common-overview">
+        <span class="dot" style="background:var(--accent);"></span>7.1 项目概述类
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q45 – Q47</span>
+      </h3>
+
+      <article class="card" id="q45">
+        <div class="q-head"><span class="q-num">Q45</span><h3>用一句话介绍你的项目</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>这是一个基于 LangGraph 多智能体编排的<strong>卒中临床决策支持系统</strong>，模拟医院多学科会诊流程——前层做患者信息收集与循证检索，中层让多位专家独立推理并交叉质询形成共识，后层通过规则引擎+LLM 双层校验与合规审计确保安全，最终生成带免责声明的临床建议报告。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q46">
+        <div class="q-head"><span class="q-num">Q46</span><h3>项目的技术栈是什么？为什么选这些技术？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>技术</th><th>用途</th><th>选型理由</th></tr></thead>
+              <tbody>
+                <tr><td><strong>LangGraph</strong></td><td>图编排、条件路由、状态持久化、HITL 中断</td><td>比 Chain 支持条件路由、反思循环、interrupt 挂起，医疗多步推理刚需</td></tr>
+                <tr><td><strong>LangChain</strong></td><td>LLM 调用、Tool 定义、Document 抽象</td><td>生态最成熟，与 LangGraph 无缝集成</td></tr>
+                <tr><td><strong>Chroma</strong></td><td>向量存储（5 个主题隔离 Collection）</td><td>轻量级、支持持久化、Python 原生</td></tr>
+                <tr><td><strong>DashScope</strong></td><td>Embedding + Rerank</td><td>阿里云国内服务，延迟低、合规</td></tr>
+                <tr><td><strong>BM25</strong></td><td>稀疏检索</td><td>与向量检索互补，精确术语匹配更敏感</td></tr>
+                <tr><td><strong>Pydantic</strong></td><td>结构化输出 Schema、工具参数校验</td><td>与 <code>with_structured_output</code> 配合</td></tr>
+                <tr><td><strong>FastAPI</strong></td><td>API 层</td><td>异步原生、自动 OpenAPI 文档</td></tr>
+                <tr><td><strong>SQLite (aiosqlite)</strong></td><td>Checkpoint 持久化</td><td>轻量级、HITL 断点续传，无需外部 DB</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+
+      <article class="card" id="q47">
+        <div class="q-head"><span class="q-num">Q47</span><h3>你在项目中的角色是什么？负责哪些模块？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>我负责<strong>核心推理链路的设计与实现</strong>：</p>
+          <ol>
+            <li><strong>LangGraph 图编排：</strong>设计前-中-后三层架构，实现条件路由（意图三分支、反思循环、HITL 中断点）</li>
+            <li><strong>多专家会诊机制：</strong>ReasonNode 并行推理 + DebateNode 交叉质询 + ConsensusNode 主持人共识</li>
+            <li><strong>Agentic RAG 检索：</strong>BM25+向量双路召回 + RRF 融合 + Evidence Router 智能路由 + Self-RAG 证据质量评估</li>
+            <li><strong>安全合规体系：</strong>双层校验 + ComplianceNode 合规审计 + HITL 人工复核</li>
+            <li><strong>评测门禁：</strong>RAGAS 检索指标硬/软门禁 + 离线安全评测</li>
+          </ol>
+        </div>
+      </article>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="common-difficulty">
+        <span class="dot" style="background:var(--accent);"></span>7.2 技术难点类
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q48 – Q50</span>
+      </h3>
+
+      <article class="card" id="q48">
+        <div class="q-head"><span class="q-num">Q48</span><h3>项目中最难的技术点是什么？怎么解决的？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong>最难的是"多专家推理的一致性与安全性保障"</strong>：</p>
+          <p><strong>难点 1：专家意见冲突时如何形成可靠共识？</strong></p>
+          <ul>
+            <li>问题：3 位专家可能给出矛盾建议（如神内建议溶栓，药师指出禁忌症）</li>
+            <li>解决：DebateNode 让每位专家阅读其他专家意见并交叉质询 → ConsensusNode 由主持人综合形成 consensus/proposal/critique 三段式输出 → ValidateNode 双层校验 → 不通过时反思循环重新推理</li>
+          </ul>
+          <p><strong>难点 2：LLM 输出不稳定如何保证系统鲁棒？</strong></p>
+          <ul>
+            <li>问题：LLM 可能输出非法 JSON、遗漏字段、格式错误</li>
+            <li>解决：<strong>三层降级</strong>——结构化输出 → 文本解析 → 规则兜底</li>
+          </ul>
+          <p><strong>难点 3：如何防止 AI 给出危险医疗建议？</strong></p>
+          <ul>
+            <li>问题：LLM 可能虚构证据、遗漏禁忌症、给出绝对化断言</li>
+            <li>解决：<strong>纵深防御</strong>——ValidateNode 规则+LLM 反思 → ComplianceNode PHI/绝对化断言/剂量扫描 → HITL 医生审批 → 免责声明留痕</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="card" id="q49">
+        <div class="q-head"><span class="q-num">Q49</span><h3>RAG 检索的效果如何保证？遇到过什么问题？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong>问题 1：单一检索器召回不足</strong></p>
+          <ul>
+            <li>现象：只用向量，精确术语（如"alteplase"）召回低；只用 BM25，语义相似但用词不同的文档漏召回</li>
+            <li>解决：BM25 + 向量双路召回 + RRF 融合</li>
+          </ul>
+          <p><strong>问题 2：跨主题噪声</strong></p>
+          <ul>
+            <li>现象：查"溶栓适应证"时解剖教材内容混入</li>
+            <li>解决：5 个主题隔离 Collection + Evidence Router 按决策类型路由</li>
+          </ul>
+          <p><strong>问题 3：证据类型不匹配</strong></p>
+          <ul>
+            <li>现象：决策需要"指南"但召回了"教材"</li>
+            <li>解决：EvidenceJudgeNode 检测 <code>evidence_mismatch</code> → 触发带类别过滤的重检 → QueryRewriteNode 生成更精确查询</li>
+          </ul>
+          <p><strong>问题 4：Rerank API 限流</strong></p>
+          <ul>
+            <li>解决：限流时 sleep 1s 重试 → 仍失败回退规则排序（Medical Evidence Score 纯规则加权）</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="card" id="q50">
+        <div class="q-head"><span class="q-num">Q50</span><h3>如何处理 LLM 的幻觉问题？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>层级</th><th>机制</th><th>防什么幻觉</th></tr></thead>
+              <tbody>
+                <tr><td>Prompt 约束</td><td>"不得虚构证据编号""每项判断必须引用真实证据编号"</td><td>虚构证据引用</td></tr>
+                <tr><td>检索 grounding</td><td>所有推理基于 RAG 检索结果</td><td>编造不存在的指南</td></tr>
+                <tr><td>Evidence Judge</td><td>评估证据质量与覆盖度，不足时触发重检</td><td>证据不足仍下结论</td></tr>
+                <tr><td>ValidateNode</td><td>LLM 反思审查"是否把信息缺口当既定事实"</td><td>不确定性当确定结论</td></tr>
+                <tr><td>ComplianceNode</td><td>检测绝对化断言（"100%""必定""保证治愈"）</td><td>过度自信的断言</td></tr>
+                <tr><td>HITL</td><td>医生审批前可修改/驳回</td><td>任何残留幻觉</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="common-design">
+        <span class="dot" style="background:var(--accent);"></span>7.3 系统设计类
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q51 – Q53</span>
+      </h3>
+
+      <article class="card" id="q51">
+        <div class="q-head"><span class="q-num">Q51</span><h3>为什么用图编排而不是微服务/管道？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>方案</th><th>优势</th><th>劣势</th><th>适用场景</th></tr></thead>
+              <tbody>
+                <tr><td><strong>微服务</strong></td><td>独立部署、独立扩缩容</td><td>服务间通信延迟、分布式状态管理复杂、医疗数据跨服务传输有合规风险</td><td>大规模高并发系统</td></tr>
+                <tr><td><strong>管道（Chain）</strong></td><td>简单直观</td><td>无法表达条件路由、反思循环、中断点</td><td>线性流程</td></tr>
+                <tr><td><strong>图编排（LangGraph）</strong></td><td>条件路由、反思循环、状态持久化、HITL interrupt</td><td>单进程、扩缩容需外部方案</td><td>多步推理、需人工干预</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><strong>选择图编排的核心原因：</strong>临床决策不是线性流程——意图不同走不同路径、校验不通过要回退、报告前需医生审批。这些非线性模式只有图编排能自然表达。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q52">
+        <div class="q-head"><span class="q-num">Q52</span><h3>系统的状态是怎么管理的？为什么不用数据库？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong>状态管理方案：</strong><code>ClinicalState(TypedDict)</code> 作为 LangGraph 的共享状态字典，贯穿所有节点。每个节点 <code>run()</code> 返回<strong>部分状态更新字典</strong>，LangGraph 自动合并。持久化用 SQLite checkpointer，支持断点续传和 HITL 中断恢复。</p>
+          <p><strong>不用业务数据库的原因：</strong></p>
+          <ol>
+            <li><strong>生命周期不同：</strong>ClinicalState 是<strong>单次推理会话</strong>的中间状态（秒~分钟级），不是持久业务数据。</li>
+            <li><strong>Schema 高频变化：</strong>快速迭代中经常增删字段，TypedDict 无需 migration。</li>
+            <li><strong>LangGraph 原生支持：</strong>checkpointer 已提供状态持久化、断点续传、TTL 清理。</li>
+          </ol>
+        </div>
+      </article>
+
+      <article class="card" id="q53">
+        <div class="q-head"><span class="q-num">Q53</span><h3>如何保证系统的可扩展性？如果要加一个新的专家角色，需要改什么？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong>加新专家只需改配置，不改代码：</strong></p>
+          <ol>
+            <li>在 <code>expert_config.yaml</code> 中添加：</li>
+          </ol>
+<pre><code>- role: "康复科医生"
+  instruction: "从早期康复介入角度评估..."
+  system_prompt: "你是专业的康复科医生..."
+  priority: 3</code></pre>
+          <ol start="2">
+            <li><code>get_expert_manager().get_experts()</code> 自动加载 → ReasonNode 和 DebateNode 自动包含新专家</li>
+          </ol>
+          <p><strong>可扩展点一览：</strong></p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>扩展需求</th><th>改动范围</th></tr></thead>
+              <tbody>
+                <tr><td>新增专家角色</td><td>只改 YAML 配置</td></tr>
+                <tr><td>新增领域工具</td><td>在 <code>tools/</code> 下新建模块 + 在 <code>registry.py</code> 注册</td></tr>
+                <tr><td>新增知识主题</td><td>在 <code>COLLECTION_KEYS</code> 添加 + 更新 <code>route_collection</code></td></tr>
+                <tr><td>新增合规检查项</td><td>在 <code>ComplianceNode.run()</code> 添加正则/规则</td></tr>
+                <tr><td>新增校验规则</td><td>在 <code>rules_config.yaml</code> 添加禁忌症规则</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="common-perf">
+        <span class="dot" style="background:var(--accent);"></span>7.4 性能与可靠性类
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q54 – Q56</span>
+      </h3>
+
+      <article class="card" id="q54">
+        <div class="q-head"><span class="q-num">Q54</span><h3>系统的延迟瓶颈在哪？如何优化？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong>一次完整推理的耗时分布：</strong></p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>阶段</th><th>耗时</th><th>瓶颈</th></tr></thead>
+              <tbody>
+                <tr><td>意图识别</td><td>~1s</td><td>单次 LLM 调用</td></tr>
+                <tr><td>记忆+分析</td><td>~2s</td><td>单次 LLM 调用</td></tr>
+                <tr><td>检索规划</td><td>~2s</td><td>单次 LLM 调用</td></tr>
+                <tr><td><strong>证据检索</strong></td><td><strong>~3-5s</strong></td><td><strong>向量+BM25+Rerank API</strong></td></tr>
+                <tr><td><strong>多专家推理</strong></td><td><strong>~5-8s</strong></td><td><strong>3-4 个 LLM 并行（受最慢限制）</strong></td></tr>
+                <tr><td><strong>交叉质询</strong></td><td><strong>~5-8s</strong></td><td><strong>3-4 个 LLM 并行</strong></td></tr>
+                <tr><td>共识形成</td><td>~3s</td><td>单次 LLM 调用</td></tr>
+                <tr><td>校验+合规</td><td>~2s</td><td>规则引擎(&lt;100ms)+LLM 反思(~2s)</td></tr>
+                <tr><td>报告生成</td><td>~2s</td><td>单次 LLM 调用</td></tr>
+                <tr><td><strong>总计</strong></td><td><strong>~25-35s</strong></td><td></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><strong>优化方案：</strong></p>
+          <ol>
+            <li><strong>流式输出（已实现）：</strong>前端逐 chunk 渲染，用户感知延迟 ~2s</li>
+            <li><strong>专家推理并行化（已实现）：</strong>耗时 = max(各专家) 而非 sum</li>
+            <li><strong>检索缓存（已实现）：</strong>MD5 键 + 300s TTL</li>
+            <li><strong>结构化输出快路径（已实现）：</strong>省去 JSON 解析 retry</li>
+            <li><strong>未来优化：</strong>小模型做意图识别/证据评估（100ms），大模型只做推理/校验</li>
+          </ol>
+        </div>
+      </article>
+
+      <article class="card" id="q55">
+        <div class="q-head"><span class="q-num">Q55</span><h3>如何处理 LLM API 限流/宕机？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong>分层降级策略：</strong></p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>组件</th><th>正常路径</th><th>降级</th></tr></thead>
+              <tbody>
+                <tr><td>IntentNode</td><td>结构化输出 → 文本解析 → 规则兜底</td><td>检测指代词 → 强制 consultation</td></tr>
+                <tr><td>Evidence Router</td><td>结构化输出 → 文本解析 → 规则兜底</td><td><code>EVIDENCE_TYPE_CATEGORIES</code> 字典映射</td></tr>
+                <tr><td>ResearchPlanNode</td><td>结构化输出 → 文本解析</td><td>用 <code>clinical_questions</code> 直接作检索查询</td></tr>
+                <tr><td>EvidenceJudgeNode</td><td>LLM 评分</td><td>启发式 <code>min(0.60, 0.20+count*0.10)</code> → 触发重检</td></tr>
+                <tr><td>Reranker</td><td>gte-rerank API</td><td>规则回退：Medical Evidence Score 纯规则加权</td></tr>
+                <tr><td>ValidateNode</td><td>规则+LLM 反思</td><td>异常默认放行</td></tr>
+                <tr><td>ConsensusNode</td><td>LLM 生成</td><td>硬编码保守回退文本</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><strong>核心原则：</strong>任何单点故障都不阻塞临床流程，降级结果可能不精确但保证"有输出"。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q56">
+        <div class="q-head"><span class="q-num">Q56</span><h3>并发请求下如何保证安全？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <ol>
+            <li><strong>请求隔离：</strong>每个请求有独立 <code>thread_id</code>，checkpointer 按 thread_id 隔离状态</li>
+            <li><strong>PHI 脱敏：</strong><code>security.py</code> 的 <code>mask_sensitive</code> 覆盖 HIPAA 18 类 PHI，日志中 <code>patient_info</code> 截断到 60 字符</li>
+            <li><strong>并发闸：</strong><code>RequestConcurrencyGuard</code> 限制单用户+全局并发上限，防滥用拖垮模型服务</li>
+            <li><strong>API Key 安全：</strong><code>DASHSCOPE_API_KEY</code> 从环境变量读取，不硬编码</li>
+            <li><strong>免责声明：</strong>每次输出的审计记录都附带 <code>DISCLAIMER</code></li>
+          </ol>
+        </div>
+      </article>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="common-reflect">
+        <span class="dot" style="background:var(--accent);"></span>7.5 项目经验与反思类
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q57 – Q60</span>
+      </h3>
+
+      <article class="card" id="q57">
+        <div class="q-head"><span class="q-num">Q57</span><h3>项目有什么不足？如果重新做会怎么改？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>不足</th><th>原因</th><th>改进</th></tr></thead>
+              <tbody>
+                <tr><td>ClinicalState 40+ 字段膨胀</td><td>每次新功能都加字段</td><td>拆分子状态 + LangGraph 子图</td></tr>
+                <tr><td>Reranker 同步阻塞</td><td><code>time.sleep</code> 在 async 事件循环中</td><td>改 <code>async def rerank</code> + <code>await asyncio.sleep</code></td></tr>
+                <tr><td>缺少端到端推理评测</td><td>只有检索指标门禁</td><td>构建标注病例集 + LLM-as-Judge 评估推理一致性</td></tr>
+                <tr><td>工具阈值硬编码</td><td>溶栓时间窗写死在代码</td><td>移入 YAML + TTL 缓存 + 热更新 API</td></tr>
+                <tr><td>向量库无增量更新</td><td>每次全量重建索引</td><td>实现 <code>add_documents</code> 增量插入 + 缓存失效</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+
+      <article class="card" id="q58">
+        <div class="q-head"><span class="q-num">Q58</span><h3>这个项目和商用的 CDSS（如 UpToDate、IBM Watson Health）有什么区别？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>维度</th><th>本项目</th><th>商用 CDSS</th></tr></thead>
+              <tbody>
+                <tr><td><strong>知识来源</strong></td><td>本地 PDF 指南 + 向量检索</td><td>商业医学知识图谱（UMLS、SNOMED CT）+ 人工审校</td></tr>
+                <tr><td><strong>推理方式</strong></td><td>LLM 生成式推理 + 多专家会诊</td><td>规则引擎 + 贝叶斯网络 + 部分生成式</td></tr>
+                <tr><td><strong>证据溯源</strong></td><td>引用检索证据编号（如【证据 R1-Q1-E1】）</td><td>精确到指南章节/段落/证据等级</td></tr>
+                <tr><td><strong>合规认证</strong></td><td>免责声明 + HITL 人工复核</td><td>FDA 510(k)/CE 认证，可进入临床工作流</td></tr>
+                <tr><td><strong>部署规模</strong></td><td>单机/小规模</td><td>企业级，集成 EHR</td></tr>
+                <tr><td><strong>成本</strong></td><td>开源 + 云 API 按量付费</td><td>年订阅费数万~数十万美元</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><strong>本项目定位：</strong>不是替代商用 CDSS，而是<strong>探索 LLM 多智能体架构在临床决策中的可行性与安全边界</strong>——特别是"生成式推理 + 多专家质询 + 纵深防御"这个范式是否能在保证安全的前提下提升决策覆盖度。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q59">
+        <div class="q-head"><span class="q-num">Q59</span><h3>如果面试官问"你的项目有上线吗？有真实用户吗？"怎么回答？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong>如果已部署：</strong></p>
+          <p>"项目已部署在内网测试环境，接入了 X 位神经内科医生的试用。目前主要收集反馈，重点验证两个指标：一是<strong>检索准确率</strong>（RAGAS Recall@3 达到 0.783，超过基线），二是<strong>安全合规率</strong>（离线安全评测 pass_rate 达到 XX%）。医生反馈最有价值的部分是 HITL 人工复核——AI 先出草稿，医生只需审批/修改，比从零写报告节省约 XX% 时间。"</p>
+          <p><strong>如果未部署：</strong></p>
+          <p>"项目目前是技术验证阶段，尚未接入真实临床流程。但我们从三个维度验证了可行性：</p>
+          <ol>
+            <li><strong>检索质量：</strong>RAGAS 门禁保证检索指标不低于基线</li>
+            <li><strong>安全合规：</strong>双层校验 + 合规审计 + 免责声明的纵深防御体系</li>
+            <li><strong>评测闭环：</strong>离线安全评测 + benchmark 用例覆盖常见场景</li>
+          </ol>
+          <p>下一步计划是申请伦理审批后，在模拟环境做前瞻性验证。"</p>
+        </div>
+      </article>
+
+      <article class="card" id="q60">
+        <div class="q-head"><span class="q-num">Q60</span><h3>你从这个项目中学到了什么？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p><strong>技术层面：</strong></p>
+          <ol>
+            <li><strong>降级设计比完美设计更重要：</strong>医疗场景中"有输出但不够精确"远好于"没输出因为组件挂了"。三层降级（结构化输出→文本解析→规则兜底）是我最重要的设计模式收获。</li>
+            <li><strong>LLM 不是银弹，需要规则兜底：</strong>LLM 擅长语义理解（意图识别、证据路由），不擅长精确判断（禁忌症匹配、PHI 检测）。最佳实践是 <strong>LLM 做语义层 + 规则做安全层</strong>。</li>
+            <li><strong>状态管理是复杂系统的核心：</strong>40+ 字段的 ClinicalState 管理让我深刻理解了"状态膨胀"问题，以及 TypedDict vs Pydantic 在不同层次的适用场景。</li>
+          </ol>
+          <p><strong>业务层面：</strong></p>
+          <ol>
+            <li><strong>医疗 AI 的安全不是单点强校验，而是纵深防御：</strong>每一层都可能失效，但每一层的失效都被下一层兜底。</li>
+            <li><strong>"时间就是大脑"：</strong>卒中的时效性要求决定了系统不能为了"绝对安全"而阻塞流程——默认放行 + 审计留痕 + 人工兜底，比"校验不通过就卡死"更符合临床现实。</li>
+          </ol>
+        </div>
+      </article>
+    </section>
+
+    <!-- ==================== 八、面试高频考点 ==================== -->
+    <section class="section sec-hot" id="sec-hot">
+      <h2 class="section-title"><span class="dot"></span>八、面试高频考点（20 题）<span class="idx">Q61 – Q80</span></h2>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="hot-langgraph">
+        <span class="dot" style="background:var(--accent);"></span>8.1 LangChain vs LangGraph（最高频，几乎必问）
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q61 – Q63</span>
+      </h3>
+
+      <article class="card" id="q61">
+        <div class="q-head"><span class="q-num">Q61</span><h3>LangChain 和 LangGraph 的区别是什么？为什么选 LangGraph？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>面试官意图：</strong>考察你是否理解两个框架的<strong>抽象层级差异</strong>，而非只会背 API。</p>
+          <p><strong>答：</strong></p>
+          <p>LangChain 是<strong>上层组件库</strong>（Chain、Tool、Memory、Retriever），LangGraph 是<strong>底层执行引擎</strong>（StateGraph、Node、Edge、Checkpointer、interrupt）。不是二选一，而是不同抽象层级：</p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>维度</th><th>LangChain Chain</th><th>LangGraph StateGraph</th></tr></thead>
+              <tbody>
+                <tr><td>执行模型</td><td>线性 A→B→C</td><td>有向图 + 条件路由 + 循环</td></tr>
+                <tr><td>状态管理</td><td>无显式状态，靠 Memory 拼接</td><td>TypedDict State + Reducer 合并</td></tr>
+                <tr><td>循环/重试</td><td>不支持</td><td><code>add_conditional_edges</code> 支持反思循环</td></tr>
+                <tr><td>人工介入</td><td>无原生支持</td><td><code>interrupt()</code> 挂起 + resume 恢复</td></tr>
+                <tr><td>持久化</td><td>无</td><td>Checkpointer（SQLite/Postgres）断点续传</td></tr>
+                <tr><td>适用场景</td><td>固定流程、单次任务</td><td>多步推理、需循环/中断/状态持久化</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><strong>我选 LangGraph 的原因：</strong>临床决策有三种非线性模式——意图三分支路由、校验不通过的反思循环、报告生成前的 HITL 医生审批。Chain 无法表达这些，必须用图编排。</p>
+          <div class="callout">
+            <b>面试官最爱追问的三个坑：</b>
+            <ol>
+              <li>"Chain 能不能实现循环？"——能，但需要手动写 while + 状态管理，本质上是在手写一个简陋的 StateGraph</li>
+              <li>"LangGraph 能不用 LangChain 吗？"——能，LangGraph 可独立使用，但 LangChain 的 LLM/Tool/Retriever 抽象很方便</li>
+              <li>"什么时候用 Chain 就够了？"——单次问答、简单 RAG、固定 pipeline</li>
+            </ol>
+          </div>
+        </div>
+      </article>
+
+      <article class="card" id="q62">
+        <div class="q-head"><span class="q-num">Q62</span><h3>LangGraph 的 State 更新机制是怎样的？Reducer 是什么？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>面试官意图：</strong>考察你是否真正写过 StateGraph，而非只看过文档。</p>
+          <p><strong>答：</strong></p>
+          <p><strong>核心机制：</strong>节点函数<strong>不直接修改 State</strong>，而是返回一个 <strong>diff 字典</strong>（只含修改字段），LangGraph 自动合并进当前 State。</p>
+          <p><strong>合并方式由 Reducer 决定：</strong></p>
+<pre><code>class ClinicalState(TypedDict):
+    messages: Annotated[list, operator.add]   # Reducer: 列表追加
+    reflection_count: int                      # 无 Reducer: 直接覆盖
+    consensus: str                             # 无 Reducer: 直接覆盖</code></pre>
+          <ul>
+            <li><code>Annotated[list, operator.add]</code>：多节点返回的 list 自动拼接（如 ReasonNode 返回 <code>{"messages":[msg1]}</code>，DebateNode 返回 <code>{"messages":[msg2]}</code>，最终 <code>messages=[..., msg1, msg2]</code>）</li>
+            <li>无 Reducer 字段：<strong>last-write-wins</strong>（后写覆盖），如 <code>reflection_count</code> 由 ValidateNode 读取+加1+写回</li>
+          </ul>
+          <p><strong>常见坑：</strong>误给 <code>int</code> 字段加 <code>Annotated[int, operator.add]</code>，导致累加而非替换——反思次数会加速增长，循环提前终止。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q63">
+        <div class="q-head"><span class="q-num">Q63</span><h3>LangGraph 的 interrupt 是什么？和 Python raise 有什么区别？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>面试官意图：</strong>考察你是否理解 HITL（Human-in-the-Loop）的实现原理。</p>
+          <p><strong>答：</strong></p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>特性</th><th><code>interrupt(payload)</code></th><th><code>raise Exception</code></th></tr></thead>
+              <tbody>
+                <tr><td>作用域</td><td>LangGraph 图执行层面</td><td>Python 函数层面</td></tr>
+                <tr><td>状态</td><td>自动序列化完整 State 到 checkpointer</td><td>不保存</td></tr>
+                <tr><td>恢复</td><td>外部调 <code>resume(decision)</code> 从中断点继续</td><td>无法恢复，流程终止</td></tr>
+                <tr><td>返回值</td><td><code>decision = interrupt(question)</code> 返回人工输入</td><td>无</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><strong>执行流程：</strong></p>
+          <ol>
+            <li><code>_human_review_node</code> 调用 <code>interrupt({"question": "是否批准该方案？"})</code></li>
+            <li>图执行暂停，State 持久化到 SQLite</li>
+            <li>前端展示审批界面，医生点击"批准"或"驳回"</li>
+            <li>后端调用 <code>/model/resume</code> + <code>Command(resume="approved")</code></li>
+            <li><code>interrupt()</code> 返回 <code>"approved"</code>，<code>_human_review_node</code> 继续执行</li>
+          </ol>
+          <p><strong>关键点：</strong>interrupt 不是异常，是<strong>协作式让出控制权</strong>——图知道自己停在哪，也知道怎么回来。</p>
+        </div>
+      </article>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="hot-rag">
+        <span class="dot" style="background:var(--accent);"></span>8.2 RAG 检索（大厂重点考）
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q64 – Q68</span>
+      </h3>
+
+      <article class="card" id="q64">
+        <div class="q-head"><span class="q-num">Q64</span><h3>什么是 RAG？它解决的核心问题是什么？</h3><span class="chev">▾</span></div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>RAG（Retrieval-Augmented Generation）= <strong>先检索外部知识，再让 LLM 基于检索结果生成回答</strong>。</p>
+          <p>解决三个核心问题：</p>
+          <ol>
+            <li><strong>知识时效性：</strong>LLM 训练数据有截止日期，无法回答最新指南（如 2024 年卒中取栓扩展到 24h 的更新）</li>
+            <li><strong>私有数据访问：</strong>LLM 没有医院内部指南/专家共识，RAG 从本地知识库检索</li>
+            <li><strong>可追溯性：</strong>每个判断都能引用具体证据编号（如【证据 R1-Q1-E1】），而非 LLM 的"黑箱记忆"</li>
+          </ol>
+          <p><strong>RAG vs 微调：</strong>RAG 是"查资料"——知识更新只需重建索引，无需重训模型；微调是"灌知识"——推理更自然但更新成本高、容易遗忘。</p>
+        </div>
+      </article>
+
+      <div class="callout" style="margin-top:20px;">
+        <b>说明：</b>本节（八、面试高频考点）原文档在 Q64 处截断。Q65–Q80 与第九节完整内容可在后续版本补充。目录跳转与折叠交互已就绪。
+      </div>
+
+      <!-- 占位锚点：保证 TOC 中 8.3–8.6 可跳转（内容待补全） -->
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px; opacity:.55;" id="hot-agent">
+        <span class="dot" style="background:var(--accent);"></span>8.3 Multi-Agent 多智能体
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q69 – Q72</span>
+      </h3>
+      <p style="color:var(--muted);font-size:13.5px;margin:0 0 18px;">（原文档截断，本小节内容待补充）</p>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px; opacity:.55;" id="hot-asyncio">
+        <span class="dot" style="background:var(--accent);"></span>8.4 Python asyncio
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q73 – Q75</span>
+      </h3>
+      <p style="color:var(--muted);font-size:13.5px;margin:0 0 18px;">（原文档截断，本小节内容待补充）</p>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px; opacity:.55;" id="hot-safe">
+        <span class="dot" style="background:var(--accent);"></span>8.5 医疗 AI 安全合规
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q76 – Q78</span>
+      </h3>
+      <p style="color:var(--muted);font-size:13.5px;margin:0 0 18px;">（原文档截断，本小节内容待补充）</p>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px; opacity:.55;" id="hot-exp">
+        <span class="dot" style="background:var(--accent);"></span>8.6 项目经验类
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q79 – Q80</span>
+      </h3>
+      <p style="color:var(--muted);font-size:13.5px;margin:0 0 18px;">（原文档截断，本小节内容待补充）</p>
+    </section>
+
+    <!-- ==================== 九、SSE 流式输出专题 ==================== -->
+    <section class="section sec-sse" id="sec-sse">
+      <h2 class="section-title"><span class="dot"></span>九、SSE 流式输出专题<span class="idx">Q81 – Q86</span></h2>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="sse-basics">
+        <span class="dot" style="background:var(--accent);"></span>9.1 SSE 基础概念
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q81 – Q82</span>
+      </h3>
+
+      <article class="card" id="q81">
+        <div class="q-head">
+          <span class="q-num">Q81</span>
+          <h3>什么是 SSE？和 WebSocket、长轮询有什么区别？为什么项目选用 SSE？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>SSE（Server-Sent Events）是浏览器原生支持的<strong>单向服务器推送</strong>协议，基于 HTTP，事件格式为 <code>text/event-stream</code>。</p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>特性</th><th>SSE</th><th>WebSocket</th><th>长轮询</th></tr></thead>
+              <tbody>
+                <tr><td>方向</td><td>单向（服务端→客户端）</td><td>全双工</td><td>请求-响应</td></tr>
+                <tr><td>协议</td><td>HTTP</td><td>独立协议（升级）</td><td>HTTP</td></tr>
+                <tr><td>自动重连</td><td>浏览器原生支持</td><td>需自行实现</td><td>需自行实现</td></tr>
+                <tr><td>复杂度</td><td>低</td><td>中高</td><td>中</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><strong>选用 SSE 的原因：</strong>临床决策是典型的「服务端持续产出、前端只读展示」场景（推理过程、专家意见、报告流式生成），不需要客户端主动推消息；SSE 实现简单、穿透代理友好，且与 FastAPI <code>StreamingResponse</code> 天然契合。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q82">
+        <div class="q-head">
+          <span class="q-num">Q82</span>
+          <h3>SSE 的事件格式与浏览器 API 是怎样的？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <p>标准格式（每条事件以空行结束）：</p>
+<pre><code>event: token
+data: {"chunk":"溶栓","label":"reason"}
+
+event: node_end
+data: {"node":"reason","status":"ok"}
+</code></pre>
+          <p>浏览器侧用 <code>EventSource</code> 或 <code>fetch</code> + <code>ReadableStream</code> 消费。本项目前端用 <code>fetch</code> 流式读取，便于携带 Authorization 与自定义 header。</p>
+        </div>
+      </article>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="sse-project">
+        <span class="dot" style="background:var(--accent);"></span>9.2 项目全链路实现
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q83 – Q84</span>
+      </h3>
+
+      <article class="card" id="q83">
+        <div class="q-head">
+          <span class="q-num">Q83</span>
+          <h3>项目中从 LLM 到前端的流式链路是怎么串起来的？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <div class="flow">
+            <span class="flow-node">LLM astream</span>
+            <span class="flow-arrow">→</span>
+            <span class="flow-node">astream_text + stream_writer</span>
+            <span class="flow-arrow">→</span>
+            <span class="flow-node">LangGraph custom event</span>
+            <span class="flow-arrow">→</span>
+            <span class="flow-node">FastAPI StreamingResponse</span>
+            <span class="flow-arrow">→</span>
+            <span class="flow-node">前端 fetch 流式渲染</span>
+          </div>
+          <p>节点内调用 <code>astream_text</code>，通过 <code>try_get_stream_writer()</code> 把 token 写成自定义事件；API 层用 <code>graph.astream_events(..., version="v2")</code> 过滤 <code>on_custom_event</code>，再以 SSE 格式写出。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q84">
+        <div class="q-head">
+          <span class="q-num">Q84</span>
+          <h3>流式输出时如何保证节点边界与最终报告的一致性？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <ul>
+            <li>每个节点开始/结束发 <code>node_start</code> / <code>node_end</code> 事件，前端可切换高亮与进度。</li>
+            <li>token 事件带 <code>label</code>（如 reason / debate / report），前端按区域拼接。</li>
+            <li>图执行结束后再发一次完整 <code>final_state</code>（或报告摘要），避免仅依赖流式片段导致的截断感。</li>
+          </ul>
+        </div>
+      </article>
+
+      <h3 class="section-title" style="font-size:17px; margin:28px 0 14px;" id="sse-protocol">
+        <span class="dot" style="background:var(--accent);"></span>9.3 事件协议与高频追问
+        <span class="idx" style="font-size:11px; padding:2px 8px;">Q85 – Q86</span>
+      </h3>
+
+      <article class="card" id="q85">
+        <div class="q-head">
+          <span class="q-num">Q85</span>
+          <h3>你们定义了哪些 SSE 事件类型？如何做向后兼容？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <ul>
+            <li><code>token</code>：增量文本</li>
+            <li><code>node_start</code> / <code>node_end</code>：节点生命周期</li>
+            <li><code>status</code>：整体进度或错误提示</li>
+            <li><code>final</code>：完整结果（可选）</li>
+          </ul>
+          <p>协议层用 <code>event</code> 字段区分类型；未知 event 前端忽略，保证旧客户端仍能消费新服务端的 token 流。</p>
+        </div>
+      </article>
+
+      <article class="card" id="q86">
+        <div class="q-head">
+          <span class="q-num">Q86</span>
+          <h3>流式过程中客户端断线、服务端超时怎么处理？</h3>
+          <span class="chev">▾</span>
+        </div>
+        <div class="answer">
+          <p><strong>答：</strong></p>
+          <ul>
+            <li>客户端：<code>fetch</code> 失败后按 <code>thread_id</code> 重连或走非流式 <code>/model/result</code> 拉取最终态。</li>
+            <li>服务端：StreamingResponse 在客户端断开时取消生成器；图状态已由 checkpointer 按 thread 持久化，可 resume。</li>
+            <li>超时：对单节点 LLM 调用设超时，失败走节点内降级逻辑，避免整条 SSE 挂死。</li>
+          </ul>
+        </div>
+      </article>
+    </section>
+
+  </main>
+</div>
+
+<!-- ==================== FOOTER ==================== -->
+<footer class="footer">
+  <div class="footer-inner">
+    <b>卒中多智能体临床决策系统 · 面试问答全集</b><br>
+    基于 LangGraph 图编排 · 前层信息收集 · 中层多专家会诊 · 后层安全合规与 HITL<br>
+    目录支持平滑跳转（含第八、九节）· 卡片可折叠 · 建议配合源码阅读
+  </div>
+</footer>
+
+<script>
+(function () {
+  // 卡片折叠 / 展开
+  function toggleCard(card) {
+    card.classList.toggle('collapsed');
+  }
+  document.querySelectorAll('.q-head').forEach(function (head) {
+    head.addEventListener('click', function () {
+      toggleCard(head.closest('.card'));
+    });
+  });
+  document.getElementById('btn-expand')?.addEventListener('click', function () {
+    document.querySelectorAll('.card').forEach(function (c) { c.classList.remove('collapsed'); });
+  });
+  document.getElementById('btn-collapse')?.addEventListener('click', function () {
+    document.querySelectorAll('.card').forEach(function (c) { c.classList.add('collapsed'); });
+  });
+
+  // TOC 点击后高亮 + 平滑滚动已由 CSS scroll-behavior 负责
+  document.querySelectorAll('.toc a[href^="#"]').forEach(function (a) {
+    a.addEventListener('click', function () {
+      document.querySelectorAll('.toc a').forEach(function (x) { x.classList.remove('active'); });
+      a.classList.add('active');
+    });
+  });
+
+  // 滚动时同步 TOC 当前小节（简单版）
+  var sections = Array.from(document.querySelectorAll('section[id], h3[id], article[id]'));
+  function onScroll() {
+    var y = window.scrollY + 120;
+    var current = null;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].offsetTop <= y) current = sections[i];
+    }
+    if (current) {
+      var id = current.id;
+      document.querySelectorAll('.toc a').forEach(function (x) {
+        x.classList.toggle('active', x.getAttribute('href') === '#' + id);
+      });
+    }
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+</body>
+</html>
