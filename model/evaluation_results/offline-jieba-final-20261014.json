@@ -1,0 +1,77 @@
+{
+  "case_count": 6,
+  "prediction_count": 6,
+  "coverage": 1.0,
+  "pass_rate": 1.0,
+  "results": [
+    {
+      "case_id": "cas-01",
+      "passed": true,
+      "checks": {
+        "required_terms": true,
+        "forbidden_terms": true,
+        "citations": true
+      },
+      "issues": [],
+      "status": "scored"
+    },
+    {
+      "case_id": "cas-02",
+      "passed": true,
+      "checks": {
+        "required_terms": true,
+        "forbidden_terms": true,
+        "citations": true
+      },
+      "issues": [],
+      "status": "scored"
+    },
+    {
+      "case_id": "cas-03",
+      "passed": true,
+      "checks": {
+        "required_terms": true,
+        "forbidden_terms": true,
+        "citations": true
+      },
+      "issues": [],
+      "status": "scored"
+    },
+    {
+      "case_id": "cas-04",
+      "passed": true,
+      "checks": {
+        "required_terms": true,
+        "forbidden_terms": true,
+        "citations": true
+      },
+      "issues": [],
+      "status": "scored"
+    },
+    {
+      "case_id": "cas-05",
+      "passed": true,
+      "checks": {
+        "required_terms": true,
+        "forbidden_terms": true,
+        "citations": true
+      },
+      "issues": [],
+      "status": "scored"
+    },
+    {
+      "case_id": "cas-06",
+      "passed": true,
+      "checks": {
+        "required_terms": true,
+        "forbidden_terms": true,
+        "citations": true
+      },
+      "issues": [],
+      "status": "scored"
+    }
+  ],
+  "generated_at": "2026-10-14T12:43:36.885426+00:00",
+  "dataset_sha256": "afea93a28be45b987694f4dee174075cededcc694ad4e799529c12ec8cc644f2",
+  "predictions_sha256": "aa88c8d0dd05ea511014f441666c501f5ef91d05cbf016803cb266f3f3a6b6f1"
+}
