@@ -45,7 +45,7 @@ async def get_model_result(request: QueryRequest):
     uid = str(payload.get("id", "anon"))
 
     if not resources["model"]:
-        raise HTTPException(status_code=503, detail="Model service not ready")
+        raise HTTPException(status_code=503, detail="模型服务未就绪")
 
     # 阶段7: 并发闸(单用户/全局上限), 超限直接 429, 不进入流
     guard = resources.get("request_guard")
@@ -307,7 +307,7 @@ async def resume_model_result(request: ReviewResumeRequest):
     verify_token(request.token)
 
     if not resources["model"]:
-        raise HTTPException(status_code=503, detail="Model service not ready")
+        raise HTTPException(status_code=503, detail="模型服务未就绪")
 
     async def generate():
         req_id = uuid.uuid4().hex[:12]
@@ -370,7 +370,7 @@ async def kb_upload(request: KbUploadRequest):
     _validate_kb_files(request.files)
     retriever = resources.get("retriever")
     if not retriever:
-        raise HTTPException(status_code=503, detail="Retriever not ready")
+        raise HTTPException(status_code=503, detail="检索引擎未就绪")
     import base64 as _b64
 
     os.makedirs(retriever.docs_dir, exist_ok=True)
@@ -397,7 +397,7 @@ async def kb_delete_document(name: str, token: str = Header("")):
     verify_token(token)
     retriever = resources.get("retriever")
     if not retriever:
-        raise HTTPException(status_code=503, detail="Retriever not ready")
+        raise HTTPException(status_code=503, detail="检索引擎未就绪")
     safe_name = os.path.basename(name)
     path = os.path.join(retriever.docs_dir, safe_name)
     if not os.path.exists(path):
@@ -462,7 +462,7 @@ async def extract_lab_fields_api(request: LabExtractRequest):
     verify_token(request.token)
     vision_svc = resources.get("vision_service")
     if not vision_svc:
-        raise HTTPException(status_code=503, detail="Vision service not ready")
+        raise HTTPException(status_code=503, detail="影像服务未就绪")
     try:
         data = await asyncio.to_thread(vision_svc.extract_lab_fields, request.images[:3])
         return {"code": 1, "msg": "success", "data": data}

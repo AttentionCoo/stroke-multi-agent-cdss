@@ -337,7 +337,7 @@ def build_pico_query(query: str, evidence_type: str | None = None) -> str:
         if kws:
             clauses.append("(" + " OR ".join(f'"{k}"' for k in kws[:2]) + ")")
 
-    # clinical_question(eligibility/contraindication)
+    # 临床问题标签(eligibility 适应症 / contraindication 禁忌症)
     lower = query.lower()
     cqs = [label for label, kws in CLINICAL_QUESTION_RULES
            if any(str(kw).lower() in lower for kw in kws)]
@@ -355,11 +355,11 @@ def translate_query(query: str, evidence_type: str | None = None) -> List[str]:
     """
     完整转换:Medical Concept Normalizer(概念抽取+OR组合) + 同义词扩展 + 证据源关键词。
 
-    Args:
+    参数:
         query: 临床检索式
         evidence_type: 决策类型(treatment/diagnosis/etiology/anatomy/...)
 
-    Returns:
+    返回:
         一组待检索的查询变体:
         1. OR-AND 组合式(医学检索范式)
         2. 原始查询 + 证据关键词

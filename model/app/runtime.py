@@ -31,7 +31,7 @@ def verify_token(token: str) -> dict:
     try:
         return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="无效的令牌")
 
 
 def start_kb_job(action: str) -> str:

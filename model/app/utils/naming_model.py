@@ -32,12 +32,12 @@ class NamingModel(object):
         """
         基于用户问题(及可选 AI 回答)生成简短医学标题。
 
-        Args:
+        参数:
             question: 用户提问文本
             answer: 可选，AI 回答摘要，用于提炼更准确的标题
             max_title_len: 标题最大长度(字符)
 
-        Returns:
+        返回:
             生成的标题字符串
         """
         logger.info(f"开始执行 run_naming() 方法，待处理内容: {question}")

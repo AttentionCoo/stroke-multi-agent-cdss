@@ -23,7 +23,7 @@ def safe_truncate(text: str, max_len: int = 1200) -> str:
 def parse_score_response(raw_text: str, default_score: float = 0.0) -> Tuple[float, str]:
     raw_text = (raw_text or "").strip()
     if not raw_text:
-        return default_score, "empty response"
+        return default_score, "空响应"
 
     try:
         data = json.loads(raw_text)
@@ -63,7 +63,7 @@ class ConversationSummaryService:
     def score_turn_value(self, question: str, answer: str, previous_all_info: str = "") -> Tuple[float, str]:
         answer = (answer or "").strip()
         if not answer:
-            return 0.0, "empty answer"
+            return 0.0, "空回答"
 
         fallback_prompt = """你是对话价值评估器。请判断下面这一轮问答是否值得写入长期病历摘要。
 
@@ -104,7 +104,7 @@ class ConversationSummaryService:
                 heuristic_score = 0.5
             if len(answer) > 120:
                 heuristic_score = max(heuristic_score, 0.6)
-            return heuristic_score, "heuristic score"
+            return heuristic_score, "启发式评分"
 
         try:
             # 使用 StrOutputParser 链，替代手写 getattr(response, "content", response)
@@ -113,7 +113,7 @@ class ConversationSummaryService:
             return parse_score_response(content, default_score=0.0)
         except Exception as e:
             logger.warning(f"对话价值评分失败，使用启发式评分: {e}")
-            return 0.5 if len(answer) > 80 else 0.2, "fallback heuristic"
+            return 0.5 if len(answer) > 80 else 0.2, "启发式兜底评分"
 
     # 把旧摘要与本轮问答归纳合并成新摘要(LLM 归纳, 失败回退简单拼接)
     def summarize_context(self, previous_all_info: str, question: str, answer: str) -> str:

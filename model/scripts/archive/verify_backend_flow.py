@@ -12,7 +12,7 @@ login = httpx.post(
     timeout=15,
 )
 token = login.json()["data"]["token"]
-print("LOGIN_OK token_len:", len(token))
+print("登录成功 token 长度:", len(token))
 
 # 通过 backend SSE 发病例(前端真实路径)
 url = "http://localhost:8080/api/user/ques/streamingQues"
@@ -26,7 +26,7 @@ errors = 0
 done = False
 nodes = set()
 with httpx.stream("POST", url, json=body, headers=headers, timeout=600) as r:
-    print("STATUS:", r.status_code)
+    print("状态码:", r.status_code)
     for line in r.iter_lines():
         if not line.strip():
             continue
@@ -46,7 +46,7 @@ with httpx.stream("POST", url, json=body, headers=headers, timeout=600) as r:
         if t == "done":
             done = True
 
-print("DONE:", done)
-print("ERRORS:", errors)
-print("THINKING_STEPS:", len(nodes))
-print("SAMPLE:", sorted(nodes)[:8])
+print("是否收到完成事件:", done)
+print("错误事件数:", errors)
+print("思考步骤数:", len(nodes))
+print("步骤样例:", sorted(nodes)[:8])

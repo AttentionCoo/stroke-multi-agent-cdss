@@ -38,12 +38,12 @@ def _parse_json(text):
 
 @pytest.mark.asyncio
 async def test_optimized_analyze_live():
-    print("Testing optimized analyze logic")
+    print("开始测试优化后的 analyze 逻辑")
     _dashscope_base = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     _dashscope_key = os.getenv("DASHSCOPE_API_KEY")
     
     if not _dashscope_key:
-        print("DASHSCOPE_API_KEY not set")
+        print("未设置 DASHSCOPE_API_KEY")
         return
     
     llm = ChatOpenAI(model="qwen-turbo", base_url=_dashscope_base, api_key=_dashscope_key)
@@ -73,17 +73,17 @@ Requirements:
     if not result:
         result = {"riskLevel": "Medium", "suggestion": "Further evaluation needed.", "analysisDetails": "Basic assessment completed."}
     
-    print(f"Elapsed: {elapsed:.2f}s")
-    print(f"Risk Level: {result.get('riskLevel')}")
-    print(f"Suggestion: {result.get('suggestion')}")
-    print(f"Analysis: {result.get('analysisDetails')}")
-    
+    print(f"耗时: {elapsed:.2f}s")
+    print(f"风险等级: {result.get('riskLevel')}")
+    print(f"建议: {result.get('suggestion')}")
+    print(f"分析详情: {result.get('analysisDetails')}")
+
     if elapsed < 1.5:
-        print("Speed: Excellent")
+        print("速度: 优秀")
     elif elapsed < 2.5:
-        print("Speed: Good")
+        print("速度: 良好")
     else:
-        print("Speed: Needs optimization")
+        print("速度: 需要优化")
 
 if __name__ == "__main__":
     asyncio.run(test_optimized_analyze_live())

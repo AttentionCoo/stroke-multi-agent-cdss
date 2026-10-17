@@ -41,13 +41,13 @@ async def main():
         "clinical_decisions": [],
     }
     r = await node.run(state)
-    print("router_evidence_types:", r["router_evidence_types"])
-    print("router_categories:", r["router_categories"])
-    print("router_keywords:", r["router_keywords"])
+    print("路由证据类型:", r["router_evidence_types"])
+    print("路由类别:", r["router_categories"])
+    print("路由关键词:", r["router_keywords"])
     assert r["router_evidence_types"] == ["treatment", "anatomy"]
     assert r["router_categories"][0] == ["指南", "专家共识"]
     assert r["router_categories"][1] == ["教材"]
-    print("ROUTER_LLM_OK")
+    print("路由 LLM 调用通过")
 
     # LLM 失败 → 规则兜底
     node2 = EvidenceRouterNode(llm=_EmptyLLM())
@@ -56,10 +56,10 @@ async def main():
         "clinical_decisions": [{"decision_name": "溶栓", "evidence_type": "treatment", "priority": 10}],
     }
     r2 = await node2.run(state2)
-    print("fallback evidence_type:", r2["router_evidence_types"])
+    print("兜底证据类型:", r2["router_evidence_types"])
     assert r2["router_evidence_types"] == ["treatment"]
     assert r2["router_categories"][0] == ["指南", "专家共识", "规范"]
-    print("ROUTER_FALLBACK_OK")
+    print("路由兜底路径通过")
 
 
 if __name__ == "__main__":

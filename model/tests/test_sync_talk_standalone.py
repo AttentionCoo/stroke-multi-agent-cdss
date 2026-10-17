@@ -1,7 +1,7 @@
 """
-Standalone test for AI Sync Opinion (sync-talk) core logic.
-Tests the /ai/quick-analyze LLM call directly via HTTP to DashScope API,
-bypassing langchain and server dependencies.
+AI 同步意见(sync-talk)核心逻辑的独立测试。
+直接通过 HTTP 调用 DashScope API 验证 /ai/quick-analyze 的 LLM 调用,
+不依赖 langchain 与服务端环境。
 """
 import os
 import json
@@ -22,7 +22,7 @@ DASHSCOPE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completi
 
 
 def parse_json(text: str) -> dict:
-    """Extract JSON from model output."""
+    """从模型输出中提取 JSON。"""
     content = (text or "").strip()
     try:
         return json.loads(content)
@@ -46,15 +46,15 @@ def parse_json(text: str) -> dict:
 
 
 def test_quick_analyze_direct():
-    """Test the core quick-analyze LLM call that sync-talk depends on."""
+    """测试 sync-talk 依赖的 quick-analyze 核心 LLM 调用。"""
     print("=" * 80)
-    print("[TEST] AI Sync Opinion - Quick Analyze Core Logic")
+    print("[测试] AI 同步意见(sync-talk) - quick-analyze 核心逻辑")
     print("=" * 80)
 
     if not DASHSCOPE_API_KEY:
         pytest.fail("DASHSCOPE_API_KEY 未设置")
 
-    # Simulate what sync-talk does: build a prompt from doctor-patient conversation
+    # 模拟 sync-talk 的行为: 由医患对话构建提示词
     conversation_text = """user: 患者今天感觉头晕，血压偏高，收缩压160，舒张压95。
 assistant: 患者的血压确实偏高，建议先休息片刻后再测量一次。请问患者是否有高血压病史？是否有其他不适症状如胸闷、心悸等？
 user: 患者有高血压病史5年，一直在服用降压药，但最近一个月没有规律服药。今天早上还感觉有点胸闷。
@@ -65,11 +65,11 @@ assistant: 根据您描述的情况，患者高血压病史5年，近期未规�
 【对话内容】
 {conversation_text}"""
 
-    print(f"\n[INFO] Question length: {len(question)} chars")
-    print(f"[INFO] Question preview: {question[:200]}...")
+    print(f"\n[信息] 问题长度: {len(question)} 字符")
+    print(f"[信息] 问题预览: {question[:200]}...")
     print("-" * 80)
 
-    # Build the prompt matching exactly what /ai/quick-analyze uses
+    # 构建与 /ai/quick-analyze 完全一致的提示词
     prompt = f"""你是三甲医院神经内科主任医师。请快速分析以下临床问题，给出简洁专业的意见。
 
 问题：
@@ -111,22 +111,22 @@ assistant: 根据您描述的情况，患者高血压病史5年，近期未规�
         body = resp.json()
         content = body["choices"][0]["message"]["content"]
 
-        print(f"[OK] LLM call completed in {elapsed:.2f}s")
-        print(f"[INFO] Raw response length: {len(content)} chars")
-        print(f"[INFO] Raw response: {content[:300]}...")
+        print(f"[成功] LLM 调用完成, 耗时 {elapsed:.2f}s")
+        print(f"[信息] 原始响应长度: {len(content)} 字符")
+        print(f"[信息] 原始响应: {content[:300]}...")
         print("-" * 80)
 
-        # Parse the JSON from the LLM response
+        # 解析 LLM 响应中的 JSON
         result = parse_json(content)
         if not result:
-            print("[WARN] JSON parse failed, using fallback values")
+            print("[警告] JSON 解析失败, 使用兜底值")
             result = {
                 "quickOpinion": "建议结合临床实际进一步评估，如症状加重请及时就医。",
                 "keyPoints": ["需进一步检查", "结合临床判断", "及时就医"],
                 "riskLevel": "中风险"
             }
 
-        print("\n[RESULT] Parsed AI Opinion:")
+        print("\n[结果] 解析出的 AI 意见:")
         print(f"  riskLevel:     {result.get('riskLevel', 'N/A')}")
         print(f"  quickOpinion:  {result.get('quickOpinion', 'N/A')}")
         key_points = result.get('keyPoints', [])
@@ -135,15 +135,15 @@ assistant: 根据您描述的情况，患者高血压病史5年，近期未规�
                 print(f"  keyPoint[{i}]:   {kp}")
         print()
         print("=" * 80)
-        print("[PASS] AI Sync Opinion core logic test passed!")
+        print("[通过] AI 同步意见核心逻辑测试通过!")
         print("=" * 80)
         assert result
 
     except requests.exceptions.Timeout:
-        print("[FAIL] Request timed out (>60s)")
+        print("[失败] 请求超时(>60 秒)")
         pytest.fail("请求超时（超过 60 秒）")
     except Exception as e:
-        print(f"[FAIL] Error: {e}")
+        print(f"[失败] 错误: {e}")
         import traceback
         traceback.print_exc()
         pytest.fail(f"在线模型调用失败: {e}")

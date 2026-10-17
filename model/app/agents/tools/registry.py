@@ -66,11 +66,11 @@ def get_tool_schemas() -> List[Dict[str, Any]]:
 def call_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     """按名称调用工具。
 
-    Args:
+    参数:
         name: 工具名(如 nihss_score)
         arguments: 工具参数 dict
 
-    Returns:
+    返回:
         统一包装的结果:{"tool": name, "ok": bool, "result": ...} 或错误信息
     """
     tool = TOOL_MAP.get(name)

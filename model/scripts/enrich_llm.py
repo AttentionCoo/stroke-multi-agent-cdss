@@ -117,7 +117,7 @@ def classify_with_llm(llm, text: str) -> dict | None:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="LLM Chunk Semantic Enrichment")
+    parser = argparse.ArgumentParser(description="LLM Chunk 语义增强(三层语义分类器)")
     parser.add_argument("--persist-dir", default=CONFIG["persist_dir"])
     parser.add_argument("--dry-run", action="store_true", help="只统计待分类数量")
     parser.add_argument("--max-chunks", type=int, default=0,

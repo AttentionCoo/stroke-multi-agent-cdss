@@ -353,10 +353,10 @@ class QwenAgent:
             normalize = {"高": "高风险", "中": "中风险", "低": "低风险"}
             if payload["riskLevel"] in normalize:
                 payload["riskLevel"] = normalize[payload["riskLevel"]]
-            logger.info(f"[AIAnalyzeFast] riskLevel={payload['riskLevel']}")
+            logger.info(f"[AIAnalyzeFast] 风险等级={payload['riskLevel']}")
             return payload
         except Exception as e:
-            logger.error(f"[AIAnalyzeFast] failed: {e}")
+            logger.error(f"[AIAnalyzeFast] 快速分析失败: {e}")
             return {
                 "riskLevel": "中风险",
                 "suggestion": "建议结合线下检查结果进一步评估，如症状加重请及时就医。",

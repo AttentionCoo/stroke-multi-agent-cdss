@@ -16,7 +16,7 @@ from typing import List, Dict
 from dotenv import load_dotenv
 from langchain_core.documents import Document
 
-# Monkey-patch chromadb to prevent ONNX embedding function initialization
+# 对 chromadb 打猴子补丁(monkey-patch): 阻止其初始化 ONNX embedding 函数
 # chromadb 1.x 中该模块结构可能变化, patch 失败时静默降级(本项目始终显式传入 embedding_function)
 try:
     import chromadb
@@ -28,7 +28,7 @@ except Exception:
 
 from langchain_chroma import Chroma
 
-# Add parent directory to path to absolute imports work
+# 将上级目录加入 sys.path, 使 app.* 绝对导入可用
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from app.rag.data_loader import load_pdfs_from_dir, split_documents
 from app.rag.qa_generator import QAGenerator
@@ -409,7 +409,7 @@ class HybridRetriever:
                rerank_query: str = None) -> List[Document]:
         """检索(单 collection 语义, 兼容旧接口)。
 
-        Args:
+        参数:
             query: 检索式
             top_k_final: 最多返回条数，受固定重排候选预算限制
             category_filter: Evidence Router 的类别过滤
@@ -597,7 +597,7 @@ class UnifiedSearchEngine:
                rerank_query: str = None) -> List[Document]:
         """检索(支持 Multi-Collection 路由)。
 
-        Args:
+        参数:
             query: 检索式
             top_k_final: 最多返回条数，受固定重排候选预算限制
             category_filter: Evidence Router 的类别过滤(collection 内后过滤)

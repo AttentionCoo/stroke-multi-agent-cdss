@@ -26,11 +26,11 @@ class RAGPipeline:
     def run(self, question: str) -> str:
         """执行 RAG 管道"""
         try:
-            logger.info(f"RAGPipeline start: {question[:60]}")
+            logger.info(f"RAG 管道启动: {question[:60]}")
             
             # 1. 生成检索查询
             queries = self.query_gen.generate(question)
-            logger.info(f"Generated queries: {queries}")
+            logger.info(f"已生成检索查询: {queries}")
             
             # 2. 并行检索证据
             evidence = self.retrieval.parallel_retrieve(queries)
@@ -39,10 +39,10 @@ class RAGPipeline:
             
             # 3. 合成证据
             result = self.synthesis.synthesize(question, evidence)
-            logger.info(f"RAGPipeline completed")
+            logger.info("RAG 管道执行完成")
             
             return result
             
         except Exception as e:
-            logger.error(f"RAGPipeline error: {e}")
+            logger.error(f"RAG 管道异常: {e}")
             return "证据层运行异常。"

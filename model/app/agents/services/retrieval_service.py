@@ -189,7 +189,7 @@ class EvidenceRetrievalService:
                            collections: List[str] | None = None,
                            rerank_query: str | None = None):
         """
-        Retrieval Failure Recovery:
+        检索失败恢复:
         1. 去掉类别过滤/扩大 collection 范围, 无过滤检索
         2. 扩展同义词(概念 OR 组)检索
         3. 降低限定(用核心概念子集)检索

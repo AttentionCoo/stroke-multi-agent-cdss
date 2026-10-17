@@ -187,4 +187,4 @@ if __name__ == "__main__":
     check_event_handlers()
     check_full_content()
     check_live_stream()
-    print("ALL PASS")
+    print("全部通过")

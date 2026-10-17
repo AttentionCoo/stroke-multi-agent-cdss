@@ -187,9 +187,9 @@ def main() -> None:
         from app.evaluation.gate import check_offline_gate
         gate_result = check_offline_gate(report, args.min_coverage, args.min_pass_rate)
         if not gate_result.passed:
-            print("[GATE FAIL] 离线评测门禁失败: " + "; ".join(gate_result.failures), file=sys.stderr)
+            print("[门禁失败] 离线评测门禁失败: " + "; ".join(gate_result.failures), file=sys.stderr)
             raise SystemExit(1)
-        print(f"[GATE PASS] 离线评测门禁通过 (coverage={report['coverage']}, pass_rate={report['pass_rate']})")
+        print(f"[门禁通过] 离线评测门禁通过 (coverage={report['coverage']}, pass_rate={report['pass_rate']})")
 
 
 if __name__ == "__main__":

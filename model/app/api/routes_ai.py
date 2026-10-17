@@ -27,7 +27,7 @@ async def analyze_patient_health_risk(request: AnalyzeRequest):
     """健康风险分析接口 - AI分析病人健康数据并生成建议(复用LLM实例, 直接异步调用)"""
     patient_text = request.data.strip()
     if not patient_text:
-        raise HTTPException(status_code=422, detail="data cannot be empty")
+        raise HTTPException(status_code=422, detail="data 不能为空")
 
     start_time = time.time()
     req_id = uuid.uuid4().hex[:12]
@@ -43,7 +43,7 @@ async def analyze_patient_health_risk(request: AnalyzeRequest):
     try:
         llm_turbo = resources.get("llm_turbo")
         if not llm_turbo:
-            raise HTTPException(status_code=503, detail="LLM service not ready")
+            raise HTTPException(status_code=503, detail="LLM 服务未就绪")
 
         # 直接使用 LangChain 异步接口，复用全局 LLM 实例
         prompt = f"""你是三甲医院全科医生。快速分析以下患者信息，给出简洁意见。
@@ -111,7 +111,7 @@ async def quick_analyze(request: QuickAnalyzeRequest):
 
     question = request.question.strip()
     if not question:
-        raise HTTPException(status_code=422, detail="question cannot be empty")
+        raise HTTPException(status_code=422, detail="question 不能为空")
 
     start_time = time.time()
     req_id = uuid.uuid4().hex[:12]
@@ -126,7 +126,7 @@ async def quick_analyze(request: QuickAnalyzeRequest):
     try:
         llm_turbo = resources.get("llm_turbo")
         if not llm_turbo:
-            raise HTTPException(status_code=503, detail="LLM service not ready")
+            raise HTTPException(status_code=503, detail="LLM 服务未就绪")
 
         prompt = f"""你是三甲医院神经内科主任医师。请快速分析以下临床问题，给出简洁专业的意见。
 
