@@ -1,11 +1,11 @@
 import request from '@/utils/request'
 
 // 1. 登录
-// loginForm = { name: string, password: string }
+// 登录表单 = { name: 字符串, password: 字符串 }
 export const loginAPI = (loginForm) => request.post('/user/login', loginForm)
 
 // 2. 注册
-// registerForm = { name: string, password: string, image: string }
+// 注册表单 = { name: 字符串, password: 字符串, image: 字符串 }
 export const registerAPI = (registerForm) => request.post('/user/register', registerForm)
 
 // 3. 上传头像
@@ -25,5 +25,5 @@ export const logoutAPI = () => request.post('/user/logOut')
 export const getProfileAPI = () => request.get('/user/showInfo')
 
 // 6. 修改用户信息
-// data = { prePassword: string, newPassword: string, image: string }
+// 数据 = { prePassword: 字符串, newPassword: 字符串, image: 字符串 }
 export const updateInfoAPI = (data) => request.put('/user/showInfo/changeKey', data)

@@ -77,7 +77,7 @@ const handleFileChange = async (e) => {
 <template>
   <div class="avatar-upload">
     <div class="avatar-preview" @click="triggerUpload">
-      <AppAvatar :src="avatarUrl" :name="props.initialName" :size="120" alt="avatar" />
+      <AppAvatar :src="avatarUrl" :name="props.initialName" :size="120" alt="头像" />
       <div class="avatar-overlay">更换头像</div>
     </div>
 

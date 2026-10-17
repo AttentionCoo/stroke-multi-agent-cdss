@@ -154,7 +154,7 @@ function expertSegments(content) {
   return segments
 }
 
-// 检索质量看板: 步骤对应的结构化指标 chips
+// 检索质量看板: 步骤对应的结构化指标标签
 function statsFor(step) {
   const stats = props.thinkingData?.nodeStats?.[step]
   if (!stats) return null

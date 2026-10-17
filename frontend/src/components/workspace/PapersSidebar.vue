@@ -79,7 +79,7 @@ function selectPaper(paper) {
 
     <div v-if="!loading && papers.length" class="papers-footer">
       <p class="papers-disclaimer">文献仅供参考，请结合临床判断</p>
-      <p class="papers-source">数据来源: PubMed, U.S. National Library of Medicine</p>
+      <p class="papers-source">数据来源: PubMed（美国国立医学图书馆）</p>
     </div>
   </div>
 </template>

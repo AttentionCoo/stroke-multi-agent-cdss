@@ -44,7 +44,7 @@ async function handleRegister() {
     return
   }
 
-  // 组装form
+  // 组装表单
   const registerAPIData = {
     name: registerFormData.value.name,
     password: registerFormData.value.password,

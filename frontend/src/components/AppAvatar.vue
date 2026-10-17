@@ -18,7 +18,7 @@ const props = defineProps({
   },
   alt: {
     type: String,
-    default: 'avatar'
+    default: '头像'
   }
 })
 

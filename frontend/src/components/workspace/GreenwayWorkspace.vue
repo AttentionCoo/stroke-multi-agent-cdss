@@ -410,7 +410,7 @@ function reviewActionLabel(action) {
     <aside class="assessment-list panel-left">
       <div class="section-head">
         <div>
-          <p class="summary-label">Stroke pathway</p>
+          <p class="summary-label">卒中救治路径</p>
           <h3>急诊评估记录</h3>
         </div>
         <button type="button" class="primary-action" @click="startNewAssessment">新建</button>
@@ -439,7 +439,7 @@ function reviewActionLabel(action) {
     <main class="assessment-main panel-main scrollbar-thin">
       <header class="greenway-header">
         <div>
-          <p class="summary-label">Acute stroke</p>
+          <p class="summary-label">急性卒中</p>
           <h2>脑卒中急诊绿色通道</h2>
         </div>
         <div class="header-actions">

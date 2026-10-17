@@ -149,7 +149,7 @@ function startResizeInput(event) {
     try {
       localStorage.setItem('chat-input-height', String(inputHeight))
     } catch {
-      // ignore
+      // 忽略
     }
   }
   window.addEventListener('mousemove', onMove)
@@ -244,7 +244,7 @@ function handleDraftInput() {
     try {
       recognition?.stop()
     } catch {
-      // ignore
+      // 忽略
     }
   }
   autoResize()
@@ -374,7 +374,7 @@ function onChatScroll() {
 // 核心思路：currentTalkList（来自 talk.vue）每个字符都会更新，但 Markdown 解析
 // 代价高昂（marked.parse + DOMPurify + 整块 DOM 重建）。
 // 通过维护独立的 renderedHtmlList，借助 requestAnimationFrame 将渲染频率限定在
-// 浏览器帧率（~16ms/帧, 60fps），既消除 Layout Thrashing，又保证视觉上逐字流畅。
+// 浏览器帧率（~16ms/帧, 60fps），既消除布局抖动（强制同步布局），又保证视觉上逐字流畅。
 //
 // 为什么用 RAF 而非 setTimeout(90ms)：
 //   setTimeout(90ms) 会让每次渲染跳过 ~90 字，视觉上仍是"块状蹦字"。
@@ -439,7 +439,7 @@ watch(
   },
 )
 
-// 流结束：强制立即渲染，确保服务端兜底内容（final content）完整显示，
+// 流结束：强制立即渲染，确保服务端兜底内容（最终内容）完整显示，
 // 不被挂起的节流任务延迟或覆盖
 watch(
   () => props.isStreaming,
@@ -524,7 +524,7 @@ function handleSendMessage() {
     try {
       recognition?.stop()
     } catch {
-      // ignore
+      // 忽略
     }
   }
   emit('send-message', {

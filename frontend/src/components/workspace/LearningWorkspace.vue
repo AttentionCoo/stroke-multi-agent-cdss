@@ -511,7 +511,7 @@ onBeforeUnmount(() => {
           </div>
 
           <form class="toolbar pubmed-toolbar" @submit.prevent="handlePubMedSearch">
-            <input v-model="pubmedQuery" type="text" placeholder="例如：acute ischemic stroke thrombolysis" />
+            <input v-model="pubmedQuery" type="text" placeholder="例如：acute ischemic stroke thrombolysis（急性缺血性卒中溶栓）" />
             <button type="submit" class="secondary-action" :disabled="pubmedLoading">
               {{ pubmedLoading ? '检索中...' : '检索' }}
             </button>
