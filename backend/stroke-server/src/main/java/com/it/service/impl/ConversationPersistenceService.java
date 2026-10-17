@@ -34,10 +34,13 @@ public class ConversationPersistenceService {
         String imagesJson = serializeImages(images);
 
         // 用户问题: 幂等写入(流开始时 persistQuestionNow 可能已插入, 避免重复)
+        // 幂等判断必须匹配"本轮问题内容": 只判断"对话里存在任意 user 消息"会导致
+        // 第二轮及之后的问题永远不落库, 历史错乱成 [user, assistant, assistant]
         boolean questionExists = contService.exists(new LambdaQueryWrapper<Cont>()
                 .eq(Cont::getUserId, userId)
                 .eq(Cont::getTalkId, talkId)
-                .eq(Cont::getRole, "user"));
+                .eq(Cont::getRole, "user")
+                .eq(Cont::getContent, question));
         if (!questionExists) {
             Cont userCont = new Cont();
             userCont.setUserId(userId);
@@ -108,7 +111,8 @@ public class ConversationPersistenceService {
         boolean questionExists = contService.exists(new LambdaQueryWrapper<Cont>()
                 .eq(Cont::getUserId, userId)
                 .eq(Cont::getTalkId, talkId)
-                .eq(Cont::getRole, "user"));
+                .eq(Cont::getRole, "user")
+                .eq(Cont::getContent, question));
         if (questionExists) {
             return;
         }

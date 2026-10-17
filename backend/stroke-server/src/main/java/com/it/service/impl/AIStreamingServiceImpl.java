@@ -342,6 +342,8 @@ public class AIStreamingServiceImpl implements AIStreamingService {
         final Map<String, Object>[] lastUsage = new Map[]{null};
         // 本轮思考链累积器(节点过程/专家意见/用量), 随对话持久化, 供刷新后重新打开思维链
         final RoundAccumulator roundAcc = new RoundAccumulator();
+        // 本轮持久化标记: doOnNext(正常 done 路径)与 doFinally(客户端断开补偿)共用, 防止重复落库
+        final java.util.concurrent.atomic.AtomicBoolean persisted = new java.util.concurrent.atomic.AtomicBoolean(false);
 
         return webClient.post()
                 .uri("/model/get_result")
@@ -400,24 +402,10 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                         // done 事件发出时 fullAnswer / generatedTitle 已稳定，可安全快照
                         final String snapshotAnswer = fullAnswer.toString();
                         final String snapshotTitle = generatedTitle[0];
-                        if (StrUtil.isBlank(question) || snapshotAnswer.isEmpty()) {
-                            log.debug("跳过持久化: question 或 answer 为空, talkId={}", finalTalkId);
-                            return;
-                        }
-
-                        // 快照本次请求携带的图片列表，随问题一起持久化
-                        final List<String> snapshotImages = images;
                         // 快照本轮思考链(节点过程/专家意见/用量/缺口), 随对话持久化
                         final String snapshotThinking = roundAcc.toJsonString(objectMapper);
-                        Mono.fromRunnable(
-                                () -> persistAndCleanCache(userId, finalTalkId, question, snapshotAnswer, snapshotTitle, snapshotImages, snapshotThinking))
-                                .subscribeOn(Schedulers.boundedElastic())
-                                .doOnError(e -> log.warn("异步持久化失败，进入重试队列: talkId={}", finalTalkId, e))
-                                .onErrorResume(e -> {
-                                    enqueueRetryTask(userId, finalTalkId, question, snapshotAnswer, snapshotTitle, 0);
-                                    return Mono.empty();
-                                })
-                                .subscribe();
+                        persistSnapshotAsync(userId, finalTalkId, question, images,
+                                snapshotAnswer, snapshotTitle, snapshotThinking, persisted);
                     } catch (Exception e) {
                         log.warn("doOnNext 解析事件失败, talkId={}, err={}", finalTalkId, e.getMessage());
                     }
@@ -442,7 +430,16 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                     return buildErrorAndDone(finalTalkId, "AI 服务异常，请稍后重试");
                 })
 
-                .doFinally(signal -> log.info("流完成: signal={}", signal));
+                .doFinally(signal -> {
+                    log.info("流完成: signal={}", signal);
+                    // 客户端断开/取消订阅时 doOnNext 不会触发, 此处补偿持久化:
+                    // 用户问题已在流开始落库, 把已生成的部分回答一并保存, 避免整轮丢失
+                    if (!persisted.get() && fullAnswer.length() > 0) {
+                        persistSnapshotAsync(userId, finalTalkId, question, images,
+                                fullAnswer.toString(), generatedTitle[0],
+                                roundAcc.toJsonString(objectMapper), persisted);
+                    }
+                });
     }
 
     /**
@@ -805,6 +802,33 @@ public class AIStreamingServiceImpl implements AIStreamingService {
         } catch (Exception e) {
             log.warn("更新对话标题失败: talkId={}, err={}", talkId, e.getMessage(), e);
         }
+    }
+
+    /**
+     * 异步持久化本轮问答快照(带防重标记)。
+     * done 正常路径(doOnNext)与客户端断开补偿路径(doFinally)共用:
+     * persisted 置位后重复调用不再落库; 内容为空不算已持久化, 允许后续重试。
+     */
+    private void persistSnapshotAsync(Long userId, Long talkId, String question, List<String> images,
+                                      String snapshotAnswer, String snapshotTitle, String snapshotThinking,
+                                      java.util.concurrent.atomic.AtomicBoolean persisted) {
+        if (persisted.getAndSet(true)) {
+            return;
+        }
+        if (StrUtil.isBlank(question) || snapshotAnswer == null || snapshotAnswer.isEmpty()) {
+            persisted.set(false);
+            log.debug("跳过持久化: question 或 answer 为空, talkId={}", talkId);
+            return;
+        }
+        Mono.fromRunnable(
+                () -> persistAndCleanCache(userId, talkId, question, snapshotAnswer, snapshotTitle, images, snapshotThinking))
+                .subscribeOn(Schedulers.boundedElastic())
+                .doOnError(e -> log.warn("异步持久化失败，进入重试队列: talkId={}", talkId, e))
+                .onErrorResume(e -> {
+                    enqueueRetryTask(userId, talkId, question, snapshotAnswer, snapshotTitle, 0);
+                    return Mono.empty();
+                })
+                .subscribe();
     }
 
     /**
