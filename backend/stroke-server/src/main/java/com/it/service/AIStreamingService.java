@@ -21,7 +21,8 @@ public interface AIStreamingService {
             String question,
             String token,
             List<String> images,
-            Long patientId
+            Long patientId,
+            boolean humanReview
     );
 
     // 获取历史对话内容: {conversation: [{role,content,images}], thinkingHistory: [每轮思考链]}

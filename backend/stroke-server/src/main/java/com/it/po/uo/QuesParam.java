@@ -11,4 +11,6 @@ public class QuesParam {
     private Long patientId;
     /** 影像识别：Base64 图片列表，最多 3 张，每张不超过 10MB（新增字段） */
     private List<String> images;
+    /** 是否在生成最终报告前挂起，等待医生复核。 */
+    private Boolean humanReview;
 }

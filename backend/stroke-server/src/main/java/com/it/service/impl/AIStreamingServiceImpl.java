@@ -11,8 +11,10 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.it.po.uo.Cont;
 import com.it.po.uo.ContDTO;
+import com.it.pojo.ClinicalReviewTask;
 import com.it.pojo.Talk;
 import com.it.service.AIStreamingService;
+import com.it.service.ClinicalReviewService;
 import com.it.service.IContService;
 import com.it.service.ITalkService;
 import jakarta.annotation.PostConstruct;
@@ -59,6 +61,7 @@ public class AIStreamingServiceImpl implements AIStreamingService {
     private final IContService contService;
     private final ConversationPersistenceService conversationPersistenceService;
     private final PatientMemoryService patientMemoryService;
+    private final ClinicalReviewService clinicalReviewService;
 
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())
@@ -212,9 +215,39 @@ public class AIStreamingServiceImpl implements AIStreamingService {
             log.warn("思考链历史解析失败, 返回空列表: talkId={}, err={}", talkId, e.getMessage());
         }
 
+        // HITL 待复核任务：历史接口补一条空 assistant 占位与对应思考链槽位，
+        // 使刷新页面后仍能展示待医生复核卡片并继续续跑。
+        Map<String, Object> pendingReview = null;
+        try {
+            if (clinicalReviewService != null) {
+                var pendingOpt = clinicalReviewService.findPendingByTalk(userId, talkId);
+                if (pendingOpt.isPresent()) {
+                    pendingReview = clinicalReviewService.toView(pendingOpt.get());
+                    List<ContDTO> withPlaceholder = new ArrayList<>(conversation);
+                    withPlaceholder.add(ContDTO.builder()
+                            .role("assistant")
+                            .content("")
+                            .images(Collections.emptyList())
+                            .build());
+                    conversation = withPlaceholder;
+
+                    List<Object> withReviewRound = new ArrayList<>(thinkingHistory);
+                    Map<String, Object> reviewRound = new HashMap<>();
+                    reviewRound.put("events", Collections.emptyList());
+                    reviewRound.put("humanReview", pendingReview);
+                    withReviewRound.add(reviewRound);
+                    thinkingHistory = withReviewRound;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("读取待复核任务失败: talkId={}, err={}", talkId, e.getMessage());
+        }
         Map<String, Object> result = new HashMap<>();
         result.put("conversation", conversation);
         result.put("thinkingHistory", thinkingHistory);
+        if (pendingReview != null) {
+            result.put("pendingReview", pendingReview);
+        }
         return result;
     }
 
@@ -251,7 +284,8 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                                    String question,
                                    String token,
                                    List<String> images,
-                                   Long patientId) {
+                                   Long patientId,
+                                   boolean humanReview) {
 
         if (userId == null) {
             return Flux.just(buildError("未登录"));
@@ -322,6 +356,7 @@ public class AIStreamingServiceImpl implements AIStreamingService {
         request.put("token", requestToken);
         request.put("report_mode", reportMode);
         request.put("show_thinking", showThinking);
+        request.put("human_review", humanReview);
         // 影像识别：有图片时传入 images 列表，Python 层据此走 vision 分支
         if (images != null && !images.isEmpty()) {
             request.put("images", images);
@@ -398,6 +433,8 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                     try {
                         JsonNode node = objectMapper.readTree(eventJson);
                         if (!"done".equalsIgnoreCase(node.path("type").asText())) return;
+                        // HITL 挂起轮不落 assistant 占位，避免后续续跑报告与占位消息错位
+                        if (roundAcc.humanReviewPending) return;
 
                         // done 事件发出时 fullAnswer / generatedTitle 已稳定，可安全快照
                         final String snapshotAnswer = fullAnswer.toString();
@@ -434,7 +471,7 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                     log.info("流完成: signal={}", signal);
                     // 客户端断开/取消订阅时 doOnNext 不会触发, 此处补偿持久化:
                     // 用户问题已在流开始落库, 把已生成的部分回答一并保存, 避免整轮丢失
-                    if (!persisted.get() && fullAnswer.length() > 0) {
+                    if (!persisted.get() && !roundAcc.humanReviewPending && fullAnswer.length() > 0) {
                         persistSnapshotAsync(userId, finalTalkId, question, images,
                                 fullAnswer.toString(), generatedTitle[0],
                                 roundAcc.toJsonString(objectMapper), persisted);
@@ -545,6 +582,27 @@ public class AIStreamingServiceImpl implements AIStreamingService {
                 return Flux.just(objectMapper.writeValueAsString(errorResp));
             }
 
+            // human_review 事件：HITL 挂起。创建可恢复的复核任务并透传前端。
+            if ("human_review".equalsIgnoreCase(type)) {
+                String threadId = json.path("thread_id").asText("");
+                JsonNode payloadNode = json.path("payload");
+                ClinicalReviewTask task = null;
+                if (round != null) round.humanReviewPending = true;
+                try {
+                    if (clinicalReviewService != null) {
+                        task = clinicalReviewService.createOrUpdatePending(talkId, threadId, payloadNode).orElse(null);
+                    }
+                } catch (Exception e) {
+                    log.error("创建医生复核任务失败: talkId={}, threadId={}", talkId, threadId, e);
+                }
+                Map<String, Object> reviewResp = baseResponse(talkId, generatedTitle[0], "human_review");
+                reviewResp.put("taskId", task == null ? null : task.getId());
+                reviewResp.put("threadId", threadId);
+                reviewResp.put("status", "PENDING");
+                reviewResp.put("payload", objectMapper.convertValue(
+                        payloadNode, new TypeReference<Map<String, Object>>() {}));
+                return Flux.just(objectMapper.writeValueAsString(reviewResp));
+            }
             // meta 事件：提取 all_info_update 中的汇总信息，透传给前端
             if ("meta".equalsIgnoreCase(type)) {
                 JsonNode content = json.path("content");
@@ -1054,6 +1112,8 @@ public class AIStreamingServiceImpl implements AIStreamingService {
         final Map<String, Object> nodeStats = new HashMap<>();
         volatile Map<String, Object> usage = null;
         volatile List<String> askQuestions = null;
+        /** HITL 挂起轮: 不持久化空的/半成品 assistant 消息, 由复核任务与续跑报告接管。 */
+        volatile boolean humanReviewPending = false;
         final long startedAt = System.currentTimeMillis();
 
         synchronized void onStepStart(String step, String title) {

@@ -3,6 +3,7 @@ package com.it.service.impl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.it.pojo.Talk;
+import com.it.service.ClinicalReviewService;
 import com.it.service.IContService;
 import com.it.service.ITalkService;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +29,7 @@ class AIStreamingServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new AIStreamingServiceImpl(null, null, null, null, null, null, null);
+        service = new AIStreamingServiceImpl(null, null, null, null, null, null, null, null);
     }
 
     @Test
@@ -85,11 +86,12 @@ class AIStreamingServiceImplTest {
                 talkService,
                 contService,
                 mock(ConversationPersistenceService.class),
-                patientMemoryService
+                patientMemoryService,
+                mock(ClinicalReviewService.class)
         );
 
         List<String> events = streamingService
-                .streamChat(3L, 11L, "患者情况", "token", List.of(), 7L)
+                .streamChat(3L, 11L, "患者情况", "token", List.of(), 7L, false)
                 .collectList()
                 .block();
 
@@ -99,6 +101,37 @@ class AIStreamingServiceImplTest {
         verifyNoInteractions(webClient);
     }
 
+    @Test
+    void humanReviewShouldCreateTaskAndEmitReviewEvent() throws Exception {
+        ClinicalReviewService reviewService = mock(ClinicalReviewService.class);
+        com.it.pojo.ClinicalReviewTask task = new com.it.pojo.ClinicalReviewTask();
+        task.setId(99L);
+        when(reviewService.createOrUpdatePending(
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq("thread-1"),
+                org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.of(task));
+
+        AIStreamingServiceImpl streamingService = new AIStreamingServiceImpl(
+                null, null, null, null, null, null, null, reviewService);
+        Flux<String> responseFlux = ReflectionTestUtils.invokeMethod(
+                streamingService,
+                "parseModelLine",
+                "{\"type\":\"human_review\",\"thread_id\":\"thread-1\",\"status\":\"pending\",\"payload\":{\"consensus\":\"待复核共识\"}}",
+                1L,
+                new String[]{"测试会话"},
+                new String[]{""},
+                new StringBuilder(),
+                new AIStreamingServiceImpl.RoundAccumulator(),
+                new java.util.HashMap[]{null});
+        List<String> responses = responseFlux.collectList().block();
+
+        assertEquals(1, responses.size());
+        JsonNode response = objectMapper.readTree(responses.get(0));
+        assertEquals("human_review", response.path("type").asText());
+        assertEquals(99L, response.path("taskId").asLong());
+        assertEquals("待复核共识", response.path("payload").path("consensus").asText());
+    }
     private JsonNode parseOne(String line) throws Exception {
         Flux<String> responseFlux = ReflectionTestUtils.invokeMethod(
                 service,

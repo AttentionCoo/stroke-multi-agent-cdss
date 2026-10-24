@@ -127,6 +127,35 @@ public class ConversationPersistenceService {
         log.info("流开始即落库用户问题: talkId={}, userId={}", talkId, userId);
     }
 
+    /**
+     * HITL 复核完成后追加最终报告。
+     * 用户问题已在进入复核前持久化，本方法只追加 assistant 消息与对应思考链轮次。
+     */
+    @Transactional
+    public void appendAssistantMessage(Long userId, Long talkId, String answer, String thinkingRoundJson) {
+        if (userId == null || talkId == null || answer == null || answer.isBlank()) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        Cont aiCont = new Cont();
+        aiCont.setUserId(userId);
+        aiCont.setTalkId(talkId);
+        aiCont.setContent(answer);
+        aiCont.setRole("assistant");
+        aiCont.setImages(null);
+        aiCont.setCreateTime(now);
+        contService.save(aiCont);
+
+        Talk talk = talkService.getById(talkId);
+        if (talk == null || !userId.equals(talk.getUserId())) {
+            throw new IllegalStateException("对话不存在或无权限");
+        }
+        talk.setContent(answer);
+        talk.setThinkingJson(appendThinkingRound(talk.getThinkingJson(), thinkingRoundJson));
+        talk.setUpdateTime(now);
+        talkService.updateById(talk);
+        log.info("HITL 复核报告已追加: talkId={}, answerLen={}", talkId, answer.length());
+    }
     private String serializeImages(List<String> images) {
         if (images == null || images.isEmpty()) {
             return null;

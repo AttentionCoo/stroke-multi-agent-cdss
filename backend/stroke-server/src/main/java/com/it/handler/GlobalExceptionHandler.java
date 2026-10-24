@@ -23,6 +23,12 @@ public class GlobalExceptionHandler {
         return Result.error(ex.getMessage());
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public Result illegalArgumentHandler(IllegalArgumentException ex) {
+        log.warn("业务参数校验失败: {}", ex.getMessage());
+        return Result.error(ex.getMessage());
+    }
+
     @ExceptionHandler
     public Result exceptionHandler(SQLIntegrityConstraintViolationException ex){
         String msgs =ex.getMessage();

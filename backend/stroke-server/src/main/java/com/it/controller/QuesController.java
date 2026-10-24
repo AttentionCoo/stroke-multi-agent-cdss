@@ -167,7 +167,8 @@ public class QuesController {
                         question,
                         upstreamToken,
                         images,
-                        quesParam.getPatientId()
+                        quesParam.getPatientId(),
+                        Boolean.TRUE.equals(quesParam.getHumanReview())
                 )
                 .map(this::wrapChunkIfNeeded);
 
