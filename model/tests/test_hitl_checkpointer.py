@@ -157,6 +157,7 @@ async def test_human_review_reject_feeds_back_and_retries():
     r = await builder._human_review_node(state)
     assert r["review_approved"] is False
     assert r["review_feedback"] == "请补充CTA评估"
+    assert r["review_decision"] == {}  # 下一次进入 human_review 时应重新挂起
     assert r["validation_feedback"] == "请补充CTA评估"
     assert r["review_count"] == 1
     # 未达上限 → 重新会诊

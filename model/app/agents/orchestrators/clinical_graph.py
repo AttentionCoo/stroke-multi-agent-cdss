@@ -391,9 +391,13 @@ class ClinicalGraphBuilder:
             "human_review_done": True,
             "review_count": review_count,
         }
-        if not approved and feedback:
-            # 医生意见注入校验反馈, reason 节点的反思提示会消费它
-            update["validation_feedback"] = feedback
+        if not approved:
+            # 驳回后清空本轮决定: 重新会诊完成并通过校验后, 下一次 human_review
+            # 应再次挂起等待医生复核, 而不是复用上一次驳回决定自动循环。
+            update["review_decision"] = {}
+            if feedback:
+                # 医生意见注入校验反馈, reason 节点的反思提示会消费它
+                update["validation_feedback"] = feedback
         logger.info(
             "[human_review] 医生复核: %s (累计驳回 %d 次)",
             "通过" if approved else f"驳回: {feedback[:80]}", review_count,
