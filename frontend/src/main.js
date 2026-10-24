@@ -30,3 +30,11 @@ app.component('PasswordSVG', PasswordSVG)
 app.component('SendSVG', SendSVG)
 
 app.mount('#app')
+// PWA: 生产环境注册 Service Worker，支持安装到桌面/手机和静态资源缓存
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((error) => {
+      console.warn('Service Worker 注册失败', error)
+    })
+  })
+}

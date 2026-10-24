@@ -18,3 +18,5 @@ export const reviewStrokeAssessmentAPI = (id, data) =>
   request.post(`/stroke-assessments/${id}/reviews`, data)
 
 export const exportStrokeAssessmentFhirAPI = (id) => request.get(`/stroke-assessments/${id}/fhir`)
+
+export const getStrokeAssessmentQcStatsAPI = () => request.get('/stroke-assessments/qc-stats')

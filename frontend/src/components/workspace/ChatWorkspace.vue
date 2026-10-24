@@ -1,5 +1,5 @@
 <script setup>
-import { defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import DeleteSVG from '@/components/svg/DeleteSVG.vue'
@@ -13,11 +13,13 @@ import { compressImage } from '@/utils/imageCompress'
 import { copyText } from '@/utils/clipboard'
 import { stripThinkingMarkdown } from '@/utils/thinkingEvents'
 import AttachFileSVG from '../svg/AttachFileSVG.vue'
-import { showError, showWarning } from '@/utils/feedback'
+import { showError, showSuccess, showWarning } from '@/utils/feedback'
+import { submitDoctorFeedbackAPI } from '@/api/feedback'
 
 defineOptions({ name: 'ChatWorkspace' })
 
 const PdfPreviewModal = defineAsyncComponent(() => import('@/components/PdfPreviewModal.vue'))
+const ReportWorkbench = defineAsyncComponent(() => import('@/components/ReportWorkbench.vue'))
 
 marked.setOptions({ gfm: true, breaks: true })
 
@@ -104,6 +106,7 @@ const emit = defineEmits([
   'sync-conversation',
   'open-patient-workspace',
   'create-patient',
+  'resume-review',
 ])
 
 const draftMessage = ref('')
@@ -167,8 +170,117 @@ const userScrolled = ref(false)
 const isHistoryCollapsed = ref(false)
 const isMobileLayout = ref(false)
 const isSyncExpanded = ref(false)
+const patientContextExpanded = ref(true)
 // 复制反馈: 当前显示"已复制"的消息下标(-1 表示无)
 const copiedMsgIndex = ref(-1)
+// ── AI 报告工作台 ─────────────────────────────
+const reportWorkbench = ref({
+  visible: false,
+  messageIndex: -1,
+  content: '',
+  title: '临床辅助分析报告',
+})
+
+function openReportWorkbench(msg, index) {
+  reportWorkbench.value = {
+    visible: true,
+    messageIndex: index,
+    content: msgText(msg),
+    title: props.syncPatient?.name
+      ? `${props.syncPatient.name} · 临床辅助分析报告`
+      : '临床辅助分析报告',
+  }
+}
+
+function closeReportWorkbench() {
+  reportWorkbench.value = { ...reportWorkbench.value, visible: false }
+}
+// ── HITL 医生复核与回答反馈 ─────────────────────────────
+const reviewBeforeReport = ref(true)
+const reviewDrafts = reactive({})
+const feedbackDrafts = reactive({})
+const feedbackSubmitting = reactive({})
+const feedbackDone = reactive({})
+
+try {
+  const savedReview = localStorage.getItem('chat-review-before-report')
+  if (savedReview !== null) reviewBeforeReport.value = savedReview === '1'
+} catch {
+  // localStorage 不可用时使用默认值
+}
+
+function toggleReviewBeforeReport() {
+  reviewBeforeReport.value = !reviewBeforeReport.value
+  try {
+    localStorage.setItem('chat-review-before-report', reviewBeforeReport.value ? '1' : '0')
+  } catch {
+    // 忽略
+  }
+}
+
+function humanReviewData(index) {
+  return props.thinkingHistoryList[index]?.humanReview || null
+}
+
+function reviewFeedbackText(index) {
+  return reviewDrafts[index]?.feedback || ''
+}
+
+function setReviewFeedback(index, value) {
+  reviewDrafts[index] = { ...(reviewDrafts[index] || {}), feedback: value }
+}
+
+function submitReviewDecision(index, approved) {
+  const review = humanReviewData(index)
+  if (!review?.taskId || props.isStreaming) return
+  emit('resume-review', {
+    taskId: review.taskId,
+    approved,
+    feedback: approved ? '' : reviewFeedbackText(index).trim(),
+    index,
+  })
+}
+
+function submitPositiveFeedback(msg, index) {
+  if (!props.currentTalkId || feedbackDone[index] || feedbackSubmitting[index]) return
+  submitFeedback(msg, index, 1, 'useful', '')
+}
+
+function openNegativeFeedback(index) {
+  if (feedbackDone[index] || feedbackSubmitting[index]) return
+  feedbackDrafts[index] = { ...(feedbackDrafts[index] || {}), visible: true, category: '内容准确性', comment: '' }
+}
+
+function updateFeedbackDraft(index, key, value) {
+  feedbackDrafts[index] = { ...(feedbackDrafts[index] || {}), [key]: value }
+}
+
+async function submitNegativeFeedback(msg, index) {
+  const draft = feedbackDrafts[index]
+  if (!draft || feedbackSubmitting[index] || feedbackDone[index]) return
+  await submitFeedback(msg, index, -1, draft.category || '其他', draft.comment || '')
+}
+
+async function submitFeedback(msg, index, rating, category, comment) {
+  if (!props.currentTalkId) return
+  feedbackSubmitting[index] = true
+  try {
+    await submitDoctorFeedbackAPI({
+      talkId: props.currentTalkId,
+      rating,
+      category,
+      comment,
+      answerExcerpt: String(msgText(msg) || '').slice(0, 4000),
+    })
+    feedbackDone[index] = true
+    feedbackDrafts[index] = { ...(feedbackDrafts[index] || {}), visible: false }
+    showSuccess(rating > 0 ? '感谢反馈' : '已记录反馈，后续会用于改进')
+  } catch (error) {
+    showError(error?.msg || error?.message || '反馈提交失败')
+  } finally {
+    feedbackSubmitting[index] = false
+  }
+}
 // 信息缺口追问: 补充文本草稿
 const askDraft = ref('')
 
@@ -530,6 +642,7 @@ function handleSendMessage() {
   emit('send-message', {
     text: text || '请分析这张图片',
     images: imageList.value.map((item) => item.dataUrl),
+    humanReview: reviewBeforeReport.value,
   })
   draftMessage.value = ''
   imageList.value = []
@@ -838,6 +951,23 @@ function evidenceCardsFor(msg, index) {
         </div>
       </div>
 
+      <section v-if="syncPatient" class="patient-context-strip" :class="{ expanded: patientContextExpanded }">
+        <button type="button" class="patient-context-summary" @click="patientContextExpanded = !patientContextExpanded">
+          <span class="patient-context-avatar">{{ (syncPatient.name || '患').slice(0, 1) }}</span>
+          <span class="patient-context-title">
+            <strong>{{ syncPatient.name }}</strong>
+            <small>{{ syncPatient.aiOpinion?.riskLevel || '风险待评估' }} · {{ syncPatient.history || '暂无病史摘要' }}</small>
+          </span>
+          <span class="patient-context-toggle">{{ patientContextExpanded ? '收起' : '展开' }}</span>
+        </button>
+        <div v-if="patientContextExpanded" class="patient-context-body">
+          <div><span>既往病史</span><p>{{ syncPatient.history || '暂无记录' }}</p></div>
+          <div><span>医生备注</span><p>{{ syncPatient.notes || '暂无记录' }}</p></div>
+          <div><span>最近 AI 意见</span><p>{{ syncPatient.aiOpinion?.suggestion || syncPatient.aiSummary || '暂无记录' }}</p></div>
+          <button type="button" class="context-open-btn" @click="emit('open-patient-workspace', syncPatient.id)">打开患者档案与时间线</button>
+        </div>
+      </section>
+
       <main ref="chatContainerRef" class="chat-messages">
         <div v-if="chatLoading" class="empty-card">正在加载历史对话...</div>
 
@@ -897,6 +1027,56 @@ function evidenceCardsFor(msg, index) {
                     </button>
                   </div>
                 </div>
+                <!-- HITL 医生复核卡片：会诊在生成最终报告前挂起 -->
+                <div
+                  v-if="humanReviewData(index) && humanReviewData(index).status === 'PENDING' && !(isStreaming || isThinking)"
+                  class="hitl-review-card"
+                >
+                  <div class="hitl-review-head">
+                    <strong>🛡️ 会诊结论待医生复核</strong>
+                    <span>{{ humanReviewData(index).taskId ? `任务 #${humanReviewData(index).taskId}` : '任务创建失败' }}</span>
+                  </div>
+                  <p class="hitl-review-hint">
+                    系统已完成专家会诊。请核对共识与风险后再决定是否生成正式报告；驳回后会把意见送回专家重新论证。
+                  </p>
+                  <div class="hitl-review-grid">
+                    <article v-if="humanReviewData(index).payload?.consensus">
+                      <h5>专家共识</h5>
+                      <p>{{ humanReviewData(index).payload.consensus }}</p>
+                    </article>
+                    <article v-if="humanReviewData(index).payload?.proposal">
+                      <h5>综合提案</h5>
+                      <p>{{ humanReviewData(index).payload.proposal }}</p>
+                    </article>
+                  </div>
+                  <div v-if="humanReviewData(index).payload?.key_risks?.length" class="hitl-risk-list">
+                    <span>关键风险</span>
+                    <ul>
+                      <li v-for="(risk, ri) in humanReviewData(index).payload.key_risks" :key="ri">{{ risk }}</li>
+                    </ul>
+                  </div>
+                  <textarea
+                    :value="reviewFeedbackText(index)"
+                    rows="3"
+                    placeholder="驳回时请填写修改意见；批准时可留空。"
+                    @input="setReviewFeedback(index, $event.target.value)"
+                  ></textarea>
+                  <div class="hitl-review-actions">
+                    <button
+                      type="button"
+                      class="review-reject-btn"
+                      :disabled="!humanReviewData(index).taskId || !reviewFeedbackText(index).trim() || thinkingHistoryList[index]?.reviewSubmitting"
+                      @click="submitReviewDecision(index, false)"
+                    >驳回并重新会诊</button>
+                    <button
+                      type="button"
+                      class="review-approve-btn"
+                      :disabled="!humanReviewData(index).taskId || thinkingHistoryList[index]?.reviewSubmitting"
+                      @click="submitReviewDecision(index, true)"
+                    >批准并生成报告</button>
+                  </div>
+                </div>
+
                 <!-- 降级 fallback：无思考记录时显示旧版弹跳点（兼容历史消息） -->
                 <div
                   v-if="!msgText(msg) && isThinking && index === currentTalkList.length - 1 && !getThinkingData(index)"
@@ -944,6 +1124,52 @@ function evidenceCardsFor(msg, index) {
                     :class="{ copied: copiedMsgIndex === index }"
                     @click="handleCopy(msg, index)"
                   >{{ copiedMsgIndex === index ? '✓ 已复制' : '📋 复制答案' }}</button>
+                  <button
+                    type="button"
+                    class="copy-btn report-workbench-btn"
+                    @click="openReportWorkbench(msg, index)"
+                  >✍️ 报告工作台</button>
+                </div>
+                <!-- 医生对 AI 回答的结构化反馈 -->
+                <div
+                  v-if="msgText(msg) && !(isStreaming && index === currentTalkList.length - 1)"
+                  class="answer-feedback"
+                >
+                  <span class="feedback-label">本回答：</span>
+                  <template v-if="!feedbackDone[index]">
+                    <button type="button" class="feedback-btn" :disabled="feedbackSubmitting[index]" @click="submitPositiveFeedback(msg, index)">
+                      👍 有帮助
+                    </button>
+                    <button type="button" class="feedback-btn" :disabled="feedbackSubmitting[index]" @click="openNegativeFeedback(index)">
+                      👎 需改进
+                    </button>
+                  </template>
+                  <span v-else class="feedback-thanks">✓ 已反馈，感谢</span>
+
+                  <div v-if="feedbackDrafts[index]?.visible" class="feedback-form">
+                    <select
+                      :value="feedbackDrafts[index]?.category || '内容准确性'"
+                      @change="updateFeedbackDraft(index, 'category', $event.target.value)"
+                    >
+                      <option value="内容准确性">内容准确性</option>
+                      <option value="证据支持不足">证据支持不足</option>
+                      <option value="存在安全风险">存在安全风险</option>
+                      <option value="格式或表达不佳">格式或表达不佳</option>
+                      <option value="其他">其他</option>
+                    </select>
+                    <textarea
+                      :value="feedbackDrafts[index]?.comment || ''"
+                      rows="2"
+                      placeholder="请补充具体问题，便于后续改进（可选）"
+                      @input="updateFeedbackDraft(index, 'comment', $event.target.value)"
+                    ></textarea>
+                    <div class="feedback-form-actions">
+                      <button type="button" class="feedback-cancel-btn" @click="feedbackDrafts[index].visible = false">取消</button>
+                      <button type="button" class="feedback-submit-btn" :disabled="feedbackSubmitting[index]" @click="submitNegativeFeedback(msg, index)">
+                        {{ feedbackSubmitting[index] ? '提交中...' : '提交反馈' }}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </template>
             </div>
@@ -995,6 +1221,13 @@ function evidenceCardsFor(msg, index) {
             @keydown.enter.exact.prevent="handleSendMessage" />
 
           <div class="input-actions">
+            <button
+              type="button"
+              class="review-mode-btn"
+              :class="{ active: reviewBeforeReport }"
+              :title="reviewBeforeReport ? '当前开启：生成报告前需医生复核（点击关闭）' : '当前关闭：AI 直接生成报告（点击开启复核）'"
+              @click="toggleReviewBeforeReport"
+            >🛡 复核</button>
             <!-- 🎤 语音录入按钮（Web Speech API, 中文识别） -->
             <button
               v-if="voiceSupported"
@@ -1117,7 +1350,15 @@ function evidenceCardsFor(msg, index) {
 
       </div>
     </aside>
-  </section>
+    <ReportWorkbench
+      :visible="reportWorkbench.visible"
+      :talk-id="currentTalkId"
+      :message-index="reportWorkbench.messageIndex"
+      :initial-content="reportWorkbench.content"
+      :initial-title="reportWorkbench.title"
+      @close="closeReportWorkbench"
+    />
+    </section>
 </template>
 
 <style scoped lang="scss">
@@ -2272,4 +2513,369 @@ function evidenceCardsFor(msg, index) {
 @keyframes voice-pulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.15); }
-}</style>
+}/* ── HITL 医生复核卡片 ───────────────────────── */
+.review-mode-btn {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-input);
+  color: var(--color-text-medium);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.review-mode-btn.active {
+  border-color: var(--color-active-border);
+  color: var(--color-active-border);
+  background: var(--color-badge-accent-bg);
+  font-weight: 700;
+}
+
+.hitl-review-card {
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--color-orange) 45%, var(--color-border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-orange) 7%, var(--color-bg-light));
+}
+
+.hitl-review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-orange);
+}
+
+.hitl-review-head span {
+  font-size: 11px;
+  color: var(--color-text-weak);
+}
+
+.hitl-review-hint {
+  margin: 8px 0 12px;
+  color: var(--color-text-medium);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.hitl-review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.hitl-review-grid article {
+  min-width: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-item);
+}
+
+.hitl-review-grid h5,
+.hitl-risk-list > span {
+  margin: 0 0 6px;
+  color: var(--color-text-label);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.hitl-review-grid p {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text-medium);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.hitl-risk-list {
+  margin-top: 10px;
+  padding: 10px;
+  border-left: 3px solid var(--color-orange);
+  background: var(--color-bg-base);
+  border-radius: 6px;
+}
+
+.hitl-risk-list ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--color-text-medium);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.hitl-review-card > textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: var(--color-bg-input);
+  color: var(--color-text-strong);
+  font: inherit;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.hitl-review-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.hitl-review-actions button {
+  border-radius: 7px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+}
+
+.hitl-review-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.review-reject-btn {
+  color: var(--color-text-medium);
+  background: var(--color-bg-base);
+}
+
+.review-approve-btn {
+  color: #fff;
+  background: var(--color-active-border);
+  border-color: var(--color-active-border);
+}
+
+/* ── AI 回答反馈 ───────────────────────── */
+.answer-feedback {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border-item);
+  color: var(--color-text-weak);
+  font-size: 12px;
+}
+
+.feedback-label {
+  color: var(--color-text-weak);
+}
+
+.feedback-btn {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: var(--color-bg-base);
+  color: var(--color-text-medium);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.feedback-btn:hover {
+  border-color: var(--color-active-border);
+  color: var(--color-active-border);
+}
+
+.feedback-thanks {
+  color: var(--color-active-border);
+}
+
+.feedback-form {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 4px;
+  padding: 10px;
+  border: 1px solid var(--color-border-item);
+  border-radius: 8px;
+  background: var(--color-bg-light);
+}
+
+.feedback-form select,
+.feedback-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-input);
+  color: var(--color-text-strong);
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.feedback-form textarea {
+  resize: vertical;
+}
+
+.feedback-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.feedback-form-actions button {
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.feedback-cancel-btn {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-base);
+  color: var(--color-text-medium);
+}
+
+.feedback-submit-btn {
+  border: 1px solid var(--color-active-border);
+  background: var(--color-active-border);
+  color: #fff;
+}
+
+@media (max-width: 720px) {
+  .hitl-review-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hitl-review-actions {
+    flex-direction: column;
+  }
+
+  .hitl-review-actions button {
+    width: 100%;
+  }
+}
+
+/* ── 患者上下文条 ───────────────────────── */
+.patient-context-strip {
+  margin: 0 14px 8px;
+  border: 1px solid var(--color-border-item);
+  border-radius: 10px;
+  background: var(--color-bg-light);
+  overflow: hidden;
+}
+
+.patient-context-summary {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: none;
+  background: transparent;
+  padding: 9px 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.patient-context-avatar {
+  flex: 0 0 27px;
+  height: 27px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-active-bg);
+  color: var(--color-active-border);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.patient-context-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.patient-context-title strong {
+  display: block;
+  color: var(--color-text-strong);
+  font-size: 12px;
+}
+
+.patient-context-title small {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-text-weak);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patient-context-toggle {
+  color: var(--color-active-border);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.patient-context-body {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 11px 11px;
+  border-top: 1px dashed var(--color-border-item);
+  margin-top: 0;
+  padding-top: 9px;
+}
+
+.patient-context-body > div {
+  min-width: 0;
+  padding: 8px;
+  border-radius: 7px;
+  background: var(--color-bg-base);
+}
+
+.patient-context-body span {
+  display: block;
+  color: var(--color-text-label);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.patient-context-body p {
+  margin: 4px 0 0;
+  color: var(--color-text-medium);
+  font-size: 11px;
+  line-height: 1.55;
+  max-height: 46px;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.context-open-btn {
+  grid-column: 1 / -1;
+  justify-self: end;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-base);
+  color: var(--color-active-border);
+  border-radius: 6px;
+  padding: 5px 9px;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.report-workbench-btn {
+  border-color: color-mix(in srgb, var(--color-active-border) 40%, var(--color-border));
+  color: var(--color-active-border);
+}
+
+@media (max-width: 720px) {
+  .patient-context-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+</style>

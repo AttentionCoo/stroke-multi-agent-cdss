@@ -1,11 +1,14 @@
 <script setup>
-import { computed, defineAsyncComponent, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import AppAvatar from '@/components/AppAvatar.vue'
 import UserDialog from '@/components/UserDialog.vue'
 import ChatWorkspace from '@/components/workspace/ChatWorkspace.vue'
 import PatientFormDialog from '@/components/workspace/PatientFormDialog.vue'
 import PatientWorkspace from '@/components/workspace/PatientWorkspace.vue'
 import WorkspaceTabs from '@/components/workspace/WorkspaceTabs.vue'
+import GlobalSearchPalette from '@/components/GlobalSearchPalette.vue'
+import NotificationCenter from '@/components/NotificationCenter.vue'
+import ClinicalCalculatorDrawer from '@/components/ClinicalCalculatorDrawer.vue'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
 import {
@@ -13,6 +16,7 @@ import {
   getChatHistoryAPI,
   getChatTitlesAPI,
   newChatStreamAPI,
+  resumeClinicalReviewStreamAPI,
   sendQuestionStreamAPI,
 } from '@/api/talk'
 import {
@@ -24,6 +28,7 @@ import {
 } from '@/api/patient'
 import { getLearningMaterialDetailAPI, getLearningMaterialsAPI } from '@/api/learning'
 import { analyzePatientAPI, syncTalkToPatientAPI } from '@/api/ai'
+import { getDashboardSummaryAPI } from '@/api/dashboard'
 import { createThinkingHistorySlots, mergeThinkingEvent } from '@/utils/thinkingEvents'
 import { buildPatientAwareRequest, resolveLinkedPatientId } from '@/utils/patientMemory'
 import { showConfirm, showError, showSuccess, showWarning } from '@/utils/feedback'
@@ -36,11 +41,23 @@ const GreenwayWorkspace = defineAsyncComponent(
 const LearningWorkspace = defineAsyncComponent(
   () => import('@/components/workspace/LearningWorkspace.vue'),
 )
+const DashboardWorkspace = defineAsyncComponent(
+  () => import('@/components/workspace/DashboardWorkspace.vue'),
+)
+const ReviewCenterWorkspace = defineAsyncComponent(
+  () => import('@/components/workspace/ReviewCenterWorkspace.vue'),
+)
+const QualityWorkspace = defineAsyncComponent(
+  () => import('@/components/workspace/QualityWorkspace.vue'),
+)
 
 const tabs = [
+  { key: 'dashboard', label: '工作台', hint: '待办与临床态势' },
   { key: 'chat', label: '智能诊疗', hint: '对话与同步分析' },
   { key: 'greenway', label: '急诊绿道', hint: '结构化评估与审核' },
   { key: 'patients', label: '患者管理', hint: '病历与AI意见' },
+  { key: 'reviews', label: '复核中心', hint: 'HITL医生复核' },
+  { key: 'quality', label: '质量中心', hint: '质控与系统状态' },
   {
     key: 'learning',
     label: '医生学习',
@@ -57,9 +74,13 @@ const themeStore = useThemeStore()
 const NEW_TALK_ID = ''
 const LAST_TALK_KEY = 'stroke_last_talk_id'
 
-const activeTab = ref('chat')
+const activeTab = ref('dashboard')
 const activeLearningView = ref('pdfs')
 const isDialogShow = ref(false)
+const searchVisible = ref(false)
+const notificationsVisible = ref(false)
+const calculatorVisible = ref(false)
+const notificationCount = ref(0)
 
 const talkTitleList = ref([])
 const currentTalkId = ref(NEW_TALK_ID)
@@ -249,7 +270,12 @@ watch(currentTalkId, (talkId) => {
 })
 
 onMounted(async () => {
-  await Promise.allSettled([fetchTalkTitle(), fetchPatients()])
+  document.addEventListener('keydown', handleGlobalShortcut)
+  await Promise.allSettled([fetchTalkTitle(), fetchPatients(), loadNotificationCount()])
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleGlobalShortcut)
 })
 
 function normalizeTalkTitles(payload) {
@@ -388,6 +414,7 @@ async function fetchTalkHistory(talkId = currentTalkId.value) {
           elapsedSeconds: round.elapsedSeconds ?? null,
           usage: round.usage ?? null,
           askDoctor: round.askDoctor ?? null,
+          humanReview: round.humanReview ?? null,
           nodeStats: round.nodeStats ?? {},
           startTime: Date.now(),
         })
@@ -499,7 +526,7 @@ function findSafeBoundary(text) {
   return lastSafe
 }
 
-async function handleSendMessage({ text, images } = {}) {
+async function handleSendMessage({ text, images, humanReview = true } = {}) {
   if (!text || isStreaming.value) return
 
   // 新一轮发送: 清除"已打断"提示(医生补充信息后继续)
@@ -541,6 +568,14 @@ async function handleSendMessage({ text, images } = {}) {
     thinkingEntry.usage = usage
   }
 
+  // HITL 医生复核(human_review 事件): 当前回答挂起, 前端展示复核卡片。
+  const onHumanReview = (payload) => {
+    thinkingEntry.humanReview = payload
+    if (mySeq === streamSeq) {
+      isThinking.value = false
+      thinkingHint.value = '会诊结论等待医生复核'
+    }
+  }
   // 信息缺口追问(ask_doctor 事件): 记录缺口清单供补充卡片展示
   const onAskDoctor = (payload) => {
     if (payload?.questions?.length) thinkingEntry.askDoctor = payload
@@ -648,9 +683,10 @@ async function handleSendMessage({ text, images } = {}) {
   try {
     // 选择患者后，服务端会安全加载该患者的分层记忆。
     const requestPayload = buildPatientAwareRequest(text, syncPatientId.value, images)
+    requestPayload.humanReview = humanReview !== false
     streamPromise =
       currentTalkId.value === NEW_TALK_ID
-        ? newChatStreamAPI(requestPayload, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit)
+        ? newChatStreamAPI(requestPayload, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit, onHumanReview)
         : sendQuestionStreamAPI(
           { ...requestPayload, talkId: currentTalkId.value },
           onChunk,
@@ -659,6 +695,7 @@ async function handleSendMessage({ text, images } = {}) {
           onAskDoctor,
           onNodeStats,
           onInit,
+          onHumanReview,
         )
     activeStream = streamPromise
     activeStreamTalkId = currentTalkId.value === NEW_TALK_ID ? null : currentTalkId.value
@@ -770,6 +807,98 @@ async function handleSendMessage({ text, images } = {}) {
   }
 }
 
+/**
+ * HITL 医生复核续跑：
+ * - 批准：继续生成最终报告并追加到当前 AI 消息；
+ * - 驳回：携带医生意见回到专家会诊，可能再次挂起并刷新复核卡片。
+ */
+async function handleResumeReview({ taskId, approved, feedback, index } = {}) {
+  if (!taskId || isStreaming.value) return
+  let aiIndex = Number.isInteger(index) ? index : -1
+  if (aiIndex < 0) {
+    for (let i = currentTalkList.value.length - 1; i >= 0; i -= 1) {
+      if (currentTalkList.value[i]?.role === 'assistant') {
+        aiIndex = i
+        break
+      }
+    }
+  }
+  if (aiIndex < 0) return
+
+  const entry = thinkingHistoryList.value[aiIndex]
+  if (entry) entry.reviewSubmitting = true
+  const mySeq = ++streamSeq
+  let streamPromise = null
+  let nextReview = null
+  let answer = ''
+
+  isStreaming.value = true
+  isThinking.value = true
+  thinkingHint.value = approved ? '正在生成最终报告...' : '正在根据医生意见重新会诊...'
+
+  try {
+    streamPromise = resumeClinicalReviewStreamAPI(
+      taskId,
+      { approved: Boolean(approved), feedback: String(feedback || '') },
+      (chunk) => {
+        if (mySeq !== streamSeq) return
+        answer += chunk
+        if (isThinking.value) {
+          isThinking.value = false
+          thinkingHint.value = ''
+          if (entry) {
+            entry.elapsedSeconds = Math.round((Date.now() - entry.startTime) / 1000)
+          }
+        }
+        currentTalkList.value[aiIndex] = { role: 'assistant', content: answer, images: [] }
+      },
+      (thinking) => {
+        if (mySeq !== streamSeq || !entry) return
+        mergeThinkingEvent(entry.events, thinking)
+      },
+      (usage) => {
+        if (entry) entry.usage = usage
+      },
+      (review) => {
+        if (mySeq !== streamSeq) return
+        nextReview = review
+        if (entry) entry.humanReview = review
+      },
+    )
+    activeStream = streamPromise
+    activeStreamTalkId = currentTalkId.value
+
+    const finalResult = await streamPromise
+    if (mySeq !== streamSeq) return
+    const finalContent = finalResult?.data?.content
+    if (typeof finalContent === 'string' && finalContent) {
+      answer = finalContent
+      currentTalkList.value[aiIndex] = { role: 'assistant', content: answer, images: [] }
+    }
+    if (entry) {
+      entry.humanReview = nextReview || null
+      entry.reviewSubmitting = false
+    }
+    if (!nextReview) {
+      await refreshTitleList()
+    }
+  } catch (error) {
+    if (mySeq !== streamSeq) return
+    if (entry) entry.reviewSubmitting = false
+    console.error('医生复核续跑失败', error)
+    showError(error?.msg || error?.message || '复核续跑失败，请稍后重试')
+  } finally {
+    if (activeStream === streamPromise) {
+      activeStream = null
+      activeStreamTalkId = null
+    }
+    if (mySeq === streamSeq) {
+      isStreaming.value = false
+      isThinking.value = false
+      thinkingHint.value = ''
+    }
+  }
+}
 async function handleDeleteChat(talkId) {
   if (!talkId || talkId === NEW_TALK_ID) {
     handleNewChat()
@@ -1117,6 +1246,82 @@ function handleMaterialSearch() {
   fetchMaterials()
 }
 
+async function loadNotificationCount() {
+  try {
+    const res = await getDashboardSummaryAPI()
+    const stats = res.data?.stats || {}
+    notificationCount.value = Number(stats.pendingReviewCount || 0) + Number(stats.dueFollowupCount || 0)
+  } catch {
+    notificationCount.value = 0
+  }
+}
+
+function handleGlobalShortcut(event) {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault()
+    searchVisible.value = true
+    return
+  }
+  if (event.key === 'Escape') {
+    searchVisible.value = false
+    notificationsVisible.value = false
+    calculatorVisible.value = false
+  }
+}
+
+async function openTalkById(talkId) {
+  const normalized = normalizeTalkId(talkId)
+  if (!normalized) return
+  detachActiveStream()
+  activeTab.value = 'chat'
+  currentTalkId.value = normalized
+  await fetchTalkHistory(normalized)
+}
+
+function handleSearchNavigate(result) {
+  if (!result?.type) return
+  if (result.type === 'patient') {
+    openPatientWorkspace(result.id)
+    return
+  }
+  if (result.type === 'talk') {
+    openTalkById(result.id)
+    return
+  }
+  if (result.type === 'knowledge') {
+    activeTab.value = 'learning'
+    activeLearningView.value = 'pdfs'
+  }
+}
+
+function handleCommand(command) {
+  if (command === 'new-chat') {
+    activeTab.value = 'chat'
+    handleNewChat()
+    return
+  }
+  if (command === 'calculator') {
+    calculatorVisible.value = true
+    return
+  }
+  if (['greenway', 'patients', 'reviews', 'quality'].includes(command)) {
+    activeTab.value = command
+  }
+}
+
+function handleNotificationNavigate(item) {
+  if (item?.type === 'review') {
+    activeTab.value = 'reviews'
+    return
+  }
+  if (item?.type === 'followup' && item.patientId) {
+    openPatientWorkspace(item.patientId)
+  }
+}
+
+function handleDashboardOpenReviewCenter() {
+  activeTab.value = 'reviews'
+}
 function handleWorkspaceTabChange(payload) {
   if (!payload?.key) return
 
@@ -1163,6 +1368,11 @@ async function handleGreenwayAnalyze(caseText) {
       <WorkspaceTabs :tabs="tabs" :active-tab="activeTab" :active-child-tab="activeLearningView"
         @change="handleWorkspaceTabChange" />
       <div class="header-right">
+        <button type="button" class="header-utility" title="全局搜索 (Ctrl+K)" @click="searchVisible = true">⌕</button>
+        <button type="button" class="header-utility" title="临床计算器" @click="calculatorVisible = true">🧮</button>
+        <button type="button" class="header-utility notification-utility" title="通知中心" @click="notificationsVisible = true">
+          🔔<span v-if="notificationCount" class="notification-badge">{{ notificationCount > 99 ? '99+' : notificationCount }}</span>
+        </button>
         <button type="button" class="theme-toggle" :title="themeStore.dark ? '切换到浅色模式' : '切换到深色模式'"
           @click="themeStore.toggle()">
           <svg v-if="themeStore.dark" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
@@ -1191,7 +1401,12 @@ async function handleGreenwayAnalyze(caseText) {
     </section>
 
     <main class="workspace-content">
-      <ChatWorkspace v-if="activeTab === 'chat'" v-model:sync-patient-id="syncPatientId"
+      <DashboardWorkspace v-if="activeTab === 'dashboard'"
+        @change-tab="activeTab = $event"
+        @open-patient="openPatientWorkspace"
+        @open-review-center="handleDashboardOpenReviewCenter" />
+
+      <ChatWorkspace v-else-if="activeTab === 'chat'" v-model:sync-patient-id="syncPatientId"
         :talk-title-list="talkTitleList" :current-talk-id="currentTalkId" :current-talk-list="currentTalkList"
         :is-streaming="isStreaming" :is-thinking="isThinking" :thinking-hint="thinkingHint"
         :interrupted="interrupted"
@@ -1200,7 +1415,7 @@ async function handleGreenwayAnalyze(caseText) {
         :can-sync-conversation="canSyncConversation" :sync-result="syncResult" @select-talk="handleSelectTalk"
         @new-chat="handleNewChat" @delete-chat="handleDeleteChat" @delete-all="handleDeleteAll"
         @send-message="handleSendMessage" @interrupt="handleInterrupt" @sync-conversation="handleSyncConversation"
-        @open-patient-workspace="openPatientWorkspace" @create-patient="openCreatePatient" />
+        @open-patient-workspace="openPatientWorkspace" @create-patient="openCreatePatient" @resume-review="handleResumeReview" />
 
       <PatientWorkspace v-else-if="activeTab === 'patients'" v-model:query="patientQuery"
         v-model:analysis-text="patientAnalysisText" :patients="patients" :patient-total="patientTotal"
@@ -1213,7 +1428,13 @@ async function handleGreenwayAnalyze(caseText) {
       <GreenwayWorkspace v-else-if="activeTab === 'greenway'" :patients="patients"
         @analyze="handleGreenwayAnalyze" @create-patient="openCreatePatient" />
 
-      <LearningWorkspace v-else v-model:query="learningQuery" v-model:view="activeLearningView" :materials="materials"
+      <ReviewCenterWorkspace v-else-if="activeTab === 'reviews'" @updated="loadNotificationCount" />
+
+      <QualityWorkspace v-else-if="activeTab === 'quality'"
+        @change-tab="activeTab = $event"
+        @open-review-center="handleDashboardOpenReviewCenter" />
+
+      <LearningWorkspace v-else-if="activeTab === 'learning'" v-model:query="learningQuery" v-model:view="activeLearningView" :materials="materials"
         :learning-total="learningTotal" :materials-loading="materialsLoading" :selected-material-id="selectedMaterialId"
         :material-detail="materialDetail" :material-detail-loading="materialDetailLoading"
         :material-page-count="materialPageCount" @search="handleMaterialSearch" @select-material="handleSelectMaterial"
@@ -1222,6 +1443,12 @@ async function handleGreenwayAnalyze(caseText) {
 
     <PatientFormDialog v-model:form="patientForm" :visible="patientFormVisible" :mode="patientFormMode"
       @close="patientFormVisible = false" @submit="submitPatientForm" />
+
+    <GlobalSearchPalette :visible="searchVisible" @close="searchVisible = false"
+      @navigate="handleSearchNavigate" @command="handleCommand" />
+    <NotificationCenter :visible="notificationsVisible" @close="notificationsVisible = false"
+      @navigate="handleNotificationNavigate" @updated="loadNotificationCount" />
+    <ClinicalCalculatorDrawer :visible="calculatorVisible" @close="calculatorVisible = false" />
   </div>
 </template>
 
@@ -1365,4 +1592,41 @@ async function handleGreenwayAnalyze(caseText) {
     margin: 0;
   }
 }
+.header-utility {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-medium);
+  cursor: pointer;
+  font-size: 17px;
+  transition: all var(--transition-normal);
+
+  &:hover {
+    background: var(--color-ghost-hover);
+    color: var(--color-text-strong);
+  }
+}
+
+.notification-badge {
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--color-red);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 15px;
+  text-align: center;
+}
+
 </style>

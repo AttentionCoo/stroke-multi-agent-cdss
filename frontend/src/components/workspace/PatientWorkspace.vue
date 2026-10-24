@@ -1,7 +1,16 @@
 <script setup>
+import { ref, watch } from 'vue'
+import {
+  completePatientFollowupAPI,
+  createPatientFollowupAPI,
+  getPatientFollowupsAPI,
+  getPatientTimelineAPI,
+} from '@/api/patient'
+import { showError, showSuccess } from '@/utils/feedback'
+
 defineOptions({ name: 'PatientWorkspace' })
 
-defineProps({
+const props = defineProps({
   patients: {
     type: Array,
     default: () => [],
@@ -50,6 +59,151 @@ function shortText(value, fallback = '暂无内容') {
   return text || fallback
 }
 
+const followups = ref([])
+const timeline = ref([])
+const followupLoading = ref(false)
+const timelineLoading = ref(false)
+const completingId = ref(null)
+const followupForm = ref({
+  plannedDate: defaultFollowupDate(),
+  followupType: 'OUTPATIENT',
+  notes: '',
+})
+const completionForm = ref({
+  mrsScore: 1,
+  recurrence: 'UNKNOWN',
+  adherence: 'UNKNOWN',
+  notes: '',
+})
+
+function defaultFollowupDate(days = 7) {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatDate(value) {
+  if (!value) return '未设置'
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return String(value)
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleDateString('zh-CN')
+}
+
+function followupStatusLabel(status) {
+  return { PENDING: '待随访', COMPLETED: '已完成', CANCELLED: '已取消' }[status] || status || '未知'
+}
+
+function followupTypeLabel(type) {
+  return { OUTPATIENT: '门诊', PHONE: '电话', WECHAT: '微信', OTHER: '其他' }[type] || '其他'
+}
+
+function timelineIcon(type) {
+  return {
+    patient: '👤',
+    patient_update: '📝',
+    stroke_assessment: '⏱️',
+    ai_opinion: '🤖',
+    health_data: '📈',
+    followup: '📅',
+  }[type] || '•'
+}
+
+async function loadPatientExtras(patientId) {
+  if (!patientId) {
+    followups.value = []
+    timeline.value = []
+    return
+  }
+  followupLoading.value = true
+  timelineLoading.value = true
+  try {
+    const [followupResult, timelineResult] = await Promise.allSettled([
+      getPatientFollowupsAPI(patientId),
+      getPatientTimelineAPI(patientId),
+    ])
+    followups.value = followupResult.status === 'fulfilled' && Array.isArray(followupResult.value.data)
+      ? followupResult.value.data
+      : []
+    timeline.value = timelineResult.status === 'fulfilled' && Array.isArray(timelineResult.value.data)
+      ? timelineResult.value.data
+      : []
+    if (followupResult.status === 'rejected') {
+      showError(followupResult.reason?.msg || '随访记录加载失败')
+    }
+    if (timelineResult.status === 'rejected') {
+      showError(timelineResult.reason?.msg || '患者时间线加载失败')
+    }
+  } finally {
+    followupLoading.value = false
+    timelineLoading.value = false
+  }
+}
+
+async function reloadPatientExtras() {
+  await loadPatientExtras(props.patientDetail?.id)
+}
+
+async function submitFollowup() {
+  const patientId = props.patientDetail?.id
+  if (!patientId || !followupForm.value.plannedDate) return
+  try {
+    await createPatientFollowupAPI(patientId, {
+      plannedDate: followupForm.value.plannedDate,
+      followupType: followupForm.value.followupType,
+      notes: followupForm.value.notes,
+    })
+    showSuccess('随访任务已创建')
+    followupForm.value = {
+      plannedDate: defaultFollowupDate(),
+      followupType: 'OUTPATIENT',
+      notes: '',
+    }
+    await reloadPatientExtras()
+  } catch (error) {
+    showError(error?.msg || error?.message || '随访任务创建失败')
+  }
+}
+
+function beginComplete(followup) {
+  completingId.value = followup.id
+  completionForm.value = {
+    mrsScore: followup.mrsScore ?? 1,
+    recurrence: followup.recurrence || 'UNKNOWN',
+    adherence: followup.adherence || 'UNKNOWN',
+    notes: followup.notes || '',
+  }
+}
+
+async function submitCompletion(followup) {
+  const patientId = props.patientDetail?.id
+  if (!patientId || !followup?.id) return
+  try {
+    await completePatientFollowupAPI(patientId, followup.id, {
+      plannedDate: followup.plannedDate,
+      mrsScore: Number(completionForm.value.mrsScore),
+      recurrence: completionForm.value.recurrence,
+      adherence: completionForm.value.adherence,
+      notes: completionForm.value.notes,
+    })
+    completingId.value = null
+    showSuccess('随访结局已保存')
+    await reloadPatientExtras()
+  } catch (error) {
+    showError(error?.msg || error?.message || '随访结局保存失败')
+  }
+}
+
+watch(
+  () => props.patientDetail?.id,
+  (patientId) => {
+    loadPatientExtras(patientId)
+  },
+  { immediate: true },
+)
 function formatDateTime(value) {
   if (!value) return '暂无时间'
 
@@ -183,6 +337,103 @@ function formatDateTime(value) {
           <textarea v-model="analysisText" class="analysis-input" rows="6"
             placeholder="例如：近三天血压持续偏高，夜间头痛加重，伴手脚麻木..."></textarea>
           <button type="button" class="primary-action" @click="emit('analyze-patient')">执行风险分析</button>
+        </section>
+        <section class="detail-card followup-card">
+          <div class="detail-title-row">
+            <div>
+              <p class="summary-label">随访与结局</p>
+              <h4>卒中随访管理</h4>
+            </div>
+            <small>{{ followups.filter((item) => item.status === 'PENDING').length }} 个待随访</small>
+          </div>
+
+          <form class="followup-create" @submit.prevent="submitFollowup">
+            <input v-model="followupForm.plannedDate" type="date" required />
+            <select v-model="followupForm.followupType">
+              <option value="OUTPATIENT">门诊</option>
+              <option value="PHONE">电话</option>
+              <option value="WECHAT">微信</option>
+              <option value="OTHER">其他</option>
+            </select>
+            <input v-model="followupForm.notes" type="text" placeholder="随访重点，如血压、用药、mRS" />
+            <button type="submit" class="secondary-action">新增随访</button>
+          </form>
+
+          <div v-if="followupLoading" class="empty-inline">正在加载随访记录...</div>
+          <div v-else-if="followups.length" class="followup-list">
+            <article v-for="item in followups" :key="item.id" class="followup-item" :class="{ completed: item.status === 'COMPLETED' }">
+              <div class="followup-item-head">
+                <div>
+                  <strong>{{ followupTypeLabel(item.followupType) }}随访</strong>
+                  <small>计划 {{ formatDate(item.plannedDate) }}</small>
+                </div>
+                <span class="followup-status">{{ followupStatusLabel(item.status) }}</span>
+              </div>
+              <p v-if="item.status === 'COMPLETED'">
+                mRS {{ item.mrsScore ?? '未填' }} · 复发 {{ item.recurrence || '未填' }} · 服药依从性 {{ item.adherence || '未填' }}
+              </p>
+              <p v-if="item.notes">{{ item.notes }}</p>
+              <button v-if="item.status === 'PENDING'" type="button" class="link-btn" @click="beginComplete(item)">录入随访结局</button>
+
+              <div v-if="completingId === item.id" class="completion-form">
+                <label>
+                  mRS
+                  <select v-model="completionForm.mrsScore">
+                    <option v-for="score in 7" :key="score - 1" :value="score - 1">{{ score - 1 }}</option>
+                  </select>
+                </label>
+                <label>
+                  复发
+                  <select v-model="completionForm.recurrence">
+                    <option value="NO">无</option>
+                    <option value="YES">有</option>
+                    <option value="UNKNOWN">未知</option>
+                  </select>
+                </label>
+                <label>
+                  服药依从性
+                  <select v-model="completionForm.adherence">
+                    <option value="GOOD">良好</option>
+                    <option value="PARTIAL">部分</option>
+                    <option value="POOR">差</option>
+                    <option value="UNKNOWN">未知</option>
+                  </select>
+                </label>
+                <textarea v-model="completionForm.notes" rows="2" placeholder="本次随访记录与处置"></textarea>
+                <div class="completion-actions">
+                  <button type="button" class="secondary-action" @click="completingId = null">取消</button>
+                  <button type="button" class="primary-action" @click="submitCompletion(item)">保存结局</button>
+                </div>
+              </div>
+            </article>
+          </div>
+          <div v-else class="empty-inline">暂无随访任务，可为患者创建 7/30/90 天随访。</div>
+        </section>
+
+        <section class="detail-card">
+          <div class="detail-title-row">
+            <div>
+              <p class="summary-label">纵向健康档案</p>
+              <h4>患者时间线</h4>
+            </div>
+            <small>评估、AI意见、健康数据与随访</small>
+          </div>
+
+          <div v-if="timelineLoading" class="empty-inline">正在加载患者时间线...</div>
+          <div v-else-if="timeline.length" class="patient-timeline">
+            <article v-for="(event, eventIndex) in timeline" :key="`${event.type}-${event.sourceId || eventIndex}`" class="timeline-item">
+              <span class="timeline-icon">{{ timelineIcon(event.type) }}</span>
+              <div class="timeline-body">
+                <div class="timeline-title">
+                  <strong>{{ event.title }}</strong>
+                  <small>{{ formatDateTime(event.time) }}</small>
+                </div>
+                <p>{{ event.summary }}</p>
+                <small v-if="event.status" class="timeline-status">{{ event.status }}</small>
+              </div>
+            </article>
+          </div>
+          <div v-else class="empty-inline">暂无纵向记录。完成绿道评估、AI 分析或随访后会出现在这里。</div>
         </section>
       </div>
 
@@ -380,4 +631,227 @@ function formatDateTime(value) {
     grid-template-columns: 1fr;
   }
 }
+/* ── 随访与患者时间线 ───────────────────────── */
+.followup-create {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.8fr) minmax(100px, 0.6fr) minmax(180px, 1.8fr) auto;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.followup-create input,
+.followup-create select,
+.completion-form select,
+.completion-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: var(--color-bg-input);
+  color: var(--color-text-strong);
+  font: inherit;
+  font-size: 12px;
+}
+
+.followup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.followup-item {
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-item);
+  border-left: 3px solid var(--color-orange);
+  border-radius: 8px;
+  background: var(--color-bg-light);
+}
+
+.followup-item.completed {
+  border-left-color: var(--color-active-border);
+  opacity: 0.88;
+}
+
+.followup-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.followup-item-head strong {
+  display: block;
+  color: var(--color-text-strong);
+  font-size: 13px;
+}
+
+.followup-item-head small {
+  color: var(--color-text-weak);
+  font-size: 11px;
+}
+
+.followup-status {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: var(--color-badge-accent-bg);
+  color: var(--color-orange);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.followup-item.completed .followup-status {
+  color: var(--color-active-border);
+}
+
+.followup-item p {
+  margin: 7px 0 0;
+  color: var(--color-text-medium);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.followup-item .link-btn {
+  margin-top: 8px;
+}
+
+.completion-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(100px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-item);
+}
+
+.completion-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--color-text-label);
+  font-size: 11px;
+}
+
+.completion-form textarea,
+.completion-actions {
+  grid-column: 1 / -1;
+}
+
+.completion-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.patient-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding-left: 4px;
+}
+
+.timeline-item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px dashed var(--color-border-item);
+}
+
+.timeline-item:last-child {
+  border-bottom: none;
+}
+
+.timeline-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--color-bg-light);
+  border: 1px solid var(--color-border-item);
+  font-size: 14px;
+}
+
+.timeline-body {
+  min-width: 0;
+}
+
+.timeline-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.timeline-title strong {
+  color: var(--color-text-strong);
+  font-size: 13px;
+}
+
+.timeline-title small {
+  flex-shrink: 0;
+  color: var(--color-text-weak);
+  font-size: 11px;
+}
+
+.timeline-body p {
+  margin: 4px 0 0;
+  color: var(--color-text-medium);
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.timeline-status {
+  display: inline-block;
+  margin-top: 5px;
+  border-radius: 4px;
+  padding: 2px 6px;
+  background: var(--color-bg-light);
+  color: var(--color-text-weak);
+  font-size: 10px;
+}
+
+.empty-inline {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--color-bg-light);
+  color: var(--color-text-weak);
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .followup-create {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .followup-create input:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .followup-create,
+  .completion-form {
+    grid-template-columns: 1fr;
+  }
+
+  .followup-create input:nth-child(3),
+  .completion-form textarea,
+  .completion-actions {
+    grid-column: auto;
+  }
+
+  .timeline-title {
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+
 </style>

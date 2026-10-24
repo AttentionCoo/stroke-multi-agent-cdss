@@ -33,7 +33,7 @@ const MAX_RETRIES = 3
  * @param {Function} onInit      - 收到 init 事件时回调 (talkId: string) => void
  *                                新对话思考中即可拿到真实 talkId, 供 UI 及时替换占位符
  */
-function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit) {
+function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit, options = {}) {
   const userStore = useUserStore()
   const token = userStore.token
   // 中止控制器: 供调用方在切换对话等场景主动取消在途流
@@ -46,6 +46,7 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
     let finished = false
     // 记录最近一次收到的 SSE id 字段，用于断线续传
     let lastEventId = null
+    let lastDoneStatus = "completed"
     let retryCount = 0
 
     function safeResolve(payload) {
@@ -72,6 +73,7 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
           talkId: realTalkId,
           title,
           content: fullAnswer,
+          status: lastDoneStatus,
         },
       }
     }
@@ -205,8 +207,23 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
           return
         }
 
+        // ── human_review：HITL 待医生复核 ──
+        if (type === 'human_review') {
+          if (options.onHumanReview) {
+            options.onHumanReview({
+              taskId: data.taskId,
+              talkId: data.talkId,
+              threadId: data.threadId,
+              status: data.status || 'PENDING',
+              payload: data.payload || {},
+            })
+          }
+          return
+        }
+
         // ── done：流正常结束 ──
         if (type === 'done') {
+          lastDoneStatus = data.status || 'completed'
           if (data.usage && onUsage) onUsage(data.usage)
           safeResolve(buildResult())
           return
@@ -241,7 +258,8 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
         headers['Last-Event-ID'] = lastEventId
       }
 
-      const res = await fetch('/api/user/ques/streamingQues', {
+      const endpoint = options.endpoint || '/api/user/ques/streamingQues'
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers,
         body: JSON.stringify(connectParams),
@@ -386,11 +404,24 @@ function streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNode
   return promise
 }
 
-export const sendQuestionStreamAPI = (params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit) =>
-  streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit)
+export const sendQuestionStreamAPI = (params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit, onHumanReview) =>
+  streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit, { onHumanReview })
 
-export const newChatStreamAPI = (params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit) =>
-  streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit)
+export const newChatStreamAPI = (params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit, onHumanReview) =>
+  streamRequest(params, onChunk, onThinking, onUsage, onAskDoctor, onNodeStats, onInit, { onHumanReview })
+
+export const resumeClinicalReviewStreamAPI = (
+  taskId,
+  params,
+  onChunk,
+  onThinking,
+  onUsage,
+  onHumanReview,
+) =>
+  streamRequest(params, onChunk, onThinking, onUsage, null, null, null, {
+    endpoint: `/api/clinical-reviews/${taskId}/resume`,
+    onHumanReview,
+  })
 
 // 5. 删除对话
 // talkId: 字符串
