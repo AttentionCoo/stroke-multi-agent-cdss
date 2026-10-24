@@ -311,6 +311,8 @@ Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
 - **连续性健康管理**：记录患者基本信息、既往病史、用药史及医生备注。
 - **上下文联动**：单次问诊结束后，后台异步模型自动总结当前对话重点并更新至 `all_info` 上下文，后续多轮就诊自动结合历史记录进行个体化风险评估。
 - **健康数据分析**：支持健康数据与医患对话同步，自动生成 AI 风险分析意见。
+- **随访与纵向时间线**：支持创建门诊/电话/微信随访，录入 mRS、复发与服药依从性；患者详情聚合建档、绿道评估、AI 意见、健康数据和随访结局。
+- **医生复核与反馈**：AI 会诊可在报告生成前挂起供医生批准/驳回，并可对每条 AI 回答提交结构化质量反馈。
 
 ### 4. 📚 医学知识学习与文献检索模块
 
@@ -322,6 +324,15 @@ Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
 - **离线规则评测**：对冻结输入与预测结果执行必需信息、禁用表述、引用白名单检查，输出 JSON、Markdown 和 SHA-256 哈希。
 - **多维度 API 测试**：覆盖核心推理接口、快速分析接口、同步分析接口的端到端测试。
 - **架构迁移验证**：确保系统重构后功能完整性与行为一致性。
+
+### 6. 🖥️ Web 临床工作台与医生协作
+
+- **统一工作台**：聚合在管患者、待复核会诊、到期随访、绿道评估、已签署报告与 AI 好评率。
+- **复核中心**：独立处理 HITL 任务，支持批准生成报告或填写意见驳回重审。
+- **质量与系统中心**：DNT、窗内率、字段完整率、风险信号、AI 反馈、在线用户、知识库与缓存状态。
+- **全局搜索与通知**：`Ctrl/Command + K` 搜索患者、对话和资料；通知中心聚合待复核与到期随访。
+- **临床工具**：右侧临床计算器、患者上下文侧栏、18 个医疗工具 Web 代理。
+- **AI 报告工作台**：报告编辑、原文对照、版本管理、电子签名、Markdown/Word/JSON 导出与打印。
 
 ---
 
@@ -913,6 +924,27 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 
 所有持久化接口按当前医生隔离数据；存在关键风险或信息缺失时，后端拒绝“采纳”动作。
 
+### 7. 医生复核与 AI 回答反馈
+
+| 方法与路径 | 说明 |
+|---|---|
+| `GET /api/clinical-reviews/pending?limit=20` | 查询当前医生的待复核任务 |
+| `GET /api/clinical-reviews/by-talk/{talkId}` | 查询指定对话的待复核任务 |
+| `POST /api/clinical-reviews/{taskId}/resume` | SSE 续跑；批准后生成报告，驳回后携意见重新会诊 |
+| `POST /api/feedback` | 提交 AI 回答反馈（`rating=1/-1`） |
+| `GET /api/feedback/summary` | 当前医生反馈汇总 |
+
+会诊推理请求新增可选字段 `humanReview`。为 `true` 时，Python 会在报告生成前挂起，Java 创建 `clinical_review_task` 并向前端推送 `human_review` 事件；前端刷新后可从历史接口恢复复核卡片。
+
+### 8. 患者随访与纵向时间线
+
+| 方法与路径 | 说明 |
+|---|---|
+| `GET /api/patients/{patientId}/followups` | 查询患者随访任务 |
+| `POST /api/patients/{patientId}/followups` | 创建门诊/电话/微信/其他随访 |
+| `PUT /api/patients/{patientId}/followups/{followupId}/complete` | 录入 mRS、复发、服药依从性与随访记录 |
+| `GET /api/patients/{patientId}/followups/summary` | 待随访数量 |
+| `GET /api/patients/{patientId}/timeline` | 聚合患者建档、绿道评估、AI 意见、健康数据与随访时间线 |
 > 📖 完整 API 文档请参阅 [docs/backend-technical-documentation.md](docs/backend-technical-documentation.md) 第 7 节：API 接口规范。
 
 ---
@@ -922,6 +954,8 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 | 文档 | 说明 |
 |------|------|
 | [docs/model-layer-technical-documentation.md](docs/model-layer-technical-documentation.md) | ★ **模型层技术文档（完整版）** — 20 节：入口与启动、模型路由、LangGraph 推理图、流式 SSE 事件契约、Agentic RAG、18 工具、结构化输出、检查点 HITL、多专家会诊、校验合规、提问直答、安全、用量、评测、配置与目录、端到端示例 |
+| [docs/v3.0-web-clinical-workbench.md](docs/v3.0-web-clinical-workbench.md) | ★ **v3.0 Web 临床工作台** — 工作台、复核中心、质量中心、全局搜索、通知、计算器、患者上下文与 AI 报告签署 |
+| [docs/v2.11-p0-upgrade.md](docs/v2.11-p0-upgrade.md) | ★ **v2.11 P0 升级说明** — HITL 复核闭环、医生反馈、随访管理、患者纵向时间线与新增 API/数据表 |
 | [docs/backend-technical-documentation.md](docs/backend-technical-documentation.md) | ★ **后端技术文档（完整版）** — 涵盖架构设计、数据库设计、SSE 通信、安全体系、限流熔断、部署架构等 15 个章节 |
 | [docs/tool-calling-design.md](docs/tool-calling-design.md) | ★ 脑卒中医疗工具集（Skill & Tool Calling）设计文档 — 工具清单、LangGraph 集成、API 规范、测试 |
 | [docs/retrieval-pipeline-design.md](docs/retrieval-pipeline-design.md) | ★ 循证检索流程设计文档 — 临床决策驱动检索、Evidence Router、Query Translator、混合检索、Mismatch Filter、失败恢复 |
@@ -936,6 +970,30 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 ---
 
 ## 🔄 版本更新日志
+
+### v3.0.0 (2026-10-24) — Web 临床工作台
+
+- ✅ **统一临床工作台**：新增 `/api/dashboard/summary` 聚合接口，展示在管患者、待复核、到期随访、绿道评估、已签署报告和 AI 好评率。
+- ✅ **医生复核中心**：独立处理 HITL 复核任务，可直接批准生成报告或填写意见驳回重审。
+- ✅ **质量与系统中心**：聚合 DNT、窗内率、关键字段完整率、风险信号、AI 反馈、在线用户、知识库与缓存状态。
+- ✅ **全局搜索与通知中心**：支持 `Ctrl/Command + K` 搜索患者、对话和资料；通知中心聚合待复核与到期随访。
+- ✅ **患者上下文侧栏**：问诊页直接查看当前患者病史、备注和最近 AI 意见。
+- ✅ **临床计算器抽屉**：内置 rt-PA 剂量、时间窗、GCS、mRS、CHA₂DS₂-VASc、HAS-BLED。
+- ✅ **AI 报告工作台**：新增医生可编辑、可版本化、可签署的报告工作台，支持 Markdown、Word、JSON 导出与打印/PDF。
+- ✅ **PWA 移动端入口**：增加 Manifest、应用图标和 Service Worker，可安装到桌面/手机，静态资源支持缓存。
+- ✅ **临床工具代理**：新增 `/api/tools/list` 与 `/api/tools/call`，将模型层 18 个临床工具开放给 Web 端。
+- ✅ **数据库**：新增 V6 `clinical_report` 报告表；所有新接口按当前医生做对话/患者归属校验。
+- 📖 详细说明见 [docs/v3.0-web-clinical-workbench.md](docs/v3.0-web-clinical-workbench.md)。
+
+### v2.11.0 (2026-10-24) — P0 全链路升级：HITL 复核、医生反馈与患者纵向管理
+
+- ✅ **HITL 医生复核闭环**：前端新增「🛡 复核」开关；会诊结论生成报告前挂起，医生可批准或填写意见驳回重审；Java 新增复核任务持久化与 `/api/clinical-reviews/{taskId}/resume` 流式续跑接口；刷新页面后仍可恢复待复核卡片。
+- ✅ **AI 回答医生反馈**：每条 AI 回答支持「有帮助 / 需改进」结构化反馈，记录分类、说明与回答摘要；新增 `/api/feedback` 与反馈汇总接口。
+- ✅ **患者随访与结局管理**：支持创建门诊/电话/微信随访，录入 mRS、复发、服药依从性与随访记录；新增患者随访表与完整 CRUD 接口。
+- ✅ **患者纵向时间线**：聚合患者建档、绿道评估、AI 意见、健康数据与随访结局，前端患者详情直接展示。
+- ✅ **数据与安全**：新增 Flyway `V4` 迁移（复核任务、医生反馈、患者随访）与 `V5` 迁移（修复患者时间字段类型并补全历史时间）；所有新接口按当前医生做对话/患者归属校验；HITL 驳回必须填写意见。
+- ✅ **文档**：新增 [docs/v2.11-p0-upgrade.md](docs/v2.11-p0-upgrade.md)，包含接口、数据表、安全约束与验收命令。
+- ✅ **兼容性**：`human_review` 为可选开关，未传时保持原有自动生成报告流程；原有 SSE 事件、对话历史与患者记忆链路保持兼容。
 
 ### v2.10.1 (2026-08-24) — 模型层文档与注释完善
 

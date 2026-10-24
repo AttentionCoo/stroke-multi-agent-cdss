@@ -1,6 +1,6 @@
 services:
   mysql:
-    image: ${DOCKER_BASE_IMAGE_REGISTRY:-public.ecr.aws/docker/library}/mysql:8.4
+    image: ${DOCKER_BASE_IMAGE_REGISTRY:-docker.io/library}/mysql:8.4
     container_name: stroke-mysql
     restart: unless-stopped
     environment:
@@ -18,7 +18,7 @@ services:
       retries: 5
 
   redis:
-    image: ${DOCKER_BASE_IMAGE_REGISTRY:-public.ecr.aws/docker/library}/redis:7-alpine
+    image: ${DOCKER_BASE_IMAGE_REGISTRY:-docker.io/library}/redis:7-alpine
     container_name: stroke-redis
     restart: unless-stopped
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-stroke-local-only}", "--appendonly", "yes"]
@@ -41,7 +41,7 @@ services:
       context: ./backend/stroke-server
       dockerfile: Dockerfile
       args:
-        BASE_IMAGE_REGISTRY: ${DOCKER_BASE_IMAGE_REGISTRY:-public.ecr.aws/docker/library}
+        BASE_IMAGE_REGISTRY: ${DOCKER_BASE_IMAGE_REGISTRY:-docker.io/library}
     container_name: stroke-backend
     restart: unless-stopped
     ports:
@@ -85,7 +85,7 @@ services:
       context: ./model
       dockerfile: Dockerfile
       args:
-        BASE_IMAGE_REGISTRY: ${DOCKER_BASE_IMAGE_REGISTRY:-public.ecr.aws/docker/library}
+        BASE_IMAGE_REGISTRY: ${DOCKER_BASE_IMAGE_REGISTRY:-docker.io/library}
         DEBIAN_MIRROR: ${DEBIAN_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn}
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
     container_name: stroke-model
@@ -131,7 +131,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        BASE_IMAGE_REGISTRY: ${DOCKER_BASE_IMAGE_REGISTRY:-public.ecr.aws/docker/library}
+        BASE_IMAGE_REGISTRY: ${DOCKER_BASE_IMAGE_REGISTRY:-docker.io/library}
     container_name: stroke-frontend
     restart: unless-stopped
     ports:
