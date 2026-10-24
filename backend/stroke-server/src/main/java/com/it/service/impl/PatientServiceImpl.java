@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -131,6 +132,9 @@ public class PatientServiceImpl extends ServiceImpl<PatientMapper, Patient> impl
         patient.setHistory(param.getHistory());
         patient.setNotes(param.getNotes());
         patient.setDoctorId(doctorId);
+        LocalDateTime now = LocalDateTime.now();
+        patient.setCreateTime(now);
+        patient.setUpdateTime(now);
         this.save(patient);
 
         // 清除该医生的分页缓存
@@ -151,6 +155,7 @@ public class PatientServiceImpl extends ServiceImpl<PatientMapper, Patient> impl
         patient.setName(param.getName());
         patient.setHistory(param.getHistory());
         patient.setNotes(param.getNotes());
+        patient.setUpdateTime(LocalDateTime.now());
         this.updateById(patient);
 
         // 清除该医生的分页缓存 + 该患者的详情缓存
