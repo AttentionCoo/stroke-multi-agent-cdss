@@ -16,6 +16,8 @@
   <a href="https://spring.io/projects/spring-boot"><img src="https://img.shields.io/badge/Spring_Boot-4.0.7-6DB33F?style=flat-square&logo=springboot&logoColor=white" alt="Spring Boot"></a>
   <a href="https://redis.io/"><img src="https://img.shields.io/badge/Redis-7-FF4438?style=flat-square&logo=redis&logoColor=white" alt="Redis"></a>
   <a href="https://www.langchain.com/langgraph"><img src="https://img.shields.io/badge/LangGraph-1.2-1C3C3C?style=flat-square&logo=langchain&logoColor=white" alt="LangGraph"></a>
+  <a href="docs/v3.0-web-clinical-workbench.md"><img src="https://img.shields.io/badge/Web_Workbench-v3.0-11967F?style=flat-square" alt="Web Workbench"></a>
+  <a href="frontend/public/manifest.webmanifest"><img src="https://img.shields.io/badge/PWA-Ready-5A0FC8?style=flat-square" alt="PWA Ready"></a>
   <a href="https://github.com/AttentionCoo/stroke-multi-agent-cdss/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/badge/Status-Active-brightgreen?style=flat-square" alt="Status">
 </p>
@@ -23,6 +25,8 @@
 ---
 
 > 本项目是一套面向脑卒中（Stroke）临床场景的智能医疗辅助决策原型。系统以本地医学文献与临床指南为知识底座，融合 **Hybrid RAG（混合检索增强生成）**、**LangGraph 多智能体协同推理**、结构化绿道预评估与医生复核审计，支持从病例输入、证据检索到辅助分析和人工复核的完整演示流程。
+>
+> v3.0 进一步升级为 **Web 临床工作台**：统一工作台、HITL 医生复核中心、质量与系统中心、全局搜索、患者纵向时间线、反馈闭环、AI 报告编辑签署与 PWA 移动端入口。
 
 ---
 
@@ -62,6 +66,26 @@ intent → memory → analysis → tool_use → research_plan → evidence_route
 - 全程版本快照（模型/知识库/Prompt 随报告留痕）→ 可追溯。
 
 **对外介绍建议**：可称"基于 LangGraph 的多智能体协作式临床决策系统"（reason/debate/consensus 的多角色协作是真实的），但内部本质是受控编排工作流。
+
+---
+
+## 🖥️ Web 临床工作台
+
+v3.0 将原本以聊天页为核心的前端升级为完整临床工作平台，默认进入「工作台」，顶部导航可切换智能诊疗、急诊绿道、患者管理、复核中心、质量中心和医生学习。
+
+| 能力 | 入口 | 说明 |
+|---|---|---|
+| 统一工作台 | 工作台 | 聚合在管患者、待复核、到期随访、绿道评估、已签署报告与 AI 好评率 |
+| HITL 医生复核 | 复核中心 | 查看专家共识与风险，批准生成报告或填写意见驳回重审 |
+| 质量与系统中心 | 质量中心 | DNT、窗内率、字段完整率、风险信号、反馈、在线用户、知识库和缓存状态 |
+| 全局搜索 | `Ctrl/Command + K` | 搜索患者、历史对话与医学资料 |
+| 通知中心 | 顶部铃铛 | 聚合待复核会诊和到期随访 |
+| 患者上下文 | 智能诊疗 | 显示当前患者病史、备注、最近 AI 意见与档案入口 |
+| 临床计算器 | 顶部计算器 | rt-PA、时间窗、GCS、mRS、CHA₂DS₂-VASc、HAS-BLED |
+| AI 报告工作台 | AI 回答下方「报告工作台」 | 编辑、版本化、电子签名、Markdown/Word/JSON 导出与打印/PDF |
+| PWA | 浏览器安装入口 | 支持安装到桌面/手机，缓存静态资源，不缓存 API |
+
+> 详细说明见 [docs/v3.0-web-clinical-workbench.md](docs/v3.0-web-clinical-workbench.md)。
 
 ---
 
@@ -109,6 +133,8 @@ docker compose ps
 | 后端 | `http://localhost:8080` | Spring Boot API 服务 |
 | 模型服务 | `http://localhost:8000/docs` | FastAPI 接口文档 |
 
+> v3.0 默认进入「工作台」；可通过顶部导航切换模块，使用 `Ctrl/Command + K` 打开全局搜索，并从顶部铃铛查看待办通知。前端支持安装为 PWA。
+
 后续代码没有变化时，日常启动只需要执行：
 
 ```bash
@@ -117,10 +143,13 @@ docker compose up -d
 
 如果服务没有全部启动成功，先执行 `docker compose ps` 查看状态，再用 `docker compose logs -f <服务名>` 查看日志。更多环境变量、手动启动和排错命令见 [快速接入与本地部署](#-快速接入与本地部署)。
 
+> 默认基础镜像仓库为 `docker.io/library`。在网络受限或构建器无法解析镜像元数据的环境中，可先使用 `docker build --pull=false` 分别构建 `model`、`backend`、`frontend` 镜像，再执行 `docker compose up -d --no-build`。
+
 ---
 
 ## 📑 目录导航
 
+- [🖥️ Web 临床工作台](#️-web-临床工作台)
 - [⚡ 快速启动](#-快速启动)
 - [🌟 项目核心亮点与创新](#-项目核心亮点与创新)
 - [🏗️ 全栈系统架构与技术矩阵](#️-全栈系统架构与技术矩阵)
@@ -167,24 +196,24 @@ docker compose up -d
 
 后端通过 `WebClient`/Reactor 转发 SSE 流，模型服务使用 Python Asyncio，前端通过 Vue 3 `ReadableStream` 增量渲染。**思考链实时打印**：全部推理节点（意图识别、病例分析、检索规划、证据路由、证据评估、专家会诊、校验等）改用 `astream` + `stream_writer` 边生成边推送，三位专家的独立意见在面板中**并行实时滚动**，报告以打字机方式增量输出；界面完整展示可观察的分析阶段、各节点过程全文、证据引用与校验状态。
 
-### 🆕 8. 用户指示优先与思考链全量复制
+### 🆕 4. 用户指示优先与思考链全量复制
 
 - **用户指示优先**：专家推理、报告生成、知识问答与快速分析各环节强制遵循用户提问中的明确指示（如「用表格」「分点回答」「先给最紧急的处置」「简洁/详细」等），指定回答顺序时报告以「紧急处置速览」章节置顶回应。
 - **思考链全量打印与复制**：16 个推理步骤的完整内容（三位专家独立意见全文、交叉质询、主持人共识、检索证据全文）不限高度完整展示；支持「复制全部」一键带走整条思考链，或按步骤单独复制（如仅复制某位专家意见）。
 
-### 🧠 4. 面向连续诊疗的三级患者记忆
+### 🧠 5. 面向连续诊疗的三级患者记忆
 
 选择关联患者后，Java 服务端在医生权限范围内组装**短期记忆**（当前会话）、**情景记忆**（历史健康数据与评估事件）和**语义记忆**（稳定病史与医生备注）。患者关联持久化在 `talk.patient_id`：空对话可首次绑定一位患者，之后如需切换患者必须新建对话，从源头避免跨患者历史混入。模型侧 `MemoryNode` 仅激活本轮所需的受限上下文；未选择患者时不加载长期记忆，显式选择无权访问的患者时后端会拒绝请求。
 
-### 🆕 5. 分层测试与可复现评测
+### 🆕 6. 分层测试与可复现评测
 
 系统配备前端、后端与模型层自动化测试；新增离线评测运行器，对必需信息、禁用表述、引用白名单和结果哈希进行可复现检查。临床结论仍需使用冻结病例集和专家盲评另行验证。
 
-### 🆕 6. 脑卒中医疗工具调用（Skill & Tool Calling）
+### 🆕 7. 脑卒中医疗工具调用（Skill & Tool Calling）
 
 系统内置 18 个脑卒中领域工具（NIHSS/mRS/GCS 量表、溶栓时间窗、rt-PA 剂量、禁忌症筛查、TOAST 分型、LVO 筛查、ASPECTS/CHA₂DS₂-VASc/HAS-BLED 等附加评估、药物相互作用检查、ICD-10 诊断编码等），通过 LangGraph `tool_use` 节点接入推理链：LLM 以 function calling 自主选择工具，结果注入多专家推理；当弱模型判断信息不足时，规则引擎按病例临床线索自动兜底调度，确保明确的评估/检查需求不被遗漏。工具既可在推理链中调用，也可通过独立 API 直接使用。
 
-### 🆕 7. AI 对话命名与体验优化
+### 🆕 8. AI 对话命名与体验优化
 
 系统在推理完成后基于「问题 + AI 回答」自动生成对话标题（如「房颤患者溶栓评估」「急性脑梗死」），用简洁医学术语概括对话主题；对话列表过滤空内容记录，新建对话占位符在刷新时稳定保留；被范围拦截的无关问题（如「你好」）也会创建并保存对话，确保每条消息都有迹可循。
 
@@ -286,7 +315,7 @@ Java ←→ Redis:       Lettuce (响应式 Redis 7 客户端)
 
 ## ⚙️ 系统整体功能模块
 
-本项目围绕医疗辅助分析场景，构建了五个可演示模块：
+本项目围绕医疗辅助分析场景，构建了六个可演示模块：
 
 ### 1. 🤖 智能问诊与 AI 临床辅助分析模块
 
@@ -945,6 +974,19 @@ Java 转发接口额外接收可选的 `patientId`。数据库由 Flyway 的 `V2
 | `PUT /api/patients/{patientId}/followups/{followupId}/complete` | 录入 mRS、复发、服药依从性与随访记录 |
 | `GET /api/patients/{patientId}/followups/summary` | 待随访数量 |
 | `GET /api/patients/{patientId}/timeline` | 聚合患者建档、绿道评估、AI 意见、健康数据与随访时间线 |
+
+### 9. Web 工作台、全局搜索与报告 API
+
+| 方法与路径 | 说明 |
+|---|---|
+| `GET /api/dashboard/summary` | 工作台聚合：患者、待复核、到期随访、绿道评估、反馈与报告签署 |
+| `GET /api/search?q=关键词` | 全局搜索患者、历史对话与医学资料 |
+| `GET /api/tools/list` | Web 端获取 18 个临床工具 schema |
+| `POST /api/tools/call` | Web 端调用指定临床工具 |
+| `GET /api/reports/by-talk/{talkId}` | 查询对话关联的报告版本 |
+| `POST /api/reports` | 保存 AI 报告草稿并递增版本 |
+| `POST /api/reports/{reportId}/sign` | 医生电子签署报告 |
+
 > 📖 完整 API 文档请参阅 [docs/backend-technical-documentation.md](docs/backend-technical-documentation.md) 第 7 节：API 接口规范。
 
 ---
